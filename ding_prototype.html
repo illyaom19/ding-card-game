@@ -201,6 +201,23 @@
     .lock h2{margin:0 0 8px 0}
     .lock p{margin:0 0 12px 0; color:var(--muted)}
     .footerNote{margin-top:10px; color:var(--muted); font-size:12px}
+
+    /* Deal & swap animations 🔧 */
+    .fly-in{
+      animation: flyIn .45s cubic-bezier(.2,.9,.2,1) both;
+    }
+    .fly-out{
+      animation: flyOut .35s cubic-bezier(.4,.0,.2,1) both;
+      transform-origin: center;
+    }
+    @keyframes flyIn{
+      from { transform: translateY(-24px) scale(.96); opacity: 0; filter: blur(1px); }
+      to   { transform: translateY(0) scale(1);    opacity: 1; filter: none; }
+    }
+    @keyframes flyOut{
+      from { transform: translateY(0) scale(1); opacity: 1; }
+      to   { transform: translateY(-28px) scale(.7) rotate(-8deg); opacity: 0; filter: blur(2px); }
+    }
   </style>
 </head>
 <body>
@@ -376,6 +393,12 @@ const state = {
   currentTrick: { plays: [], leadSuit: null },
   selectedCardIds: new Set(),
   selectedForSwap: new Set(),
+  // animation & deal helpers
+  incomingCardIds: new Set(), // cards that should animate in
+  // per-player initial reveal flags: players with pending initial reveal
+  playersPendingInitial: new Set(),
+  dealing: false,             // whether a deal animation is in progress
+  dealTimeouts: [],          // timeout handles for canceling scheduled deals
   lockOn: false,
   pendingRevealForIndex: null,
   lastTrickWinnerIndex: null,
@@ -433,8 +456,14 @@ function setLock(on, forIndex=null){
   els.lock.style.display = on ? "flex" : "none";
   if(on && forIndex !== null){
     const name = state.players[forIndex]?.name ?? "Next player";
-    els.lockTitle.textContent = `Pass to ${name}`;
-    els.lockText.textContent = `Give the device to ${name}. Tap reveal when ready.`;
+    // special messaging for a player who just swapped and needs to inspect new cards
+    if(state.phase === PHASE.SWAP && state.players[forIndex]?.hasSwapped){
+      els.lockTitle.textContent = `Inspect ${name}`;
+      els.lockText.textContent = `You just swapped — tap Reveal to inspect your new cards. Press Pass when ready.`;
+    } else {
+      els.lockTitle.textContent = `Pass to ${name}`;
+      els.lockText.textContent = `Give the device to ${name}. Tap reveal when ready.`;
+    }
   }
 }
 
@@ -451,6 +480,11 @@ function resetAll(){
   state.currentTrick = { plays: [], leadSuit: null };
   state.selectedCardIds = new Set();
   state.selectedForSwap = new Set();
+  state.incomingCardIds.clear();
+  state.playersPendingInitial.clear();
+  state.dealTimeouts.forEach(t => clearTimeout(t));
+  state.dealTimeouts = [];
+  state.dealing = false;
   state.lastTrickWinnerIndex = null;
   setLock(false, null);
   setError(null);
@@ -473,6 +507,9 @@ function initPlayers(names){
 
 function dealHand(){
   setError(null);
+  if(state.dealing) return;
+  state.dealing = true;
+
   // reset hand-only fields
   for(const p of state.players){
     p.hand = [];
@@ -480,26 +517,33 @@ function dealHand(){
     p.hasSwapped = false;
   }
   state.deck = shuffle(makeDeck());
-  // deal 5 each
+
+  // clear any pending incoming flags and per-player initial reveal markers
+  state.incomingCardIds.clear();
+  state.playersPendingInitial.clear();
+
+  // deal 5 cards to each player instantly, but DO NOT animate them yet
   for(let i=0;i<5;i++){
     for(const p of state.players){
       p.hand.push(state.deck.pop());
     }
   }
-  // flip trump as "last card" of deal => top of remaining deck
-  state.trumpCard = state.deck.pop();
-  state.trumpSuit = state.trumpCard.suit;
 
+  // mark everyone as needing an initial reveal animation when they press Reveal
+  for(let i=0;i<state.players.length;i++) state.playersPendingInitial.add(i);
+
+  // finalize swap state
+  state.dealing = false;
   state.phase = PHASE.SWAP;
   state.currentTurnIndex = (state.dealerIndex + 1) % state.players.length; // swap starts left of dealer
-  state.leaderIndex = state.dealerIndex; // per your description: dealer leads first trick
+  state.leaderIndex = state.dealerIndex; // per rules: dealer leads first trick
   state.trickNumber = 0;
   state.currentTrick = { plays: [], leadSuit: null };
   state.selectedCardIds.clear();
   state.selectedForSwap.clear();
 
-  // lock to first swapper
-  setLock(true, state.currentTurnIndex);
+  // lock to dealer so they can reveal and then press Pass to move to the next player
+  setLock(true, state.dealerIndex);
   render();
 }
 
@@ -529,25 +573,83 @@ function advanceSwapTurn(){
   render();
 }
 
+// Find the next player index (starting at 'start') who has NOT swapped yet. Returns null if all have swapped.
+function nextUnswappedIndex(start){
+  if(!state.players.length) return null;
+  for(let k=0;k<state.players.length;k++){
+    const idx = (start + k) % state.players.length;
+    if(!state.players[idx].hasSwapped) return idx;
+  }
+  return null;
+}
+
 function confirmSwap(){
   setError(null);
   if(state.phase !== PHASE.SWAP) return;
   const p = state.players[state.currentTurnIndex];
+
+  // prevent multiple swaps per hand
+  if(p.hasSwapped){ setError("You have already swapped this hand."); return; }
+
   const discards = Array.from(state.selectedForSwap);
   if(discards.length > 3){
     setError("You can swap at most 3 cards.");
     return;
   }
-  // remove discards from hand
+  if(state.dealing){ setError("Deal animation in progress."); return; }
+
+  // if nothing selected, interpret as a 0-card swap (allowed), but still mark as swapped
+
+  // animate discards (clone & fly out)
+  discards.forEach(id => {
+    const node = els.handArea.querySelector(`[data-card-id="${id}"]`);
+    if(node){
+      const rect = node.getBoundingClientRect();
+      const clone = node.cloneNode(true);
+      clone.style.position = 'fixed';
+      clone.style.left = rect.left + 'px';
+      clone.style.top = rect.top + 'px';
+      clone.style.width = rect.width + 'px';
+      clone.style.height = rect.height + 'px';
+      clone.style.margin = '0';
+      clone.style.zIndex = 9999;
+      document.body.appendChild(clone);
+      requestAnimationFrame(()=> clone.classList.add('fly-out'));
+      setTimeout(()=> clone.remove(), 380);
+    }
+  });
+
+  // actually remove discards from hand
   const discardSet = new Set(discards);
   p.hand = p.hand.filter(c => !discardSet.has(c.id));
-  // draw same number
+
+  // draw same number with incoming animation
   for(let i=0;i<discards.length;i++){
-    p.hand.push(state.deck.pop());
+    if(state.deck.length){
+      const card = state.deck.pop();
+      p.hand.push(card);
+      state.incomingCardIds.add(card.id);
+      // clear incoming flag after animation
+      setTimeout(()=>{ state.incomingCardIds.delete(card.id); render(); }, 600);
+    }
   }
   p.hasSwapped = true;
+  // clear selection so the UI doesn't retain previous selections
+  state.selectedForSwap.clear();
+  // leave device unlocked so player can immediately inspect their new cards without clicking Reveal
+  setLock(false, null);
+  render();
 
-  advanceSwapTurn();
+  // If the dealer just completed their swap (got their cards back), set the trump now
+  if(state.dealerIndex === state.currentTurnIndex && !state.trumpCard){
+    if(state.deck.length){
+      state.trumpCard = state.deck.pop();
+      state.trumpSuit = state.trumpCard.suit;
+    } else {
+      state.trumpCard = null;
+      state.trumpSuit = null;
+    }
+  }
 }
 
 function playableCardIdsForCurrentPlayer(){
@@ -747,6 +849,10 @@ function renderHand(){
       const btn = document.createElement("div");
       btn.className = "cardBtn " + (isRedSuit(card.suit) ? "red":"");
       btn.dataset.cardId = card.id;
+      // animate incoming cards
+      if(state.incomingCardIds.has(card.id)){
+        btn.classList.add('fly-in');
+      }
 
       const top = `${RANK_LABEL[card.rank] ?? card.rank}${SUIT_ICON[card.suit]}`;
       btn.innerHTML = `<div class="top">${top}</div>
@@ -806,7 +912,14 @@ function renderHand(){
 
   if(state.phase === PHASE.SWAP){
     els.selectedCount.textContent = String(state.selectedForSwap.size);
-    els.confirmSwapBtn.style.display = "inline-block";
+    const p = state.players[state.currentTurnIndex];
+    // only show Confirm swap if this player hasn't swapped yet
+    if(p && !p.hasSwapped){
+      els.confirmSwapBtn.style.display = "inline-block";
+      els.confirmSwapBtn.disabled = (state.selectedForSwap.size === 0 && !true); // allow 0-card swaps, so not disabled
+    } else {
+      els.confirmSwapBtn.style.display = "none";
+    }
   }
   if(state.phase === PHASE.TRICK){
     els.selectedCount.textContent = String(state.selectedCardIds.size);
@@ -855,6 +968,8 @@ function render(){
     els.lobbyArea.style.display = "none";
     els.controlsArea.style.display = "flex";
     renderScoreboard();
+    // disable deal button while a hand is in progress
+    els.startHandBtn.disabled = (state.phase !== PHASE.HAND_END) || (state.players.length < 2);
   }
 
   renderTrickArea();
@@ -884,6 +999,7 @@ els.startGameBtn.addEventListener("click", ()=>{
 
 els.startHandBtn.addEventListener("click", ()=>{
   if(state.players.length < 2) return;
+  if(state.phase !== PHASE.HAND_END){ setError("Can't deal: finish the current hand first."); return; }
   dealHand();
 });
 
@@ -900,6 +1016,26 @@ els.confirmPlayBtn.addEventListener("click", ()=>{
 els.passBtn.addEventListener("click", ()=>{
   if(state.players.length < 2) return;
   setError(null);
+
+  if(state.phase === PHASE.SWAP){
+    // If the current player has already swapped, passing advances to the next unswapped player
+    if(state.players[state.currentTurnIndex]?.hasSwapped){
+      advanceSwapTurn();
+      return;
+    }
+    // otherwise (e.g., dealer passing after deal), lock to the next unswapped player so they can reveal and swap
+    const target = nextUnswappedIndex(state.currentTurnIndex);
+    if(target !== null){
+      setLock(true, target);
+      render();
+      return;
+    }
+    // fallback
+    advanceSwapTurn();
+    return;
+  }
+
+  // default: just lock to current turn
   setLock(true, state.currentTurnIndex);
   render();
 });
@@ -907,6 +1043,28 @@ els.passBtn.addEventListener("click", ()=>{
 els.resetBtn.addEventListener("click", ()=> resetAll());
 
 els.revealBtn.addEventListener("click", ()=>{
+  // if there's a pending reveal for a locked player, animate their initial cards
+  if(state.lockOn && state.pendingRevealForIndex !== null && state.phase === PHASE.SWAP){
+    const idx = state.pendingRevealForIndex;
+    // only perform initial fly-in if this player hasn't had their initial reveal yet
+    if(state.playersPendingInitial.has(idx)){
+      // mark incoming for this player's current hand
+      state.players[idx].hand.forEach(c => state.incomingCardIds.add(c.id));
+      // remove pending flag
+      state.playersPendingInitial.delete(idx);
+      // unlock so they can interact
+      setLock(false, null);
+      render();
+      // clear incoming flags after animation duration
+      setTimeout(()=>{
+        state.players[idx].hand.forEach(c => state.incomingCardIds.delete(c.id));
+        render();
+      }, 650);
+      return;
+    }
+  }
+
+  // default reveal behavior
   setLock(false, null);
   render();
 });
