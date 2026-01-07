@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Ding (Spoil Five) — Single Device Prototype</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#121a33; --panel2:#0f1730; --text:#e9eeff;
+      --muted:#a7b0d6; --accent:#7c5cff; --danger:#ff5c7a; --good:#3ee28a;
+      --stroke:rgba(255,255,255,.12);
+      --shadow: 0 14px 40px rgba(0,0,0,.45);
+      --radius: 16px;
+      --cardW: 72px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 800px at 20% 10%, rgba(124,92,255,.25), transparent 60%),
+                  radial-gradient(900px 700px at 80% 20%, rgba(62,226,138,.18), transparent 60%),
+                  var(--bg);
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      line-height:1.25;
+    }
+    header{
+      position:sticky; top:0; z-index:10;
+      padding:14px 16px;
+      background: linear-gradient(to bottom, rgba(11,16,32,.92), rgba(11,16,32,.65));
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--stroke);
+    }
+    header .row{display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
+    .title{display:flex; gap:10px; align-items:center;}
+    .pill{
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.06);
+      padding:8px 10px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 13px;
+      display:flex; gap:8px; align-items:center;
+    }
+    .pill strong{color:var(--text); font-weight:700;}
+    main{padding:16px; max-width:1100px; margin:0 auto;}
+    .grid{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:14px;
+    }
+    @media (max-width: 960px){
+      .grid{grid-template-columns: 1fr;}
+    }
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .panel .hd{
+      padding:12px 14px;
+      border-bottom:1px solid var(--stroke);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background: rgba(255,255,255,.04);
+    }
+    .panel .bd{padding:14px;}
+    .btn{
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.07);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight:700;
+      transition:.12s transform, .12s background, .12s border;
+      user-select:none;
+    }
+    .btn:hover{transform: translateY(-1px); background: rgba(255,255,255,.10)}
+    .btn:active{transform: translateY(0px)}
+    .btn.primary{background: rgba(124,92,255,.22); border-color: rgba(124,92,255,.55)}
+    .btn.primary:hover{background: rgba(124,92,255,.28)}
+    .btn.danger{background: rgba(255,92,122,.18); border-color: rgba(255,92,122,.45)}
+    .btn.good{background: rgba(62,226,138,.18); border-color: rgba(62,226,138,.45)}
+    .btn:disabled{opacity:.45; cursor:not-allowed; transform:none}
+    .stack{display:flex; flex-direction:column; gap:10px;}
+    .small{font-size:13px; color:var(--muted)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;}
+    .scoreboard{
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .playerRow{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:10px 12px;
+      border:1px solid var(--stroke);
+      border-radius: 14px;
+      background: rgba(0,0,0,.18);
+    }
+    .playerRow .name{font-weight:800}
+    .badge{
+      padding:6px 8px; border-radius: 999px;
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.06);
+      font-size:12px; color:var(--muted);
+      display:flex; gap:6px; align-items:center;
+    }
+    .badge strong{color:var(--text)}
+    .tableArea{
+      display:flex; flex-direction:column; gap:12px;
+    }
+    .trickArea{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:stretch;
+    }
+    .trickCard{
+      min-width: 200px;
+      flex: 1 1 200px;
+      border:1px solid var(--stroke);
+      border-radius: 16px;
+      padding:12px;
+      background: rgba(0,0,0,.18);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .cardFace{
+      width: var(--cardW);
+      height: 96px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.18);
+      background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
+      display:flex; flex-direction:column; justify-content:space-between;
+      padding:10px;
+      box-shadow: 0 10px 22px rgba(0,0,0,.35);
+    }
+    .cardFace .top{font-weight:900; font-size:14px}
+    .cardFace .mid{font-size:20px; text-align:center}
+    .cardFace .bot{font-weight:900; font-size:14px; text-align:right}
+    .red{color:#ff7c95}
+    .hand{
+      display:flex; gap:10px; flex-wrap:wrap;
+      align-items:flex-end;
+    }
+    .cardBtn{
+      width: var(--cardW);
+      height: 96px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.18);
+      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
+      box-shadow: 0 10px 22px rgba(0,0,0,.35);
+      padding:10px;
+      cursor:pointer;
+      display:flex; flex-direction:column; justify-content:space-between;
+      transition: .12s transform, .12s border, .12s background;
+      user-select:none;
+    }
+    .cardBtn:hover{transform: translateY(-2px); border-color: rgba(124,92,255,.7)}
+    .cardBtn.selected{
+      transform: translateY(-6px);
+      border-color: rgba(62,226,138,.8);
+      background: linear-gradient(180deg, rgba(62,226,138,.16), rgba(255,255,255,.05));
+    }
+    .cardBtn.disabled{
+      opacity:.38; cursor:not-allowed; transform:none;
+      border-color: rgba(255,255,255,.14);
+    }
+    .cardBtn .top,.cardBtn .bot{font-weight:900; font-size:14px}
+    .cardBtn .mid{font-size:20px; text-align:center}
+    .row2{display:flex; gap:10px; flex-wrap:wrap;}
+    .input{
+      width:100%;
+      padding:10px 12px;
+      border-radius: 12px;
+      border:1px solid var(--stroke);
+      background: rgba(0,0,0,.18);
+      color: var(--text);
+      outline:none;
+    }
+    .error{
+      border:1px solid rgba(255,92,122,.55);
+      background: rgba(255,92,122,.10);
+      color: #ffd6de;
+      padding:10px 12px;
+      border-radius: 14px;
+    }
+    .lock{
+      position:fixed; inset:0;
+      background: rgba(6,8,16,.86);
+      backdrop-filter: blur(10px);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:999;
+      padding: 16px;
+    }
+    .lock .box{
+      max-width: 520px; width:100%;
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      border:1px solid var(--stroke);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+    .lock h2{margin:0 0 8px 0}
+    .lock p{margin:0 0 12px 0; color:var(--muted)}
+    .footerNote{margin-top:10px; color:var(--muted); font-size:12px}
+  </style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div class="title">
+      <div style="width:34px;height:34px;border-radius:12px;background:rgba(124,92,255,.25);border:1px solid rgba(124,92,255,.5);display:flex;align-items:center;justify-content:center;font-weight:900;">D</div>
+      <div>
+        <div style="font-weight:900;font-size:16px;">Ding — Single Device Prototype</div>
+        <div class="small">Hotseat trick-taking with swap phase (Spoil Five style)</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="pill"><span>Phase:</span> <strong id="phasePill">LOBBY</strong></div>
+      <div class="pill"><span>Trump:</span> <strong id="trumpPill">—</strong></div>
+      <div class="pill"><span>Lead suit:</span> <strong id="leadPill">—</strong></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="panel">
+      <div class="hd">
+        <div style="font-weight:900;">Game</div>
+        <div class="row2">
+          <button class="btn danger" id="resetBtn">Reset</button>
+        </div>
+      </div>
+      <div class="bd stack">
+        <div id="lobbyArea" class="stack">
+          <div class="small">Enter 2–6 player names (one per line). Then start.</div>
+          <textarea id="namesInput" class="input" rows="6" placeholder="Illya&#10;Player 2&#10;Player 3"></textarea>
+          <button class="btn primary" id="startGameBtn">Start Game</button>
+          <div class="footerNote">Tip: this prototype keeps hands secret with a “Pass device” lock screen.</div>
+        </div>
+
+        <div id="controlsArea" class="stack" style="display:none;">
+          <div class="scoreboard" id="scoreboard"></div>
+
+          <div class="row2">
+            <button class="btn primary" id="startHandBtn">Start / Deal Hand</button>
+            <button class="btn" id="passBtn">Pass device</button>
+          </div>
+
+          <div id="statusBox" class="pill" style="justify-content:space-between;">
+            <span id="statusText">—</span>
+            <span class="mono" id="deckText"></span>
+          </div>
+
+          <div id="errorBox" class="error" style="display:none;"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="hd">
+        <div style="font-weight:900;">Table</div>
+        <div class="row2">
+          <div class="badge">Turn: <strong id="turnName">—</strong></div>
+          <div class="badge">Dealer: <strong id="dealerName">—</strong></div>
+          <div class="badge">Trick: <strong id="trickNum">—</strong></div>
+        </div>
+      </div>
+      <div class="bd tableArea">
+        <div class="trickArea" id="trickArea"></div>
+
+        <div class="panel" style="border-radius:18px;">
+          <div class="hd">
+            <div style="font-weight:900;">Your hand</div>
+            <div class="row2">
+              <div class="badge">Selected: <strong id="selectedCount">0</strong></div>
+              <button class="btn good" id="confirmSwapBtn" style="display:none;">Confirm swap</button>
+              <button class="btn primary" id="confirmPlayBtn" style="display:none;">Play selected card</button>
+            </div>
+          </div>
+          <div class="bd">
+            <div class="small" id="handHint">Start a hand to see cards.</div>
+            <div class="hand" id="handArea"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="lock" id="lock">
+  <div class="box">
+    <h2 id="lockTitle">Pass the device</h2>
+    <p id="lockText">Hand is hidden. Give the device to the next player, then tap reveal.</p>
+    <div class="row2">
+      <button class="btn primary" id="revealBtn" style="flex:1;">Reveal</button>
+      <button class="btn" id="keepLockedBtn">Keep hidden</button>
+    </div>
+    <div class="footerNote">No peeking 👀</div>
+  </div>
+</div>
+
+<script>
+/** =========================
+ *  Ding Prototype (Hotseat)
+ *  =========================
+ *  Adjustable house rules:
+ *  - Next hand dealer: set DEALER_RULE
+ *    "LAST_TRICK_WINNER" (default) or "ROTATE"
+ */
+const DEALER_RULE = "LAST_TRICK_WINNER"; // or "ROTATE"
+
+const SUITS = ["C","D","H","S"];
+const SUIT_ICON = { C:"♣", D:"♦", H:"♥", S:"♠" };
+const RANK_LABEL = { 11:"J", 12:"Q", 13:"K", 14:"A" };
+
+const PHASE = {
+  LOBBY: "LOBBY",
+  SWAP: "SWAP",
+  TRICK: "TRICK",
+  HAND_END: "HAND_END",
+};
+
+function makeDeck(){
+  const deck = [];
+  for(const s of SUITS){
+    for(let r=2;r<=14;r++){
+      deck.push({ suit:s, rank:r, id:`${r}${s}` });
+    }
+  }
+  return deck;
+}
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+function cardLabel(c){
+  const r = RANK_LABEL[c.rank] ?? String(c.rank);
+  return `${r}${SUIT_ICON[c.suit]}`;
+}
+function isRedSuit(s){ return s==="H" || s==="D"; }
+
+function rankValue(c){ return c.rank; }
+
+function canFollowSuit(hand, suit){
+  return hand.some(c => c.suit === suit);
+}
+
+function determineTrickWinner(plays, leadSuit, trumpSuit){
+  // plays: [{playerIndex, card}]
+  const trumps = plays.filter(p => p.card.suit === trumpSuit);
+  const candidates = trumps.length ? trumps : plays.filter(p => p.card.suit === leadSuit);
+  // highest rank wins; ties impossible in standard deck
+  let best = candidates[0];
+  for(const p of candidates){
+    if(rankValue(p.card) > rankValue(best.card)) best = p;
+  }
+  return best.playerIndex;
+}
+
+function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+
+const state = {
+  phase: PHASE.LOBBY,
+  players: [],
+  dealerIndex: 0,
+  leaderIndex: 0,        // who leads the current trick
+  currentTurnIndex: 0,   // whose action is required (swap or play)
+  trickNumber: 0,
+  deck: [],
+  trumpCard: null,
+  trumpSuit: null,
+  currentTrick: { plays: [], leadSuit: null },
+  selectedCardIds: new Set(),
+  selectedForSwap: new Set(),
+  lockOn: false,
+  pendingRevealForIndex: null,
+  lastTrickWinnerIndex: null,
+};
+
+const els = {
+  phasePill: document.getElementById("phasePill"),
+  trumpPill: document.getElementById("trumpPill"),
+  leadPill: document.getElementById("leadPill"),
+
+  lobbyArea: document.getElementById("lobbyArea"),
+  controlsArea: document.getElementById("controlsArea"),
+  namesInput: document.getElementById("namesInput"),
+  startGameBtn: document.getElementById("startGameBtn"),
+  startHandBtn: document.getElementById("startHandBtn"),
+  passBtn: document.getElementById("passBtn"),
+  resetBtn: document.getElementById("resetBtn"),
+
+  scoreboard: document.getElementById("scoreboard"),
+  statusText: document.getElementById("statusText"),
+  deckText: document.getElementById("deckText"),
+  errorBox: document.getElementById("errorBox"),
+
+  trickArea: document.getElementById("trickArea"),
+  handArea: document.getElementById("handArea"),
+  handHint: document.getElementById("handHint"),
+  selectedCount: document.getElementById("selectedCount"),
+  confirmSwapBtn: document.getElementById("confirmSwapBtn"),
+  confirmPlayBtn: document.getElementById("confirmPlayBtn"),
+
+  turnName: document.getElementById("turnName"),
+  dealerName: document.getElementById("dealerName"),
+  trickNum: document.getElementById("trickNum"),
+
+  lock: document.getElementById("lock"),
+  lockTitle: document.getElementById("lockTitle"),
+  lockText: document.getElementById("lockText"),
+  revealBtn: document.getElementById("revealBtn"),
+  keepLockedBtn: document.getElementById("keepLockedBtn"),
+};
+
+function setError(msg){
+  if(!msg){
+    els.errorBox.style.display = "none";
+    els.errorBox.textContent = "";
+    return;
+  }
+  els.errorBox.style.display = "block";
+  els.errorBox.textContent = msg;
+}
+
+function setLock(on, forIndex=null){
+  state.lockOn = on;
+  state.pendingRevealForIndex = forIndex;
+  els.lock.style.display = on ? "flex" : "none";
+  if(on && forIndex !== null){
+    const name = state.players[forIndex]?.name ?? "Next player";
+    els.lockTitle.textContent = `Pass to ${name}`;
+    els.lockText.textContent = `Give the device to ${name}. Tap reveal when ready.`;
+  }
+}
+
+function resetAll(){
+  state.phase = PHASE.LOBBY;
+  state.players = [];
+  state.dealerIndex = 0;
+  state.leaderIndex = 0;
+  state.currentTurnIndex = 0;
+  state.trickNumber = 0;
+  state.deck = [];
+  state.trumpCard = null;
+  state.trumpSuit = null;
+  state.currentTrick = { plays: [], leadSuit: null };
+  state.selectedCardIds = new Set();
+  state.selectedForSwap = new Set();
+  state.lastTrickWinnerIndex = null;
+  setLock(false, null);
+  setError(null);
+  render();
+}
+
+function initPlayers(names){
+  state.players = names.map((n,i)=>({
+    id: `p${i}`,
+    name: n,
+    hand: [],
+    tricksWonThisHand: 0,
+    score: 0,
+    hasSwapped: false,
+  }));
+  state.dealerIndex = 0;
+  state.leaderIndex = 0;
+  state.currentTurnIndex = 0;
+}
+
+function dealHand(){
+  setError(null);
+  // reset hand-only fields
+  for(const p of state.players){
+    p.hand = [];
+    p.tricksWonThisHand = 0;
+    p.hasSwapped = false;
+  }
+  state.deck = shuffle(makeDeck());
+  // deal 5 each
+  for(let i=0;i<5;i++){
+    for(const p of state.players){
+      p.hand.push(state.deck.pop());
+    }
+  }
+  // flip trump as "last card" of deal => top of remaining deck
+  state.trumpCard = state.deck.pop();
+  state.trumpSuit = state.trumpCard.suit;
+
+  state.phase = PHASE.SWAP;
+  state.currentTurnIndex = (state.dealerIndex + 1) % state.players.length; // swap starts left of dealer
+  state.leaderIndex = state.dealerIndex; // per your description: dealer leads first trick
+  state.trickNumber = 0;
+  state.currentTrick = { plays: [], leadSuit: null };
+  state.selectedCardIds.clear();
+  state.selectedForSwap.clear();
+
+  // lock to first swapper
+  setLock(true, state.currentTurnIndex);
+  render();
+}
+
+function allPlayersSwapped(){
+  return state.players.every(p => p.hasSwapped);
+}
+
+function advanceSwapTurn(){
+  // next player in order who hasn't swapped
+  for(let k=1;k<=state.players.length;k++){
+    const idx = (state.currentTurnIndex + k) % state.players.length;
+    if(!state.players[idx].hasSwapped){
+      state.currentTurnIndex = idx;
+      state.selectedForSwap.clear();
+      setLock(true, idx);
+      render();
+      return;
+    }
+  }
+  // everyone swapped
+  state.phase = PHASE.TRICK;
+  state.trickNumber = 1;
+  state.currentTurnIndex = state.leaderIndex;
+  state.currentTrick = { plays: [], leadSuit: null };
+  state.selectedCardIds.clear();
+  setLock(true, state.currentTurnIndex);
+  render();
+}
+
+function confirmSwap(){
+  setError(null);
+  if(state.phase !== PHASE.SWAP) return;
+  const p = state.players[state.currentTurnIndex];
+  const discards = Array.from(state.selectedForSwap);
+  if(discards.length > 3){
+    setError("You can swap at most 3 cards.");
+    return;
+  }
+  // remove discards from hand
+  const discardSet = new Set(discards);
+  p.hand = p.hand.filter(c => !discardSet.has(c.id));
+  // draw same number
+  for(let i=0;i<discards.length;i++){
+    p.hand.push(state.deck.pop());
+  }
+  p.hasSwapped = true;
+
+  advanceSwapTurn();
+}
+
+function playableCardIdsForCurrentPlayer(){
+  const p = state.players[state.currentTurnIndex];
+  const lead = state.currentTrick.leadSuit;
+  if(!lead) return new Set(p.hand.map(c=>c.id));
+  if(canFollowSuit(p.hand, lead)){
+    return new Set(p.hand.filter(c=>c.suit===lead).map(c=>c.id));
+  }
+  return new Set(p.hand.map(c=>c.id));
+}
+
+function playSelectedCard(){
+  setError(null);
+  if(state.phase !== PHASE.TRICK) return;
+  const selected = Array.from(state.selectedCardIds);
+  if(selected.length !== 1){
+    setError("Select exactly 1 card to play.");
+    return;
+  }
+  const p = state.players[state.currentTurnIndex];
+  const card = p.hand.find(c => c.id === selected[0]);
+  if(!card){
+    setError("That card isn't in your hand.");
+    return;
+  }
+  // enforce follow suit
+  const lead = state.currentTrick.leadSuit;
+  if(lead){
+    if(canFollowSuit(p.hand, lead) && card.suit !== lead){
+      setError(`You must follow suit (${SUIT_ICON[lead]}) if you can.`);
+      return;
+    }
+  }
+
+  // commit play
+  p.hand = p.hand.filter(c => c.id !== card.id);
+  state.currentTrick.plays.push({ playerIndex: state.currentTurnIndex, card });
+  if(!state.currentTrick.leadSuit){
+    state.currentTrick.leadSuit = card.suit;
+  }
+  state.selectedCardIds.clear();
+
+  // if trick complete:
+  if(state.currentTrick.plays.length === state.players.length){
+    const winnerIdx = determineTrickWinner(state.currentTrick.plays, state.currentTrick.leadSuit, state.trumpSuit);
+    state.players[winnerIdx].tricksWonThisHand += 1;
+    state.lastTrickWinnerIndex = winnerIdx;
+
+    // next leader is trick winner
+    state.leaderIndex = winnerIdx;
+
+    // next trick or end hand
+    if(state.trickNumber >= 5){
+      endHand();
+      return;
+    } else {
+      state.trickNumber += 1;
+      state.currentTrick = { plays: [], leadSuit: null };
+      state.currentTurnIndex = state.leaderIndex;
+      setLock(true, state.currentTurnIndex);
+      render();
+      return;
+    }
+  }
+
+  // otherwise next player's turn
+  state.currentTurnIndex = (state.currentTurnIndex + 1) % state.players.length;
+  setLock(true, state.currentTurnIndex);
+  render();
+}
+
+function endHand(){
+  state.phase = PHASE.HAND_END;
+
+  // scoring: 1 point per trick won this hand (cumulative)
+  for(const p of state.players){
+    p.score += p.tricksWonThisHand;
+  }
+
+  // dealer update
+  if(DEALER_RULE === "LAST_TRICK_WINNER" && state.lastTrickWinnerIndex !== null){
+    state.dealerIndex = state.lastTrickWinnerIndex;
+  } else if(DEALER_RULE === "ROTATE"){
+    state.dealerIndex = (state.dealerIndex + 1) % state.players.length;
+  }
+
+  // reset turn pointers
+  state.currentTurnIndex = state.dealerIndex;
+  state.selectedCardIds.clear();
+  state.selectedForSwap.clear();
+
+  // auto lock to dealer (who will hit deal)
+  setLock(true, state.dealerIndex);
+  render();
+}
+
+function renderScoreboard(){
+  els.scoreboard.innerHTML = "";
+  state.players.forEach((p, idx)=>{
+    const row = document.createElement("div");
+    row.className = "playerRow";
+    const left = document.createElement("div");
+    left.innerHTML = `<div class="name">${p.name}${idx===state.currentTurnIndex ? " •" : ""}</div>
+                      <div class="small">Hand tricks: <span class="mono">${p.tricksWonThisHand}</span></div>`;
+    const right = document.createElement("div");
+    right.className = "badge";
+    right.innerHTML = `Score <strong class="mono">${p.score}</strong>`;
+    row.appendChild(left);
+    row.appendChild(right);
+    els.scoreboard.appendChild(row);
+  });
+}
+
+function renderTrickArea(){
+  els.trickArea.innerHTML = "";
+  // show current trick plays
+  if(state.phase === PHASE.LOBBY){
+    els.trickArea.innerHTML = `<div class="small">Start a game, deal a hand, then play.</div>`;
+    return;
+  }
+
+  const plays = state.currentTrick.plays;
+  if(state.phase === PHASE.TRICK || state.phase === PHASE.HAND_END){
+    if(plays.length === 0){
+      const d = document.createElement("div");
+      d.className = "small";
+      d.textContent = "No cards played yet for this trick.";
+      els.trickArea.appendChild(d);
+    } else {
+      for(const pl of plays){
+        const p = state.players[pl.playerIndex];
+        const box = document.createElement("div");
+        box.className = "trickCard";
+        const left = document.createElement("div");
+        left.innerHTML = `<div style="font-weight:900;">${p.name}</div>
+                          <div class="small">played</div>`;
+        const c = pl.card;
+        const face = document.createElement("div");
+        face.className = "cardFace " + (isRedSuit(c.suit) ? "red":"");
+        face.innerHTML = `<div class="top">${RANK_LABEL[c.rank] ?? c.rank}${SUIT_ICON[c.suit]}</div>
+                          <div class="mid">${SUIT_ICON[c.suit]}</div>
+                          <div class="bot">${RANK_LABEL[c.rank] ?? c.rank}${SUIT_ICON[c.suit]}</div>`;
+        box.appendChild(left);
+        box.appendChild(face);
+        els.trickArea.appendChild(box);
+      }
+    }
+  }
+
+  if(state.phase === PHASE.SWAP){
+    const info = document.createElement("div");
+    info.className = "small";
+    info.innerHTML = `Swap phase: <span class="mono">${state.players[state.currentTurnIndex].name}</span> can discard 0–3 cards, then draw.`;
+    els.trickArea.prepend(info);
+  }
+
+  if(state.phase === PHASE.HAND_END){
+    const summary = document.createElement("div");
+    summary.className = "pill";
+    summary.style.justifyContent = "space-between";
+    const winner = state.lastTrickWinnerIndex !== null ? state.players[state.lastTrickWinnerIndex].name : "—";
+    summary.innerHTML = `<span>Hand complete. Last trick winner:</span> <strong>${winner}</strong>`;
+    els.trickArea.prepend(summary);
+  }
+}
+
+function renderHand(){
+  els.handArea.innerHTML = "";
+  els.selectedCount.textContent = "0";
+  els.confirmSwapBtn.style.display = "none";
+  els.confirmPlayBtn.style.display = "none";
+
+  if(state.phase === PHASE.LOBBY){
+    els.handHint.textContent = "Start a hand to see cards.";
+    return;
+  }
+
+  // if locked, hide hand
+  if(state.lockOn){
+    els.handHint.textContent = "Hand hidden. Tap Reveal on the lock screen.";
+    return;
+  }
+
+  const p = state.players[state.currentTurnIndex];
+  els.handHint.textContent =
+    state.phase === PHASE.SWAP
+      ? "Select 0–3 cards to discard, then confirm."
+      : (state.phase === PHASE.TRICK ? "Select 1 card to play, then confirm." : "Hand ended — deal next hand.");
+
+  const playable = (state.phase === PHASE.TRICK) ? playableCardIdsForCurrentPlayer() : null;
+
+  p.hand
+    .slice()
+    .sort((a,b)=> (a.suit.localeCompare(b.suit) || (a.rank-b.rank)))
+    .forEach(card=>{
+      const btn = document.createElement("div");
+      btn.className = "cardBtn " + (isRedSuit(card.suit) ? "red":"");
+      btn.dataset.cardId = card.id;
+
+      const top = `${RANK_LABEL[card.rank] ?? card.rank}${SUIT_ICON[card.suit]}`;
+      btn.innerHTML = `<div class="top">${top}</div>
+                       <div class="mid">${SUIT_ICON[card.suit]}</div>
+                       <div class="bot">${top}</div>`;
+
+      const isDisabled =
+        (state.phase === PHASE.TRICK && playable && !playable.has(card.id)) ||
+        (state.phase === PHASE.HAND_END);
+
+      if(isDisabled) btn.classList.add("disabled");
+
+      btn.addEventListener("click", ()=>{
+        setError(null);
+        if(state.phase === PHASE.HAND_END) return;
+        if(state.phase === PHASE.SWAP){
+          if(isDisabled) return;
+          if(state.selectedForSwap.has(card.id)){
+            state.selectedForSwap.delete(card.id);
+            btn.classList.remove("selected");
+          } else {
+            if(state.selectedForSwap.size >= 3){
+              setError("Max 3 cards for swap.");
+              return;
+            }
+            state.selectedForSwap.add(card.id);
+            btn.classList.add("selected");
+          }
+          els.selectedCount.textContent = String(state.selectedForSwap.size);
+          els.confirmSwapBtn.style.display = "inline-block";
+          return;
+        }
+
+        if(state.phase === PHASE.TRICK){
+          if(isDisabled) return;
+          // single select
+          state.selectedCardIds.clear();
+          // clear UI selections
+          els.handArea.querySelectorAll(".cardBtn.selected").forEach(x=>x.classList.remove("selected"));
+          state.selectedCardIds.add(card.id);
+          btn.classList.add("selected");
+          els.selectedCount.textContent = "1";
+          els.confirmPlayBtn.style.display = "inline-block";
+        }
+      });
+
+      // pre-mark selected for swap
+      if(state.phase === PHASE.SWAP && state.selectedForSwap.has(card.id)){
+        btn.classList.add("selected");
+      }
+      if(state.phase === PHASE.TRICK && state.selectedCardIds.has(card.id)){
+        btn.classList.add("selected");
+      }
+
+      els.handArea.appendChild(btn);
+    });
+
+  if(state.phase === PHASE.SWAP){
+    els.selectedCount.textContent = String(state.selectedForSwap.size);
+    els.confirmSwapBtn.style.display = "inline-block";
+  }
+  if(state.phase === PHASE.TRICK){
+    els.selectedCount.textContent = String(state.selectedCardIds.size);
+    els.confirmPlayBtn.style.display = "inline-block";
+  }
+}
+
+function renderHeaderPills(){
+  els.phasePill.textContent = state.phase;
+  els.trumpPill.textContent = state.trumpSuit ? `${SUIT_ICON[state.trumpSuit]} (${cardLabel(state.trumpCard)})` : "—";
+  els.leadPill.textContent = state.currentTrick.leadSuit ? SUIT_ICON[state.currentTrick.leadSuit] : "—";
+}
+
+function renderMeta(){
+  if(state.players.length){
+    els.turnName.textContent = state.players[state.currentTurnIndex]?.name ?? "—";
+    els.dealerName.textContent = state.players[state.dealerIndex]?.name ?? "—";
+  } else {
+    els.turnName.textContent = "—";
+    els.dealerName.textContent = "—";
+  }
+  els.trickNum.textContent = state.phase === PHASE.TRICK ? String(state.trickNumber) : (state.phase === PHASE.SWAP ? "—" : "—");
+  els.deckText.textContent = state.deck.length ? `Deck: ${state.deck.length}` : "";
+}
+
+function renderStatus(){
+  let msg = "—";
+  if(state.phase === PHASE.LOBBY) msg = "Enter names and start the game.";
+  if(state.phase === PHASE.SWAP) msg = `Swap turn: ${state.players[state.currentTurnIndex].name}`;
+  if(state.phase === PHASE.TRICK) {
+    const lead = state.currentTrick.leadSuit ? ` | Lead: ${SUIT_ICON[state.currentTrick.leadSuit]}` : "";
+    msg = `Play a card: ${state.players[state.currentTurnIndex].name}${lead}`;
+  }
+  if(state.phase === PHASE.HAND_END) msg = `Hand over. Dealer is ${state.players[state.dealerIndex].name}. Deal next hand when ready.`;
+  els.statusText.textContent = msg;
+}
+
+function render(){
+  renderHeaderPills();
+  renderMeta();
+
+  if(state.phase === PHASE.LOBBY){
+    els.lobbyArea.style.display = "flex";
+    els.controlsArea.style.display = "none";
+  } else {
+    els.lobbyArea.style.display = "none";
+    els.controlsArea.style.display = "flex";
+    renderScoreboard();
+  }
+
+  renderTrickArea();
+  renderHand();
+  renderStatus();
+}
+
+els.startGameBtn.addEventListener("click", ()=>{
+  setError(null);
+  const names = els.namesInput.value
+    .split("\n")
+    .map(s=>s.trim())
+    .filter(Boolean);
+
+  if(names.length < 2 || names.length > 6){
+    setError("Enter 2–6 player names (one per line).");
+    return;
+  }
+  initPlayers(names);
+  state.phase = PHASE.SWAP; // we’ll immediately wait for deal
+  state.phase = PHASE.HAND_END; // show controls and let dealer deal
+  state.dealerIndex = 0;
+  state.currentTurnIndex = 0;
+  setLock(true, 0);
+  render();
+});
+
+els.startHandBtn.addEventListener("click", ()=>{
+  if(state.players.length < 2) return;
+  dealHand();
+});
+
+els.confirmSwapBtn.addEventListener("click", ()=>{
+  if(state.lockOn){ setError("Reveal first."); return; }
+  confirmSwap();
+});
+
+els.confirmPlayBtn.addEventListener("click", ()=>{
+  if(state.lockOn){ setError("Reveal first."); return; }
+  playSelectedCard();
+});
+
+els.passBtn.addEventListener("click", ()=>{
+  if(state.players.length < 2) return;
+  setError(null);
+  setLock(true, state.currentTurnIndex);
+  render();
+});
+
+els.resetBtn.addEventListener("click", ()=> resetAll());
+
+els.revealBtn.addEventListener("click", ()=>{
+  setLock(false, null);
+  render();
+});
+els.keepLockedBtn.addEventListener("click", ()=>{
+  setLock(true, state.pendingRevealForIndex ?? state.currentTurnIndex);
+});
+
+resetAll();
+</script>
+</body>
+</html>
