@@ -41,8 +41,16 @@
       font-size: 13px;
       display:flex; gap:8px; align-items:center;
     }
+    #statusBox{ display:none; }
+    #trumpPill{
+      font-weight:900;
+      font-size:14px;
+      letter-spacing:.2px;
+      text-shadow: 0 2px 10px rgba(0,0,0,.45);
+    }
     .pill strong{color:var(--text); font-weight:700;}
     main{padding:16px; max-width:1100px; margin:0 auto;}
+    body.notifier-on main{ padding-top:80px; }
     .grid{
       display:grid;
       grid-template-columns: 360px 1fr;
@@ -96,6 +104,12 @@
       border-radius: 14px;
       background: rgba(0,0,0,.18);
       min-height:80px;
+      flex-wrap:wrap;
+    }
+    .playerRow > div:first-child{
+      flex: 1 1 220px;
+      min-width: 0;
+      max-width: 100%;
     }
     .playerRow .name{font-weight:800}
     .badge{
@@ -108,6 +122,7 @@
     .badge strong{color:var(--text)}
     .tableArea{
       display:flex; flex-direction:column; gap:12px;
+      padding-bottom:16px;
     }
     .trickArea{
       display:flex; gap:10px; flex-wrap:wrap; align-items:stretch;
@@ -273,7 +288,7 @@
 
     /* Mini trick counter in scoreboard */
     .trickVisualizer{ display:flex; gap:10px; align-items:center; }
-    .trickChipsRow{ display:flex; gap:8px; align-items:center; }
+    .trickChipsRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     /* treat each chip like a tiny card */
     .trickChip{
       width:38px; height:52px; border-radius:8px;
@@ -310,15 +325,17 @@
 
     /* total score pill: bold gold display that stands out */
     .totalScore{
-      display:flex; align-items:center; justify-content:center; min-width:92px; padding:10px 14px; gap:10px;
+      display:flex; align-items:center; justify-content:center; min-width:80px; padding:8px 10px; gap:8px;
       background: linear-gradient(180deg, #fff7e6, #ffe59e);
       border: 1px solid rgba(255,210,110,.25);
       border-radius: 14px; color: #6b3f00; font-weight:900; box-shadow: 0 18px 44px rgba(245,190,40,.12), inset 0 1px 0 rgba(255,255,255,.6);
       transition: transform .18s ease, box-shadow .18s ease;
-      font-size:14px;
+      font-size:13px;
       text-align:center;
+      flex: 0 0 auto;
+      margin-left: auto;
     }
-    .totalScore .scoreValue{ font-size:18px; margin-left:6px; color:#4a2d00; }
+    .totalScore .scoreValue{ font-size:16px; margin-left:4px; color:#4a2d00; }
     .totalScore.pulse{ animation: scorePulse 2400ms ease-in-out infinite; }
     @keyframes scorePulse{
       0% { box-shadow: 0 14px 36px rgba(245,190,40,.08); transform: translateY(0); }
@@ -379,6 +396,36 @@
       70%{ transform: scale(.98); }
       100%{ transform: scale(1); }
     }
+    /* Responsive tweaks for iPhone / narrow screens */
+    @media (max-width: 640px){
+      :root{ --cardW: 60px; }
+      header{ padding:10px 12px; }
+      main{ padding:12px; }
+      .panel .hd{ padding:10px 12px; }
+      .panel .bd{ padding:12px; }
+      .tableArea{ gap:10px; }
+      .trickArea{ gap:8px; }
+      .hand{ gap:8px; }
+      .row2{ gap:8px; }
+      .scoreboard{ gap:6px; }
+      .playerRow{
+        padding:10px 12px;
+        min-height:64px;
+        gap:12px;
+        align-items:center;
+      }
+      .badge{ padding:4px 6px; font-size:11px; }
+      .trickChip{ width:32px; height:44px; border-radius:7px; }
+      .trickChip.filled .chipInner{ font-size:13px; }
+      .totalScore{
+        min-width:68px;
+        padding:6px 8px;
+        font-size:12px;
+        border-radius:12px;
+      }
+      .totalScore .scoreValue{ font-size:15px; margin-left:4px; }
+      .totalScore .scoreLabel{ font-size:11px; }
+    }
     /* Responsive tweaks for narrow/phone screens */
     @media (max-width: 520px){
       :root{ --cardW: 56px; }
@@ -412,12 +459,83 @@
       box-shadow: 0 6px 12px rgba(0,0,0,.3);
     }
     /* notifier styles */
-    #notifier{ border:1px solid rgba(255,255,255,.04); background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01)); }
+    #notifier{ border:1px solid rgba(255,255,255,.08); background: linear-gradient(180deg, rgba(12,18,36,.92), rgba(12,18,36,.78)); }
+    #notifier{
+      position: fixed;
+      left: 50%;
+      top: 100px;
+      transform: translateX(-50%);
+      width: min(1100px, calc(100% - 24px));
+      margin: 0;
+      z-index: 20;
+    }
     #notifierIcon{ font-size:20px; }
     #notifierTitle{ font-size:15px }
     /* notifier action visually present but non-interactive; actions belong in main UI */
     #notifierAction{ background: rgba(124,92,255,.14); border:1px solid rgba(124,92,255,.28); color:var(--text); display:none !important; pointer-events:none; }
-    @media (max-width:720px){ #notifier{ margin:8px 12px; } #notifierAction{ display:none } }
+    @media (max-width:720px){ #notifier{ top:100px; width: calc(100% - 24px); } #notifierAction{ display:none } }
+    @media (max-width:640px){ body.notifier-on main{ padding-top:88px; } .tableArea{ padding-bottom:24px; } }
+    /* lobby settings */
+    .settingsCard{
+      padding:12px;
+      border-radius:16px;
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(124,92,255,.10), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+    }
+    .settingsHeader{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:6px 6px 10px 6px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .settingsCard.collapsed .settingsBody{ display:none; }
+    .settingRow{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      align-items:center;
+      padding:10px 8px;
+      border-radius:12px;
+      background: rgba(0,0,0,.14);
+      border:1px solid rgba(255,255,255,.04);
+    }
+    .settingRow + .settingRow{ margin-top:10px; }
+    .settingLabel{ font-weight:800; }
+    .settingMeta{ color:var(--muted); font-size:12px; margin-top:4px; }
+    .settingValue{
+      font-weight:900; font-size:14px; padding:6px 10px;
+      border-radius:10px; background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.08);
+      min-width:56px; text-align:center;
+    }
+    .settingRow input[type="range"]{ width:180px; accent-color: var(--accent); }
+    .settingToggle{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px;
+      background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+      font-weight:800; font-size:12px; color:var(--muted);
+    }
+    .settingToggle input{ width:18px; height:18px; }
+    /* winner banner */
+    #winnerBanner{
+      border:1px solid rgba(255,230,140,.12);
+      background: linear-gradient(120deg, rgba(255,235,160,.12), rgba(124,92,255,.08));
+      box-shadow: 0 18px 44px rgba(245,190,40,.12);
+    }
+    #winnerIcon{
+      width:44px; height:44px; border-radius:10px;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(255,235,160,.25);
+      border:1px solid rgba(255,230,140,.25);
+      font-size:20px;
+    }
+    .dingBadge{
+      padding:4px 8px; border-radius:10px;
+      border:1px solid rgba(255,92,122,.35);
+      background: rgba(255,92,122,.12);
+      font-size:12px; color:#ffd6de; display:inline-flex; gap:6px; align-items:center;
+    }
   </style>
 </head>
 <body>
@@ -452,6 +570,16 @@
     </div>
   </div>
 </div>
+<!-- Winner banner: shows when a player hits 0 -->
+<div id="winnerBanner" class="panel" style="margin:12px auto;max-width:1100px;border-radius:12px;display:none;">
+  <div class="bd" style="display:flex;align-items:center;gap:12px;padding:12px 14px;">
+    <div id="winnerIcon">🏆</div>
+    <div style="flex:1;min-width:0;">
+      <div id="winnerTitle" style="font-weight:900;">Winner</div>
+      <div id="winnerDetail" class="small" style="opacity:.9;">—</div>
+    </div>
+  </div>
+</div>
 
 <main>
   <div class="grid">
@@ -469,6 +597,72 @@
           <div class="small">Enter 2–6 player names (one per line). Then start.</div>
           <textarea id="namesInput" class="input" rows="6" placeholder="Illya&#10;Player 2&#10;Player 3"></textarea>
           <button class="btn primary" id="startGameBtn">Start Game</button>
+        </div>
+
+        <div id="settingsCard" class="settingsCard">
+          <div class="settingsHeader" id="settingsHeader" tabindex="0">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="caret" id="settingsCaret">▾</span>
+              <div style="font-weight:900;">Game settings</div>
+              <span id="settingsLockPill" class="pill" style="padding:4px 8px;border-radius:10px;font-size:11px;display:none;">Locked</span>
+            </div>
+          </div>
+          <div class="settingsBody" id="settingsBody">
+            <div class="settingRow">
+              <div>
+                <div class="settingLabel">Starting Score</div>
+                <div class="settingMeta">5–50</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input id="startingScoreInput" type="range" min="5" max="50" step="1" value="20" />
+                <div class="settingValue" id="startingScoreValue">20</div>
+              </div>
+            </div>
+            <div class="settingRow">
+              <div>
+                <div class="settingLabel">DING Penalty</div>
+                <div class="settingMeta">0 tricks in a hand</div>
+              </div>
+              <div class="settingValue">Reset to start</div>
+            </div>
+            <div class="settingRow">
+              <div>
+                <div class="settingLabel">Leader Fold Threshold</div>
+                <div class="settingMeta">1–Starting Score</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input id="foldThresholdInput" type="range" min="1" max="20" step="1" value="5" />
+                <div class="settingValue" id="foldThresholdValue">5</div>
+              </div>
+            </div>
+            <div class="settingRow">
+              <div>
+                <div class="settingLabel">Leader Fold Penalty</div>
+                <div class="settingMeta">On fold below threshold</div>
+              </div>
+              <div class="settingValue">Reset to threshold</div>
+            </div>
+            <div class="settingRow">
+              <div>
+                <div class="settingLabel">Amount of Decks</div>
+                <div class="settingMeta">1–2</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input id="deckCountInput" type="range" min="1" max="2" step="1" value="1" />
+                <div class="settingValue" id="deckCountValue">1</div>
+              </div>
+            </div>
+            <div class="settingRow">
+              <div>
+                <div class="settingLabel">Hyperrealistic Mode</div>
+                <div class="settingMeta">No highlights, no forced follow</div>
+              </div>
+              <label class="settingToggle">
+                <input id="hyperrealisticInput" type="checkbox" />
+                OFF
+              </label>
+            </div>
+          </div>
         </div>
 
         <div id="controlsArea" class="stack" style="display:none;">
@@ -565,10 +759,15 @@ const PHASE = {
 };
 
 function makeDeck(){
+  return makeDecks(1);
+}
+function makeDecks(count){
   const deck = [];
-  for(const s of SUITS){
-    for(let r=2;r<=14;r++){
-      deck.push({ suit:s, rank:r, id:`${r}${s}` });
+  for(let d=0; d<count; d++){
+    for(const s of SUITS){
+      for(let r=2;r<=14;r++){
+        deck.push({ suit:s, rank:r, id:`${r}${s}_${d}` });
+      }
     }
   }
   return deck;
@@ -629,6 +828,16 @@ const state = {
   pendingRevealForIndex: null,
   lastTrickWinnerIndex: null,
   lastCompletedTrick: null,
+  winnerIndex: null,
+  settings: {
+    startingScore: 20,
+    dingPenalty: "reset",
+    foldThreshold: 5,
+    foldPenalty: "threshold",
+    decks: 1,
+    hyperrealistic: false,
+  },
+  settingsCollapsed: false,
   discardPile: [],
   playedCards: [],
   collapsed: { game:false, table:false, hand:false },
@@ -671,6 +880,18 @@ const els = {
   revealBtn: document.getElementById("revealBtn"),
   keepLockedBtn: document.getElementById("keepLockedBtn"),
   foldBtn: document.getElementById("foldBtn"),
+  settingsCard: document.getElementById("settingsCard"),
+  settingsHeader: document.getElementById("settingsHeader"),
+  settingsCaret: document.getElementById("settingsCaret"),
+  settingsBody: document.getElementById("settingsBody"),
+  settingsLockPill: document.getElementById("settingsLockPill"),
+  startingScoreInput: document.getElementById("startingScoreInput"),
+  startingScoreValue: document.getElementById("startingScoreValue"),
+  foldThresholdInput: document.getElementById("foldThresholdInput"),
+  foldThresholdValue: document.getElementById("foldThresholdValue"),
+  deckCountInput: document.getElementById("deckCountInput"),
+  deckCountValue: document.getElementById("deckCountValue"),
+  hyperrealisticInput: document.getElementById("hyperrealisticInput"),
   gamePanel: document.getElementById("gamePanel"),
   tablePanel: document.getElementById("tablePanel"),
   handPanel: document.getElementById("handPanel"),
@@ -688,10 +909,47 @@ const els = {
   handSummary: document.getElementById("handSummary"),
 };
 
+function syncSettingsUI(){
+  const s = state.settings;
+  if(els.startingScoreInput){
+    els.startingScoreInput.value = String(s.startingScore);
+    els.startingScoreValue.textContent = String(s.startingScore);
+  }
+  if(els.foldThresholdInput){
+    els.foldThresholdInput.max = String(s.startingScore);
+    els.foldThresholdInput.value = String(s.foldThreshold);
+    els.foldThresholdValue.textContent = String(s.foldThreshold);
+  }
+  if(els.deckCountInput){
+    els.deckCountInput.value = String(s.decks);
+    els.deckCountValue.textContent = String(s.decks);
+  }
+  if(els.hyperrealisticInput){
+    els.hyperrealisticInput.checked = !!s.hyperrealistic;
+    const label = els.hyperrealisticInput.closest(".settingToggle");
+    if(label) label.lastChild.nodeValue = s.hyperrealistic ? " ON" : " OFF";
+  }
+}
+
+function clampSettings(){
+  const s = state.settings;
+  if(s.foldThreshold > s.startingScore) s.foldThreshold = s.startingScore;
+  if(s.foldThreshold < 1) s.foldThreshold = 1;
+  if(s.startingScore < 5) s.startingScore = 5;
+  if(s.startingScore > 50) s.startingScore = 50;
+  if(s.decks < 1) s.decks = 1;
+  if(s.decks > 2) s.decks = 2;
+}
+
 function foldCurrentPlayer(){
   if(state.phase !== PHASE.SWAP) return;
   const p = state.players[state.currentTurnIndex];
   if(!p || p.folded) return;
+  if(state.currentTurnIndex === state.dealerIndex){
+    setError("Dealer cannot fold.");
+    return;
+  }
+  if(p.score < state.settings.foldThreshold) p.score = state.settings.foldThreshold;
   // mark folded and mark as swapped so they are excluded from further swap turns
   p.folded = true;
   p.hasSwapped = true;
@@ -714,6 +972,11 @@ function foldCurrentPlayer(){
 
   // If too few players remain, end the hand immediately
   if(activePlayersCount() < 2){
+    const remainingIdx = firstActiveIndex(0);
+    if(remainingIdx !== null && remainingIdx === state.dealerIndex){
+      state.players[remainingIdx].tricksWonThisHand = 5;
+      state.lastTrickWinnerIndex = remainingIdx;
+    }
     endHand();
     return;
   }
@@ -786,9 +1049,13 @@ function resetAll(){
   state.dealing = false;
   state.lastTrickWinnerIndex = null;
   state.lastCompletedTrick = null;
+  state.winnerIndex = null;
   state.discardPile = [];
   state.playedCards = [];
   state.collapsed = { game:false, table:false, hand:false };
+  state.settingsCollapsed = false;
+  clampSettings();
+  syncSettingsUI();
   setLock(false, null);
   setError(null);
   render();
@@ -813,13 +1080,15 @@ function initPlayers(names){
     hand: [],
     tricksWonThisHand: 0,
     wonTricks: [],
-    score: 0,
+    score: state.settings.startingScore,
+    dingCount: 0,
     hasSwapped: false,
     folded: false,
   }));
   state.dealerIndex = 0;
   state.leaderIndex = 0;
   state.currentTurnIndex = 0;
+  state.winnerIndex = null;
 }
 
 function dealHand(){
@@ -833,8 +1102,9 @@ function dealHand(){
     p.tricksWonThisHand = 0;
     p.wonTricks = [];
     p.hasSwapped = false;
+    p.folded = false;
   }
-  state.deck = shuffle(makeDeck());
+  state.deck = shuffle(makeDecks(state.settings.decks));
 
   // clear any pending incoming flags and per-player initial reveal markers
   state.incomingCardIds.clear();
@@ -1066,9 +1336,9 @@ function playSelectedCard(){
     setError("That card isn't in your hand.");
     return;
   }
-  // enforce follow suit
+  // enforce follow suit unless hyperrealistic mode is on
   const lead = state.currentTrick.leadSuit;
-  if(lead){
+  if(!state.settings.hyperrealistic && lead){
     if(canFollowSuit(p.hand, lead) && card.suit !== lead){
       setError(`You must follow suit (${SUIT_ICON[lead]}) if you can.`);
       return;
@@ -1211,10 +1481,17 @@ function playSelectedCard(){
 function endHand(){
   state.phase = PHASE.HAND_END;
 
-  // scoring: 1 point per trick won this hand (cumulative)
+  // scoring: count down from STARTING_SCORE, reset on DUNG
   for(const p of state.players){
-    p.score += p.tricksWonThisHand;
+    if(p.tricksWonThisHand === 0 && !p.folded){
+      p.score = state.settings.startingScore;
+      p.dingCount = (p.dingCount || 0) + 1;
+    } else {
+      p.score = Math.max(0, p.score - p.tricksWonThisHand);
+    }
   }
+  const winnerIdx = state.players.findIndex(p => p.score <= 0);
+  state.winnerIndex = winnerIdx >= 0 ? winnerIdx : null;
 
   // dealer update
   if(DEALER_RULE === "LAST_TRICK_WINNER" && state.lastTrickWinnerIndex !== null){
@@ -1253,7 +1530,7 @@ function renderScoreboard(){
     if(idx === state.currentTurnIndex) row.classList.add('activeTurn');
     const left = document.createElement("div");
     // show name, dealer badge, and turn indicator; keep folded badge if applicable
-    left.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div style="display:flex;align-items:center;gap:8px"><div class="name">${p.name}</div>${idx===state.dealerIndex?'<span class="dealerBadge">Dealer</span>':''}${idx===state.currentTurnIndex?'<span class="turnDot">●</span>':''}</div>${p.folded ? '<span class="foldedPill">Folded</span>' : ''}</div>`;
+    left.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div style="display:flex;align-items:center;gap:8px"><div class="name">${p.name}</div>${idx===state.dealerIndex?'<span class="dealerBadge">Dealer</span>':''}${idx===state.currentTurnIndex?'<span class="turnDot">●</span>':''}</div><span class="dingBadge">DING <strong class="mono">${p.dingCount || 0}</strong></span>${p.folded ? '<span class="foldedPill">Folded</span>' : ''}</div>`;
     // compact visualizer: five tiny card-chips + integrated trophy badge
     const visual = document.createElement('div');
     visual.className = 'trickVisualizer';
@@ -1406,13 +1683,14 @@ function renderHand(){
   const handForRender = p.hand.slice();
 
   const playable = (state.phase === PHASE.TRICK) ? playableCardIdsForCurrentPlayer() : null;
+  const hyper = state.settings.hyperrealistic;
 
   handForRender.forEach(card=>{
       const btn = document.createElement("div");
       btn.className = "cardBtn " + (isRedSuit(card.suit) ? "red":"");
       btn.dataset.cardId = card.id;
-      // highlight trumps in-hand with a subtle gold outline
-      if(state.trumpSuit && card.suit === state.trumpSuit){ btn.classList.add('trump'); }
+      // highlight trumps in-hand with a subtle gold outline (disabled in hyperrealistic)
+      if(!hyper && state.trumpSuit && card.suit === state.trumpSuit){ btn.classList.add('trump'); }
       // animate incoming cards
       if(state.incomingCardIds.has(card.id)){
         btn.classList.add('fly-in');
@@ -1424,7 +1702,7 @@ function renderHand(){
                        <div class="bot">${top}</div>`;
 
       const isDisabled =
-        (state.phase === PHASE.TRICK && playable && !playable.has(card.id)) ||
+        (!hyper && state.phase === PHASE.TRICK && playable && !playable.has(card.id)) ||
         (state.phase === PHASE.HAND_END);
 
       if(isDisabled) btn.classList.add("disabled");
@@ -1529,6 +1807,17 @@ function renderMeta(){
 
 function renderStatus(){
   let msg = "—";
+  const winnerBanner = document.getElementById('winnerBanner');
+  const winnerDetail = document.getElementById('winnerDetail');
+  if(winnerBanner){
+    if(state.winnerIndex !== null && state.players[state.winnerIndex]){
+      winnerBanner.style.display = 'flex';
+      const winnerName = state.players[state.winnerIndex].name;
+      winnerDetail.textContent = `${winnerName} hit 0 and wins the game.`;
+    } else {
+      winnerBanner.style.display = 'none';
+    }
+  }
   // If notifier exists, populate it with richer UI; otherwise fall back to statusText
   const notifier = document.getElementById('notifier');
   const title = document.getElementById('notifierTitle');
@@ -1536,6 +1825,7 @@ function renderStatus(){
   const icon = document.getElementById('notifierIcon');
   const playerBadge = document.getElementById('notifierPlayer');
   const actionBtn = document.getElementById('notifierAction');
+  if(document.body) document.body.classList.remove('notifier-on');
 
   if(!notifier){
     // legacy fallback
@@ -1557,6 +1847,7 @@ function renderStatus(){
 
   // show notifier
   notifier.style.display = 'flex';
+  if(document.body) document.body.classList.add('notifier-on');
   title.textContent = '';
   detail.textContent = '';
   playerBadge.style.display = 'none';
@@ -1639,6 +1930,23 @@ function render(){
     if(els.startHandBtn){ els.startHandBtn.style.display = (state.phase === PHASE.HAND_END && state.players.length >= 2) ? 'inline-block' : 'none'; }
   }
 
+  // settings: lock after lobby, but allow peek by expanding
+  const settingsLocked = state.phase !== PHASE.LOBBY;
+  if(els.settingsCard){
+    els.settingsCard.classList.toggle('collapsed', !!state.settingsCollapsed);
+  }
+  if(els.settingsCaret){
+    els.settingsCaret.classList.toggle('collapsed', !!state.settingsCollapsed);
+  }
+  if(els.settingsLockPill){
+    els.settingsLockPill.style.display = settingsLocked ? 'inline-flex' : 'none';
+  }
+  const setDisabled = (el, disabled)=>{ if(el) el.disabled = disabled; };
+  setDisabled(els.startingScoreInput, settingsLocked);
+  setDisabled(els.foldThresholdInput, settingsLocked);
+  setDisabled(els.deckCountInput, settingsLocked);
+  setDisabled(els.hyperrealisticInput, settingsLocked);
+
   // Confirm-swap button: disable once the current player has already confirmed swap (or if not in SWAP)
   if(els.confirmSwapBtn){
     const cur = state.players[state.currentTurnIndex];
@@ -1655,8 +1963,9 @@ function render(){
   // Fold button: show during SWAP unless already folded; if the player has already swapped, keep it visible but disabled (greyed out)
   if(els.foldBtn){
     const cur = state.players[state.currentTurnIndex];
-    els.foldBtn.style.display = (state.phase === PHASE.SWAP && cur && !cur.folded) ? 'inline-block' : 'none';
-    els.foldBtn.disabled = !!(cur && (cur.hasSwapped || state.phase !== PHASE.SWAP));
+    const canFold = !!(state.phase === PHASE.SWAP && cur && !cur.folded && state.currentTurnIndex !== state.dealerIndex);
+    els.foldBtn.style.display = canFold ? 'inline-block' : 'none';
+    els.foldBtn.disabled = !canFold || !!(cur && cur.hasSwapped);
   }
 
   // Pass device button removed; auto-pass handles progression.
@@ -1665,15 +1974,8 @@ function render(){
   renderHand();
   renderStatus();
 
-  // when the Game panel is collapsed, show the status pill in the Game header
-  if(els.gameSummary){
-    if(state.collapsed.game){
-      // display the existing statusText (without deck readout)
-      els.gameSummary.textContent = els.statusText.textContent;
-    } else {
-      els.gameSummary.textContent = '';
-    }
-  }
+  // keep Game header summary empty; notifier handles status now
+  if(els.gameSummary){ els.gameSummary.textContent = ''; }
 }
 
 els.startGameBtn.addEventListener("click", ()=>{
@@ -1688,10 +1990,12 @@ els.startGameBtn.addEventListener("click", ()=>{
     return;
   }
   initPlayers(names);
-  state.phase = PHASE.SWAP; // we’ll immediately wait for deal
+  state.phase = PHASE.SWAP; // we'll immediately wait for deal
   state.phase = PHASE.HAND_END; // show controls and let dealer deal
   state.dealerIndex = 0;
   state.currentTurnIndex = 0;
+  state.winnerIndex = null;
+  state.settingsCollapsed = true;
   setLock(true, 0);
   render();
 });
@@ -1745,6 +2049,54 @@ els.revealBtn.addEventListener("click", ()=>{
 els.keepLockedBtn.addEventListener("click", ()=>{
   setLock(true, state.pendingRevealForIndex ?? state.currentTurnIndex);
 });
+
+if(els.settingsHeader){
+  const toggleSettings = ()=>{
+    state.settingsCollapsed = !state.settingsCollapsed;
+    render();
+  };
+  els.settingsHeader.addEventListener("click", (e)=>{
+    e.preventDefault();
+    toggleSettings();
+  });
+  els.settingsHeader.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      toggleSettings();
+    }
+  });
+}
+if(els.startingScoreInput){
+  els.startingScoreInput.addEventListener("input", ()=>{
+    state.settings.startingScore = Number(els.startingScoreInput.value);
+    clampSettings();
+    if(state.settings.foldThreshold > state.settings.startingScore){
+      state.settings.foldThreshold = state.settings.startingScore;
+    }
+    syncSettingsUI();
+  });
+}
+if(els.foldThresholdInput){
+  els.foldThresholdInput.addEventListener("input", ()=>{
+    state.settings.foldThreshold = Number(els.foldThresholdInput.value);
+    clampSettings();
+    syncSettingsUI();
+  });
+}
+if(els.deckCountInput){
+  els.deckCountInput.addEventListener("input", ()=>{
+    state.settings.decks = Number(els.deckCountInput.value);
+    clampSettings();
+    syncSettingsUI();
+  });
+}
+if(els.hyperrealisticInput){
+  els.hyperrealisticInput.addEventListener("change", ()=>{
+    state.settings.hyperrealistic = !!els.hyperrealisticInput.checked;
+    syncSettingsUI();
+    render();
+  });
+}
 
 resetAll();
 </script>
