@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Ding (Spoil Five) — Single Device Prototype</title>
+  <title>Ding — Single Device Prototype</title>
   <style>
     :root{
       --bg:#0b1020; --panel:#121a33; --panel2:#0f1730; --text:#e9eeff;
@@ -90,11 +90,12 @@
       display:flex; flex-direction:column; gap:8px;
     }
     .playerRow{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      padding:10px 12px;
+      display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+      padding:12px 16px;
       border:1px solid var(--stroke);
       border-radius: 14px;
       background: rgba(0,0,0,.18);
+      min-height:80px;
     }
     .playerRow .name{font-weight:800}
     .badge{
@@ -161,6 +162,12 @@
       opacity:.38; cursor:not-allowed; transform:none;
       border-color: rgba(255,255,255,.14);
     }
+    /* gold outline for trump cards in-hand */
+    .cardBtn.trump{ border-color: rgba(252,204,102,.55); box-shadow: 0 12px 28px rgba(252,204,102,.06); }
+
+    /* Table trick slot layout: card on top, player name underneath */
+    .trickSlot{ display:flex; flex-direction:column; align-items:center; gap:6px; min-width: var(--cardW); }
+    .trickSlot .cardFace{ width: var(--cardW); height:96px; }
     .cardBtn .top,.cardBtn .bot{font-weight:900; font-size:14px}
     .cardBtn .mid{font-size:20px; text-align:center}
     .row2{display:flex; gap:10px; flex-wrap:wrap;}
@@ -202,6 +209,45 @@
     .lock p{margin:0 0 12px 0; color:var(--muted)}
     .footerNote{margin-top:10px; color:var(--muted); font-size:12px}
 
+    /* Card log (crude) */
+    .cardLog{
+      border:1px dashed var(--stroke);
+      padding:8px;
+      border-radius:12px;
+      background: rgba(255,255,255,.02);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .cardLog div{ margin:6px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .foldedBadge{ padding:4px 8px; border-radius:999px; background: rgba(255,255,255,.03); color:var(--muted); font-size:12px; border:1px dashed var(--stroke); display:inline-block; margin-left:6px; }
+
+    .collapseBtn{ padding:6px 8px; font-size:12px; display:none; }
+    .panel.collapsed .bd{ display:none; }
+
+    /* Header caret on the left */
+    .panel .hd .caret{
+      display:inline-block; width:14px; text-align:center; margin-right:8px; font-size:13px; opacity:.9; transition: transform .12s ease, opacity .12s ease;
+      transform-origin: center;
+    }
+    .panel .hd .caret.collapsed{ transform: rotate(-90deg); opacity:.8; }
+    .panel .hd:focus{ outline: 2px solid rgba(124,92,255,.12); outline-offset: 2px; border-radius: 12px; }
+
+    /* Hide carets for non-collapsible sections */
+    #tableCaret, #handCaret{ display:none; }
+
+    /* hand hint spacing */
+    #handHint{ margin-bottom:14px; }
+
+    /* Mini card stack for won tricks */
+    .wonTrick{ display:inline-block; position:relative; height:72px; margin-right:12px; }
+    .miniCard{ width:40px; height:56px; border-radius:6px; border:1px solid rgba(255,255,255,.12); background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted); box-shadow: 0 6px 12px rgba(0,0,0,.25); }
+    .miniCard.red{ color:#ff7c95 }
+    .miniCard.winner{ border-color: rgba(124,92,255,.6); background: linear-gradient(180deg, rgba(124,92,255,.12), rgba(255,255,255,.02)); color:var(--text); }
+    /* raise the top-most mini-card more so it doesn't cover lower card text */
+    .wonTrick .miniCard:last-child{ transform: translateY(-28px); z-index:2; box-shadow: 0 14px 24px rgba(0,0,0,.4); }
+    .wonTricksRow{ display:flex; align-items:flex-start; gap:12px; margin-top:8px; }
+
     /* Deal & swap animations 🔧 */
     .fly-in{
       animation: flyIn .45s cubic-bezier(.2,.9,.2,1) both;
@@ -224,10 +270,10 @@
 <header>
   <div class="row">
     <div class="title">
-      <div style="width:34px;height:34px;border-radius:12px;background:rgba(124,92,255,.25);border:1px solid rgba(124,92,255,.5);display:flex;align-items:center;justify-content:center;font-weight:900;">D</div>
+      <div style="width:34px;height:34px;border-radius:12px;background:rgba(124,92,255,.25);border:1px solid rgba(124,92,255,.5);display:flex;align-items:center;justify-content:center;font-weight:900;">♤</div>
       <div>
         <div style="font-weight:900;font-size:16px;">Ding — Single Device Prototype</div>
-        <div class="small">Hotseat trick-taking with swap phase (Spoil Five style)</div>
+        <div class="small">GLHF</div>
       </div>
     </div>
     <div class="row2">
@@ -240,10 +286,12 @@
 
 <main>
   <div class="grid">
-    <section class="panel">
-      <div class="hd">
-        <div style="font-weight:900;">Game</div>
+    <section id="gamePanel" class="panel">
+      <div id="gameHeader" class="hd">
+        <div style="font-weight:900;"><span class="caret" id="gameCaret">▾</span>Game</div>
         <div class="row2">
+          <div id="gameSummary" class="small mono" style="margin-right:8px;">—</div>
+          <button class="btn collapseBtn" id="collapseGameBtn">▾</button>
           <button class="btn danger" id="resetBtn">Reset</button>
         </div>
       </div>
@@ -258,10 +306,7 @@
         <div id="controlsArea" class="stack" style="display:none;">
           <div class="scoreboard" id="scoreboard"></div>
 
-          <div class="row2">
-            <button class="btn primary" id="startHandBtn">Start / Deal Hand</button>
-            <button class="btn" id="passBtn">Pass device</button>
-          </div>
+
 
           <div id="statusBox" class="pill" style="justify-content:space-between;">
             <span id="statusText">—</span>
@@ -269,29 +314,46 @@
           </div>
 
           <div id="errorBox" class="error" style="display:none;"></div>
+
+          <div id="cardLog" class="cardLog" style="margin-top:8px;">
+            <div><strong>Deck</strong> <span id="deckLog" class="mono" style="margin-left:6px;">—</span></div>
+            <div><strong>Discard</strong> <span id="discardLog" class="mono" style="margin-left:6px;">—</span></div>
+            <div><strong>Played</strong> <span id="playedLog" class="mono" style="margin-left:6px;">—</span></div>
+          </div>
         </div>
       </div>
     </section>
 
     <section class="panel">
-      <div class="hd">
-        <div style="font-weight:900;">Table</div>
+      <div id="tableHeader" class="hd">
+        <div style="font-weight:900;"><span class="caret" id="tableCaret">▾</span>Table</div>
         <div class="row2">
-          <div class="badge">Turn: <strong id="turnName">—</strong></div>
-          <div class="badge">Dealer: <strong id="dealerName">—</strong></div>
-          <div class="badge">Trick: <strong id="trickNum">—</strong></div>
+          <div id="tableSummary" class="small mono" style="margin-right:8px;">—</div>
+          <button class="btn collapseBtn" id="collapseTableBtn">▾</button>
+          <div style="display:flex; gap:10px;">
+            <div class="badge">Turn: <strong id="turnName">—</strong></div>
+            <div class="badge">Dealer: <strong id="dealerName">—</strong></div>
+            <div class="badge">Trick: <strong id="trickNum">—</strong></div>
+          </div>
         </div>
       </div>
       <div class="bd tableArea">
         <div class="trickArea" id="trickArea"></div>
 
-        <div class="panel" style="border-radius:18px;">
-          <div class="hd">
+        <div id="handPanel" class="panel" style="border-radius:18px;">
+          <div id="handHeader" class="hd">
             <div style="font-weight:900;">Your hand</div>
             <div class="row2">
-              <div class="badge">Selected: <strong id="selectedCount">0</strong></div>
-              <button class="btn good" id="confirmSwapBtn" style="display:none;">Confirm swap</button>
-              <button class="btn primary" id="confirmPlayBtn" style="display:none;">Play selected card</button>
+              <div id="handSummary" class="small mono" style="margin-right:8px;">—</div>
+              <button class="btn collapseBtn" id="collapseHandBtn">▾</button>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <div class="badge">Selected: <strong id="selectedCount">0</strong></div>
+                <button class="btn good" id="confirmSwapBtn" style="display:none;">Confirm Swap</button>
+                <button class="btn primary" id="confirmPlayBtn" style="display:none;">Play selected card</button>
+                <button class="btn primary" id="startHandBtn">Deal Hands</button>
+                <button class="btn" id="passBtn">Pass</button>
+                <button class="btn danger" id="foldBtn" style="display:none;">Fold</button>
+              </div>
             </div>
           </div>
           <div class="bd">
@@ -325,7 +387,7 @@
  *  - Next hand dealer: set DEALER_RULE
  *    "LAST_TRICK_WINNER" (default) or "ROTATE"
  */
-const DEALER_RULE = "LAST_TRICK_WINNER"; // or "ROTATE"
+const DEALER_RULE = "ROTATE"; // or "ROTATE"
 
 const SUITS = ["C","D","H","S"];
 const SUIT_ICON = { C:"♣", D:"♦", H:"♥", S:"♠" };
@@ -402,6 +464,10 @@ const state = {
   lockOn: false,
   pendingRevealForIndex: null,
   lastTrickWinnerIndex: null,
+  lastCompletedTrick: null,
+  discardPile: [],
+  playedCards: [],
+  collapsed: { game:false, table:false, hand:false },
 };
 
 const els = {
@@ -438,7 +504,65 @@ const els = {
   lockText: document.getElementById("lockText"),
   revealBtn: document.getElementById("revealBtn"),
   keepLockedBtn: document.getElementById("keepLockedBtn"),
+  deckLog: document.getElementById("deckLog"),
+  discardLog: document.getElementById("discardLog"),
+  playedLog: document.getElementById("playedLog"),
+  foldBtn: document.getElementById("foldBtn"),
+  gamePanel: document.getElementById("gamePanel"),
+  tablePanel: document.getElementById("tablePanel"),
+  handPanel: document.getElementById("handPanel"),
+  gameHeader: document.getElementById("gameHeader"),
+  tableHeader: document.getElementById("tableHeader"),
+  handHeader: document.getElementById("handHeader"),
+  gameCaret: document.getElementById("gameCaret"),
+  tableCaret: document.getElementById("tableCaret"),
+  handCaret: document.getElementById("handCaret"),
+  collapseGameBtn: document.getElementById("collapseGameBtn"),
+  collapseTableBtn: document.getElementById("collapseTableBtn"),
+  collapseHandBtn: document.getElementById("collapseHandBtn"),
+  gameSummary: document.getElementById("gameSummary"),
+  tableSummary: document.getElementById("tableSummary"),
+  handSummary: document.getElementById("handSummary"),
 };
+
+function foldCurrentPlayer(){
+  if(state.phase !== PHASE.SWAP) return;
+  const p = state.players[state.currentTurnIndex];
+  if(!p || p.folded) return;
+  // mark folded and mark as swapped so they are excluded from further swap turns
+  p.folded = true;
+  p.hasSwapped = true;
+  // move their hand to discard pile (also handle trump if present)
+  if(p.hand && p.hand.length){
+    // if trump is in their hand, clear the global trump reference
+    const trumpIdx = p.hand.findIndex(c => state.trumpCard && c.id === state.trumpCard.id);
+    if(trumpIdx !== -1){
+      state.discardPile.push(...p.hand);
+      state.trumpCard = null;
+      state.trumpSuit = null;
+    } else {
+      state.discardPile.push(...p.hand);
+    }
+    p.hand = [];
+  }
+  state.selectedForSwap.clear();
+  setError(null);
+  render();
+
+  // If too few players remain, end the hand immediately
+  if(activePlayersCount() < 2){
+    endHand();
+    return;
+  }
+
+  // Otherwise advance to next unswapped/active player
+  advanceSwapTurn();
+}
+
+// wire fold button
+if(els.foldBtn){
+  els.foldBtn.addEventListener('click', ()=> foldCurrentPlayer());
+} 
 
 function setError(msg){
   if(!msg){
@@ -450,7 +574,19 @@ function setError(msg){
   els.errorBox.textContent = msg;
 }
 
+// Toggle to temporarily disable lock behavior while testing.
+// Set to `false` to restore normal lock UI/behavior.
+const LOCKS_DISABLED = true;
+
 function setLock(on, forIndex=null){
+  // Short-circuit lock behavior when disabled for tests.
+  if (typeof LOCKS_DISABLED !== "undefined" && LOCKS_DISABLED) {
+    state.lockOn = false;
+    state.pendingRevealForIndex = null;
+    if (els && els.lock) els.lock.style.display = "none";
+    return;
+  }
+
   state.lockOn = on;
   state.pendingRevealForIndex = forIndex;
   els.lock.style.display = on ? "flex" : "none";
@@ -486,10 +622,26 @@ function resetAll(){
   state.dealTimeouts = [];
   state.dealing = false;
   state.lastTrickWinnerIndex = null;
+  state.lastCompletedTrick = null;
+  state.discardPile = [];
+  state.playedCards = [];
+  state.collapsed = { game:false, table:false, hand:false };
   setLock(false, null);
   setError(null);
   render();
 }
+
+// collapse toggles: only Game header is collapsible; Table & Hand are fixed open
+if(els.gameHeader){
+  els.gameHeader.style.cursor = 'pointer';
+  els.gameHeader.tabIndex = 0;
+  const toggleGame = ()=>{ state.collapsed.game = !state.collapsed.game; render(); };
+  els.gameHeader.addEventListener('click', toggleGame);
+  els.gameHeader.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleGame(); } });
+  // prevent clicks on the right-side header controls from toggling the header
+  const gameRow = els.gameHeader.querySelector('.row2'); if(gameRow){ gameRow.addEventListener('click', e=>e.stopPropagation()); gameRow.addEventListener('keydown', e=>e.stopPropagation()); }
+}
+// tableHeader and handHeader are intentionally not made collapsible here
 
 function initPlayers(names){
   state.players = names.map((n,i)=>({
@@ -497,8 +649,10 @@ function initPlayers(names){
     name: n,
     hand: [],
     tricksWonThisHand: 0,
+    wonTricks: [],
     score: 0,
     hasSwapped: false,
+    folded: false,
   }));
   state.dealerIndex = 0;
   state.leaderIndex = 0;
@@ -514,6 +668,7 @@ function dealHand(){
   for(const p of state.players){
     p.hand = [];
     p.tricksWonThisHand = 0;
+    p.wonTricks = [];
     p.hasSwapped = false;
   }
   state.deck = shuffle(makeDeck());
@@ -532,10 +687,20 @@ function dealHand(){
   // mark everyone as needing an initial reveal animation when they press Reveal
   for(let i=0;i<state.players.length;i++) state.playersPendingInitial.add(i);
 
+  // set the initial trump card to dealer's last dealt card (dealer keeps it)
+  const dealer = state.players[state.dealerIndex];
+  if(dealer && dealer.hand.length){
+    state.trumpCard = dealer.hand[dealer.hand.length - 1];
+    state.trumpSuit = state.trumpCard.suit;
+  } else {
+    state.trumpCard = null;
+    state.trumpSuit = null;
+  }
+
   // finalize swap state
   state.dealing = false;
   state.phase = PHASE.SWAP;
-  state.currentTurnIndex = (state.dealerIndex + 1) % state.players.length; // swap starts left of dealer
+  state.currentTurnIndex = firstActiveIndex((state.dealerIndex + 1) % state.players.length); // swap starts left of dealer
   state.leaderIndex = state.dealerIndex; // per rules: dealer leads first trick
   state.trickNumber = 0;
   state.currentTrick = { plays: [], leadSuit: null };
@@ -566,7 +731,7 @@ function advanceSwapTurn(){
   // everyone swapped
   state.phase = PHASE.TRICK;
   state.trickNumber = 1;
-  state.currentTurnIndex = state.leaderIndex;
+  state.currentTurnIndex = firstActiveIndex(state.leaderIndex);
   state.currentTrick = { plays: [], leadSuit: null };
   state.selectedCardIds.clear();
   setLock(true, state.currentTurnIndex);
@@ -583,6 +748,30 @@ function nextUnswappedIndex(start){
   return null;
 }
 
+// Return the first active (non-folded) index at or after `start`, or null if none
+function firstActiveIndex(start){
+  if(!state.players.length) return null;
+  for(let k=0;k<state.players.length;k++){
+    const idx = (start + k) % state.players.length;
+    if(!state.players[idx].folded) return idx;
+  }
+  return null;
+}
+
+// Return next active index AFTER `idx`, or null if none
+function getNextActiveIndex(idx){
+  if(!state.players.length) return null;
+  for(let k=1;k<=state.players.length;k++){
+    const i = (idx + k) % state.players.length;
+    if(!state.players[i].folded) return i;
+  }
+  return null;
+}
+
+function activePlayersCount(){
+  return state.players.reduce((n,p)=> n + (p.folded ? 0 : 1), 0);
+}
+
 function confirmSwap(){
   setError(null);
   if(state.phase !== PHASE.SWAP) return;
@@ -592,6 +781,11 @@ function confirmSwap(){
   if(p.hasSwapped){ setError("You have already swapped this hand."); return; }
 
   const discards = Array.from(state.selectedForSwap);
+  // record discarded card objects into discard pile
+  if(discards.length){
+    const discardedCards = p.hand.filter(c => discards.includes(c.id));
+    state.discardPile.push(...discardedCards);
+  }
   if(discards.length > 3){
     setError("You can swap at most 3 cards.");
     return;
@@ -600,56 +794,76 @@ function confirmSwap(){
 
   // if nothing selected, interpret as a 0-card swap (allowed), but still mark as swapped
 
-  // animate discards (clone & fly out)
-  discards.forEach(id => {
-    const node = els.handArea.querySelector(`[data-card-id="${id}"]`);
-    if(node){
-      const rect = node.getBoundingClientRect();
-      const clone = node.cloneNode(true);
-      clone.style.position = 'fixed';
-      clone.style.left = rect.left + 'px';
-      clone.style.top = rect.top + 'px';
-      clone.style.width = rect.width + 'px';
-      clone.style.height = rect.height + 'px';
-      clone.style.margin = '0';
-      clone.style.zIndex = 9999;
-      document.body.appendChild(clone);
-      requestAnimationFrame(()=> clone.classList.add('fly-out'));
-      setTimeout(()=> clone.remove(), 380);
-    }
-  });
+  // replace each selected card in-place, left-to-right, with animated out/in sequence (~350ms per card)
+  const positions = Array.from(state.selectedForSwap)
+    .map(id => ({ id, idx: p.hand.findIndex(c => c.id===id) }))
+    .filter(x => x.idx !== -1)
+    .sort((a,b)=> a.idx - b.idx);
 
-  // actually remove discards from hand
-  const discardSet = new Set(discards);
-  p.hand = p.hand.filter(c => !discardSet.has(c.id));
-
-  // draw same number with incoming animation
-  for(let i=0;i<discards.length;i++){
-    if(state.deck.length){
-      const card = state.deck.pop();
-      p.hand.push(card);
-      state.incomingCardIds.add(card.id);
-      // clear incoming flag after animation
-      setTimeout(()=>{ state.incomingCardIds.delete(card.id); render(); }, 600);
-    }
+  // mark those discards into discard pile (by object)
+  for(const pos of positions){
+    const discarded = p.hand[pos.idx];
+    if(discarded) state.discardPile.push(discarded);
   }
-  p.hasSwapped = true;
-  // clear selection so the UI doesn't retain previous selections
-  state.selectedForSwap.clear();
-  // leave device unlocked so player can immediately inspect their new cards without clicking Reveal
-  setLock(false, null);
-  render();
 
-  // If the dealer just completed their swap (got their cards back), set the trump now
-  if(state.dealerIndex === state.currentTurnIndex && !state.trumpCard){
-    if(state.deck.length){
-      state.trumpCard = state.deck.pop();
-      state.trumpSuit = state.trumpCard.suit;
-    } else {
-      state.trumpCard = null;
-      state.trumpSuit = null;
+  // function for delay
+  const sleep = (ms)=> new Promise(r=> setTimeout(r, ms));
+
+  // sequentially replace
+  (async ()=>{
+    const perCardMs = Math.max(300, Math.floor(1000 / Math.max(1, positions.length)) ); // approx 1s total distributed
+    for(const pos of positions){
+      const id = pos.id;
+      // animate outgoing clone if present
+      const node = els.handArea.querySelector(`[data-card-id="${id}"]`);
+      if(node){
+        const rect = node.getBoundingClientRect();
+        const clone = node.cloneNode(true);
+        clone.style.position = 'fixed';
+        clone.style.left = rect.left + 'px';
+        clone.style.top = rect.top + 'px';
+        clone.style.width = rect.width + 'px';
+        clone.style.height = rect.height + 'px';
+        clone.style.margin = '0';
+        clone.style.zIndex = 9999;
+        document.body.appendChild(clone);
+        requestAnimationFrame(()=> clone.classList.add('fly-out'));
+        // remove clone after animation
+        setTimeout(()=> clone.remove(), Math.max(360, perCardMs));
+      }
+
+      // actually remove the card at the target index (use current hand state - indices shift as we replace sequentially)
+      const curIdx = p.hand.findIndex(c => c.id === id);
+      if(curIdx !== -1) p.hand.splice(curIdx, 1);
+
+      // draw one replacement and insert at same index
+      if(state.deck.length){
+        const card = state.deck.pop();
+        const insertIdx = Math.min(curIdx === -1 ? p.hand.length : curIdx, p.hand.length);
+        p.hand.splice(insertIdx, 0, card);
+        state.incomingCardIds.add(card.id);
+        render();
+        // hold the incoming indicator for the per-card interval
+        await sleep(perCardMs);
+        state.incomingCardIds.delete(card.id);
+        render();
+      } else {
+        // no card to draw; continue after a short pause
+        await sleep(perCardMs);
+      }
     }
-  }
+
+    p.hasSwapped = true;
+    state.selectedForSwap.clear();
+    // leave device unlocked so player can immediately inspect their new cards without clicking Reveal
+    setLock(false, null);
+    render();
+  })();
+
+  // No-op for trump here (trump already set at deal)
+
+
+  // Trump already set during deal; do not draw an extra trump here.
 }
 
 function playableCardIdsForCurrentPlayer(){
@@ -690,14 +904,27 @@ function playSelectedCard(){
   state.currentTrick.plays.push({ playerIndex: state.currentTurnIndex, card });
   if(!state.currentTrick.leadSuit){
     state.currentTrick.leadSuit = card.suit;
+    // a new trick is starting: clear the previous completed trick that was left on the table
+    state.lastCompletedTrick = null;
   }
   state.selectedCardIds.clear();
 
   // if trick complete:
-  if(state.currentTrick.plays.length === state.players.length){
+  if(state.currentTrick.plays.length === activePlayersCount()){
     const winnerIdx = determineTrickWinner(state.currentTrick.plays, state.currentTrick.leadSuit, state.trumpSuit);
     state.players[winnerIdx].tricksWonThisHand += 1;
     state.lastTrickWinnerIndex = winnerIdx;
+
+    // record the completed trick (array of plays) into the winner's wonTricks for visualization
+    const trickRecord = state.currentTrick.plays.map(p => ({ playerIndex: p.playerIndex, card: p.card }));
+    state.players[winnerIdx].wonTricks = state.players[winnerIdx].wonTricks || [];
+    state.players[winnerIdx].wonTricks.push(trickRecord);
+
+    // store the completed trick on the table so it remains visible until the next lead
+    state.lastCompletedTrick = trickRecord;
+
+    // add played cards to log
+    for(const pl of state.currentTrick.plays) state.playedCards.push(pl.card);
 
     // next leader is trick winner
     state.leaderIndex = winnerIdx;
@@ -709,7 +936,7 @@ function playSelectedCard(){
     } else {
       state.trickNumber += 1;
       state.currentTrick = { plays: [], leadSuit: null };
-      state.currentTurnIndex = state.leaderIndex;
+      state.currentTurnIndex = firstActiveIndex(state.leaderIndex);
       setLock(true, state.currentTurnIndex);
       render();
       return;
@@ -717,7 +944,8 @@ function playSelectedCard(){
   }
 
   // otherwise next player's turn
-  state.currentTurnIndex = (state.currentTurnIndex + 1) % state.players.length;
+  const nextIdx = getNextActiveIndex(state.currentTurnIndex);
+  if(nextIdx !== null) state.currentTurnIndex = nextIdx;
   setLock(true, state.currentTurnIndex);
   render();
 }
@@ -737,6 +965,17 @@ function endHand(){
     state.dealerIndex = (state.dealerIndex + 1) % state.players.length;
   }
 
+  // move trump to discard pile so it appears in logs (remove from any player's hand)
+  if(state.trumpCard){
+    for(const pl of state.players){
+      const i = pl.hand.findIndex(c => c.id === state.trumpCard.id);
+      if(i !== -1){ pl.hand.splice(i,1); break; }
+    }
+    state.discardPile.push(state.trumpCard);
+    state.trumpCard = null;
+    state.trumpSuit = null;
+  }
+
   // reset turn pointers
   state.currentTurnIndex = state.dealerIndex;
   state.selectedCardIds.clear();
@@ -753,8 +992,55 @@ function renderScoreboard(){
     const row = document.createElement("div");
     row.className = "playerRow";
     const left = document.createElement("div");
-    left.innerHTML = `<div class="name">${p.name}${idx===state.currentTurnIndex ? " •" : ""}</div>
-                      <div class="small">Hand tricks: <span class="mono">${p.tricksWonThisHand}</span></div>`;
+    left.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div class="name">${p.name}${idx===state.currentTurnIndex ? " •" : ""}</div>${p.folded ? '<span class="foldedBadge">folded</span>' : ''}</div>`;
+
+    // show won tricks visualization (overlapping mini-cards with winning card on top). If none, show the count.
+    const tricksRow = document.createElement('div');
+    tricksRow.className = 'small';
+    if(p.wonTricks && p.wonTricks.length){
+      const container = document.createElement('div');
+      container.className = 'wonTricksRow mono';
+      p.wonTricks.forEach(trick => {
+          const wrapper = document.createElement('div');
+        wrapper.className = 'wonTrick';
+        const CARD_W = 40; const OVERLAP = 22;
+        const stackWidth = ((trick.length - 1) * OVERLAP) + CARD_W;
+        wrapper.style.width = stackWidth + 'px';
+        wrapper.style.height = '72px';
+        wrapper.style.position = 'relative';
+        wrapper.style.overflow = 'visible';
+        // add base cards (stack left-to-right; later cards overlap and sit above earlier ones)
+        trick.forEach((pl, i) => {
+          const mc = document.createElement('div');
+          mc.className = 'miniCard ' + (isRedSuit(pl.card.suit) ? 'red' : '');
+          mc.textContent = `${RANK_LABEL[pl.card.rank] ?? pl.card.rank}${SUIT_ICON[pl.card.suit]}`;
+          mc.style.position = 'absolute';
+          mc.style.left = (i * OVERLAP) + 'px';
+          mc.style.top = '28px';
+          mc.style.zIndex = i; // ensure left-to-right stacking (higher index on top)
+          wrapper.appendChild(mc);
+        });
+        // overlay winner card sideways across top (the play where playerIndex == idx)
+        const winningPlay = trick.find(pl => pl.playerIndex === idx);
+        if(winningPlay){
+          const wc = document.createElement('div');
+          wc.className = 'miniCard winner ' + (isRedSuit(winningPlay.card.suit) ? 'red' : '');
+          wc.textContent = `${RANK_LABEL[winningPlay.card.rank] ?? winningPlay.card.rank}${SUIT_ICON[winningPlay.card.suit]}`;
+          wc.style.position = 'absolute';
+          wc.style.left = Math.max(0, (stackWidth / 2) - (CARD_W / 2)) + 'px';
+          wc.style.top = '-32px';
+          wc.style.transform = 'rotate(-90deg)';
+          wc.style.transformOrigin = 'center';
+          wc.style.zIndex = 1000; // sit above base cards
+          wrapper.appendChild(wc);
+        }
+        container.appendChild(wrapper);
+      });
+      tricksRow.appendChild(container);
+    } else {
+      tricksRow.innerHTML = `Hand tricks: <span class="mono">${p.tricksWonThisHand}</span>`;
+    }
+    left.appendChild(tricksRow);
     const right = document.createElement("div");
     right.className = "badge";
     right.innerHTML = `Score <strong class="mono">${p.score}</strong>`;
@@ -766,6 +1052,15 @@ function renderScoreboard(){
 
 function renderTrickArea(){
   els.trickArea.innerHTML = "";
+  // show folded players on the table
+  const folded = state.players.filter(p => p.folded).map(p => p.name);
+  if(folded.length){
+    const f = document.createElement('div');
+    f.className = 'pill';
+    f.style.marginBottom = '8px';
+    f.textContent = `Folded: ${folded.join(', ')}`;
+    els.trickArea.appendChild(f);
+  }
   // show current trick plays
   if(state.phase === PHASE.LOBBY){
     els.trickArea.innerHTML = `<div class="small">Start a game, deal a hand, then play.</div>`;
@@ -774,28 +1069,34 @@ function renderTrickArea(){
 
   const plays = state.currentTrick.plays;
   if(state.phase === PHASE.TRICK || state.phase === PHASE.HAND_END){
-    if(plays.length === 0){
+    const renderPlays = plays.length ? plays : (state.lastCompletedTrick || []);
+    if(renderPlays.length === 0){
       const d = document.createElement("div");
       d.className = "small";
       d.textContent = "No cards played yet for this trick.";
       els.trickArea.appendChild(d);
     } else {
-      for(const pl of plays){
+      for(const pl of renderPlays){
         const p = state.players[pl.playerIndex];
-        const box = document.createElement("div");
-        box.className = "trickCard";
-        const left = document.createElement("div");
-        left.innerHTML = `<div style="font-weight:900;">${p.name}</div>
-                          <div class="small">played</div>`;
+        const slot = document.createElement("div");
+        slot.className = "trickSlot";
+
         const c = pl.card;
         const face = document.createElement("div");
         face.className = "cardFace " + (isRedSuit(c.suit) ? "red":"");
         face.innerHTML = `<div class="top">${RANK_LABEL[c.rank] ?? c.rank}${SUIT_ICON[c.suit]}</div>
                           <div class="mid">${SUIT_ICON[c.suit]}</div>
                           <div class="bot">${RANK_LABEL[c.rank] ?? c.rank}${SUIT_ICON[c.suit]}</div>`;
-        box.appendChild(left);
-        box.appendChild(face);
-        els.trickArea.appendChild(box);
+
+        const name = document.createElement("div");
+        name.className = "small";
+        name.style.textAlign = "center";
+        name.style.marginTop = "6px";
+        name.textContent = p.name;
+
+        slot.appendChild(face);
+        slot.appendChild(name);
+        els.trickArea.appendChild(slot);
       }
     }
   }
@@ -839,16 +1140,17 @@ function renderHand(){
     state.phase === PHASE.SWAP
       ? "Select 0–3 cards to discard, then confirm."
       : (state.phase === PHASE.TRICK ? "Select 1 card to play, then confirm." : "Hand ended — deal next hand.");
+  // ensure hand visual is shown in player-held order (do not sort)
+  const handForRender = p.hand.slice();
 
   const playable = (state.phase === PHASE.TRICK) ? playableCardIdsForCurrentPlayer() : null;
 
-  p.hand
-    .slice()
-    .sort((a,b)=> (a.suit.localeCompare(b.suit) || (a.rank-b.rank)))
-    .forEach(card=>{
+  handForRender.forEach(card=>{
       const btn = document.createElement("div");
       btn.className = "cardBtn " + (isRedSuit(card.suit) ? "red":"");
       btn.dataset.cardId = card.id;
+      // highlight trumps in-hand with a subtle gold outline
+      if(state.trumpSuit && card.suit === state.trumpSuit){ btn.classList.add('trump'); }
       // animate incoming cards
       if(state.incomingCardIds.has(card.id)){
         btn.classList.add('fly-in');
@@ -929,9 +1231,16 @@ function renderHand(){
 
 function renderHeaderPills(){
   els.phasePill.textContent = state.phase;
-  els.trumpPill.textContent = state.trumpSuit ? `${SUIT_ICON[state.trumpSuit]} (${cardLabel(state.trumpCard)})` : "—";
+  if(state.trumpSuit){
+    els.trumpPill.textContent = `${SUIT_ICON[state.trumpSuit]} (${cardLabel(state.trumpCard)})`;
+    if(isRedSuit(state.trumpSuit)) els.trumpPill.classList.add('red'); else els.trumpPill.classList.remove('red');
+  } else {
+    els.trumpPill.textContent = "—";
+    els.trumpPill.classList.remove('red');
+  }
   els.leadPill.textContent = state.currentTrick.leadSuit ? SUIT_ICON[state.currentTrick.leadSuit] : "—";
-}
+  if(state.currentTrick.leadSuit){ if(isRedSuit(state.currentTrick.leadSuit)) els.leadPill.classList.add('red'); else els.leadPill.classList.remove('red'); } else { els.leadPill.classList.remove('red'); }
+} 
 
 function renderMeta(){
   if(state.players.length){
@@ -957,9 +1266,42 @@ function renderStatus(){
   els.statusText.textContent = msg;
 }
 
+function renderCardLog(){
+  if(!els.deckLog) return;
+  const deckLabels = state.deck.map(cardLabel).join(' ');
+  const discardLabels = state.discardPile.map(cardLabel).join(' ');
+  const playedLabels = state.playedCards.map(cardLabel).join(' ');
+  els.deckLog.textContent = state.deck.length ? `${state.deck.length} left: ${deckLabels}` : '0';
+  els.discardLog.textContent = state.discardPile.length ? `${state.discardPile.length}: ${discardLabels}` : '—';
+  els.playedLog.textContent = state.playedCards.length ? `${state.playedCards.length}: ${playedLabels}` : '—';
+}
+
 function render(){
   renderHeaderPills();
   renderMeta();
+
+  // apply collapsed classes & update collapse button icons
+  if(els.gamePanel) els.gamePanel.classList.toggle('collapsed', !!state.collapsed.game);
+  if(els.tablePanel) els.tablePanel.classList.toggle('collapsed', !!state.collapsed.table);
+  // ensure hand panel defaults to open
+  state.collapsed.hand = !!state.collapsed.hand;
+  if(els.handPanel) els.handPanel.classList.toggle('collapsed', !!state.collapsed.hand);
+  if(els.collapseGameBtn) els.collapseGameBtn.textContent = state.collapsed.game ? '▸' : '▾';
+  if(els.collapseTableBtn) els.collapseTableBtn.textContent = state.collapsed.table ? '▸' : '▾';
+  if(els.collapseHandBtn) els.collapseHandBtn.textContent = state.collapsed.hand ? '▸' : '▾';
+
+  // update left carets and aria-expanded attributes
+  if(els.gameCaret){ els.gameCaret.classList.toggle('collapsed', !!state.collapsed.game); }
+  if(els.tableCaret){ els.tableCaret.classList.toggle('collapsed', !!state.collapsed.table); }
+  if(els.handCaret){ els.handCaret.classList.toggle('collapsed', !!state.collapsed.hand); }
+  if(els.gameHeader){ els.gameHeader.setAttribute('aria-expanded', String(!state.collapsed.game)); }
+  if(els.tableHeader){ els.tableHeader.setAttribute('aria-expanded', String(!state.collapsed.table)); }
+  if(els.handHeader){ els.handHeader.setAttribute('aria-expanded', String(!state.collapsed.hand)); }
+
+  // remove rough subtitles from headers (keep headers minimal)
+  if(els.gameSummary){ els.gameSummary.textContent = ''; }
+  if(els.tableSummary){ els.tableSummary.textContent = ''; }
+  if(els.handSummary){ els.handSummary.textContent = ''; }
 
   if(state.phase === PHASE.LOBBY){
     els.lobbyArea.style.display = "flex";
@@ -972,8 +1314,27 @@ function render(){
     els.startHandBtn.disabled = (state.phase !== PHASE.HAND_END) || (state.players.length < 2);
   }
 
+  // Confirm-swap button: disable once the current player has already confirmed swap (or if not in SWAP)
+  if(els.confirmSwapBtn){
+    const cur = state.players[state.currentTurnIndex];
+    els.confirmSwapBtn.disabled = !(state.phase === PHASE.SWAP && cur && !cur.folded && !cur.hasSwapped && !state.dealing);
+  }
+
+  // Fold button: show during SWAP unless already folded; if the player has already swapped, keep it visible but disabled (greyed out)
+  if(els.foldBtn){
+    const cur = state.players[state.currentTurnIndex];
+    els.foldBtn.style.display = (state.phase === PHASE.SWAP && cur && !cur.folded) ? 'inline-block' : 'none';
+    els.foldBtn.disabled = !!(cur && (cur.hasSwapped || state.phase !== PHASE.SWAP));
+  }
+
+  // Pass device button is disabled once the game moves into the TRICK phase
+  if(els.passBtn){
+    els.passBtn.disabled = (state.phase === PHASE.TRICK);
+  }
+
   renderTrickArea();
   renderHand();
+  renderCardLog();
   renderStatus();
 }
 
