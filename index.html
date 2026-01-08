@@ -143,6 +143,7 @@
       width: var(--cardW);
       height: 96px;
       border-radius: 14px;
+      position: relative;
       border:1px solid rgba(255,255,255,.18);
       background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
       box-shadow: 0 10px 22px rgba(0,0,0,.35);
@@ -167,7 +168,10 @@
 
     /* Table trick slot layout: card on top, player name underneath */
     .trickSlot{ display:flex; flex-direction:column; align-items:center; gap:6px; min-width: var(--cardW); }
-    .trickSlot .cardFace{ width: var(--cardW); height:96px; }
+    /* Table card faces are slightly larger and styled differently than in-hand cards */
+    .trickSlot .cardFace{ width: var(--cardW); height: calc(var(--cardW) * 1.45); border-radius:10px; background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.12); }
+    .trickSlot .cardFace.enter{ animation: trickIn 420ms cubic-bezier(.2,.9,.2,1); }
+    @keyframes trickIn{ 0%{ transform: translateY(-14px) scale(.98); opacity:0 } 60%{ transform: translateY(4px) scale(1.04); opacity:1 } 100%{ transform: translateY(0) scale(1) } }
     .cardBtn .top,.cardBtn .bot{font-weight:900; font-size:14px}
     .cardBtn .mid{font-size:20px; text-align:center}
     .row2{display:flex; gap:10px; flex-wrap:wrap;}
@@ -222,6 +226,14 @@
     .cardLog div{ margin:6px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .foldedBadge{ padding:4px 8px; border-radius:999px; background: rgba(255,255,255,.03); color:var(--muted); font-size:12px; border:1px dashed var(--stroke); display:inline-block; margin-left:6px; }
 
+    /* More thoughtful folded pill used in table and scoreboard */
+    .foldedPill{
+      display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      border: 1px solid rgba(255,255,255,.04); color:var(--muted); font-size:13px;
+      box-shadow: none;
+    }
+
     .collapseBtn{ padding:6px 8px; font-size:12px; display:none; }
     .panel.collapsed .bd{ display:none; }
 
@@ -244,6 +256,80 @@
     .miniCard{ width:40px; height:56px; border-radius:6px; border:1px solid rgba(255,255,255,.12); background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted); box-shadow: 0 6px 12px rgba(0,0,0,.25); }
     .miniCard.red{ color:#ff7c95 }
     .miniCard.winner{ border-color: rgba(124,92,255,.6); background: linear-gradient(180deg, rgba(124,92,255,.12), rgba(255,255,255,.02)); color:var(--text); }
+    /* Styled pill for the trick winner summary */
+    .pill.trick-winner{
+      padding:10px 14px;
+      border-radius:12px;
+      background: linear-gradient(90deg, rgba(124,92,255,.14), rgba(62,226,138,.06));
+      border: 1px solid rgba(255,255,255,.06);
+      box-shadow: 0 8px 30px rgba(124,92,255,.06), inset 0 1px 0 rgba(255,255,255,.02);
+      color: var(--text);
+      gap:12px;
+      align-items:center;
+    }
+    .pill.trick-winner .miniCard{ width:48px; height:64px; font-size:14px; border-radius:8px; }
+    .pill.trick-winner .label{ color:var(--muted); font-size:12px; }
+    .pill.trick-winner strong{ font-size:15px; }
+
+    /* Mini trick counter in scoreboard */
+    .trickVisualizer{ display:flex; gap:10px; align-items:center; }
+    .trickChipsRow{ display:flex; gap:8px; align-items:center; }
+    /* treat each chip like a tiny card */
+    .trickChip{
+      width:38px; height:52px; border-radius:8px;
+      border:1px solid rgba(255,255,255,.06);
+      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.005));
+      box-shadow: 0 8px 18px rgba(0,0,0,.32);
+      display:flex; align-items:center; justify-content:center;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+      overflow:hidden;
+    }
+    .trickChip.empty{ opacity:.28; background: linear-gradient(180deg, rgba(255,255,255,.01), rgba(255,255,255,.005)); }
+    /* gold-filled mini-card for won tricks */
+    .trickChip.filled{
+      background: linear-gradient(180deg, #fbf6e3, #f7e9b8);
+      border:1px solid rgba(255,230,150,.25);
+      box-shadow: 0 10px 28px rgba(245,200,80,.12), inset 0 1px 0 rgba(255,255,255,.6);
+    }
+    .trickChip.filled .chipInner{
+      width:86%; height:78%; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:16px; color:#6b4300;
+      background: linear-gradient(180deg, rgba(255,235,160,.98), rgba(255,205,90,.98));
+      box-shadow: 0 6px 14px rgba(204,150,26,.12) inset;
+    }
+    /* subtle lateral shake for the most-recent chip (light, tasteful) */
+    .trickChip.recent{ transform: translateY(0); box-shadow: 0 20px 40px rgba(245,190,40,.14); animation: subtleShake 900ms ease-in-out infinite; }
+    @keyframes subtleShake{
+      0% { transform: translate3d(0,0,0) rotate(0deg); }
+      20% { transform: translate3d(-2px,0,0) rotate(-0.6deg); }
+      40% { transform: translate3d(1.5px,0,0) rotate(0.4deg); }
+      60% { transform: translate3d(-1px,0,0) rotate(-0.3deg); }
+      80% { transform: translate3d(0.6px,0,0) rotate(0.2deg); }
+      100% { transform: translate3d(0,0,0) rotate(0deg); }
+    }
+    .scoreTrophy{ display:flex; gap:8px; align-items:center; background: linear-gradient(90deg, rgba(255,245,210,.16), rgba(255,255,255,0)); padding:6px 10px; border-radius:12px; border:1px solid rgba(255,230,140,.08); color: #8a5b0b; font-weight:800; font-size:13px; }
+
+    /* total score pill: bold gold display that stands out */
+    .totalScore{
+      display:flex; align-items:center; justify-content:center; min-width:92px; padding:10px 14px; gap:10px;
+      background: linear-gradient(180deg, #fff7e6, #ffe59e);
+      border: 1px solid rgba(255,210,110,.25);
+      border-radius: 14px; color: #6b3f00; font-weight:900; box-shadow: 0 18px 44px rgba(245,190,40,.12), inset 0 1px 0 rgba(255,255,255,.6);
+      transition: transform .18s ease, box-shadow .18s ease;
+      font-size:14px;
+      text-align:center;
+    }
+    .totalScore .scoreValue{ font-size:18px; margin-left:6px; color:#4a2d00; }
+    .totalScore.pulse{ animation: scorePulse 2400ms ease-in-out infinite; }
+    @keyframes scorePulse{
+      0% { box-shadow: 0 14px 36px rgba(245,190,40,.08); transform: translateY(0); }
+      50% { box-shadow: 0 26px 60px rgba(245,170,30,.14); transform: translateY(-2px); }
+      100% { box-shadow: 0 14px 36px rgba(245,190,40,.08); transform: translateY(0); }
+    }
+    /* deck visualizer removed */
+    /* scoreboard highlights */
+    .playerRow.activeTurn{ border-color: rgba(124,92,255,.45); box-shadow: 0 12px 30px rgba(124,92,255,.06); }
+    .dealerBadge{ padding:4px 8px; border-radius:8px; background: rgba(255,215,130,.06); color:#ffdca8; font-size:12px; border:1px solid rgba(255,215,130,.06); margin-left:6px; }
+    .turnDot{ color: var(--good); font-size:14px; margin-left:6px; font-weight:900; }
     /* raise the top-most mini-card more so it doesn't cover lower card text */
     .wonTrick .miniCard:last-child{ transform: translateY(-28px); z-index:2; box-shadow: 0 14px 24px rgba(0,0,0,.4); }
     .wonTricksRow{ display:flex; align-items:flex-start; gap:12px; margin-top:8px; }
@@ -264,6 +350,74 @@
       from { transform: translateY(0) scale(1); opacity: 1; }
       to   { transform: translateY(-28px) scale(.7) rotate(-8deg); opacity: 0; filter: blur(2px); }
     }
+    /* play animation clone (card flying to table) */
+    .playClone{
+      position:fixed; z-index:9999; pointer-events:none; border-radius:14px; box-shadow: 0 18px 40px rgba(0,0,0,.45);
+      transition: transform .45s cubic-bezier(.2,.9,.2,1), opacity .35s ease;
+      transform-origin: center center;
+    }
+
+    /* incoming-card sparkle */
+    .fly-in::after{
+      content: ''; position: absolute; left: 50%; top: 20%; transform: translateX(-50%) translateY(-10%);
+      width: 10px; height: 10px; border-radius:50%;
+      background: radial-gradient(circle at center, rgba(255,255,255,.95) 0%, rgba(255,255,255,.6) 30%, rgba(255,255,255,0) 60%);
+      opacity: 0; pointer-events:none; mix-blend-mode: screen;
+      animation: sparkle 700ms cubic-bezier(.2,.9,.2,1) forwards;
+    }
+    @keyframes sparkle{
+      0% { transform: translateX(-50%) translateY(-10%) scale(.4); opacity: 0; }
+      40% { transform: translateX(-50%) translateY(-20%) scale(1.4); opacity: .98; }
+      100% { transform: translateX(-50%) translateY(-40%) scale(1.8); opacity: 0; }
+    }
+
+    /* pop animation for trick-winner pill */
+    .pill.trick-winner.pop{ animation: popIn 420ms cubic-bezier(.2,.85,.25,1); }
+    @keyframes popIn{
+      0%{ transform: scale(.88); opacity:0; }
+      40%{ transform: scale(1.06); opacity:1; }
+      70%{ transform: scale(.98); }
+      100%{ transform: scale(1); }
+    }
+    /* Responsive tweaks for narrow/phone screens */
+    @media (max-width: 520px){
+      :root{ --cardW: 56px; }
+      header{ padding:10px 12px }
+      .title div{ font-size:14px }
+      .pill{ padding:6px 8px; font-size:12px }
+      .cardBtn{ width: var(--cardW); height: calc(var(--cardW) * 1.3); }
+      .cardFace{ width: var(--cardW); height: calc(var(--cardW) * 1.35); }
+      .trickSlot{ min-width: var(--cardW); }
+      .trickChip{ width:28px; height:40px; border-radius:6px }
+      .trickChip.filled .chipInner{ font-size:12px }
+      .pill.trick-winner .miniCard{ width:40px; height:52px }
+      .totalScore{ min-width:76px; padding:8px 10px; font-size:13px }
+      .wonTrick .miniCard:last-child{ transform: translateY(-20px); }
+    }
+    @media (max-width: 360px){
+      :root{ --cardW: 48px; }
+      .trickChip{ width:24px; height:36px }
+      .pill.trick-winner{ padding:8px 10px }
+      .pill.trick-winner .miniCard{ width:34px; height:44px }
+      .title div{ font-size:13px }
+      .scoreboard .playerRow{ padding:10px }
+      .hand{ gap:8px }
+    }
+
+    /* Auto-pass small ring */
+    .autoPassRing{
+      width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.06); color:var(--muted);
+      box-shadow: 0 6px 12px rgba(0,0,0,.3);
+    }
+    /* notifier styles */
+    #notifier{ border:1px solid rgba(255,255,255,.04); background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01)); }
+    #notifierIcon{ font-size:20px; }
+    #notifierTitle{ font-size:15px }
+    /* notifier action visually present but non-interactive; actions belong in main UI */
+    #notifierAction{ background: rgba(124,92,255,.14); border:1px solid rgba(124,92,255,.28); color:var(--text); display:none !important; pointer-events:none; }
+    @media (max-width:720px){ #notifier{ margin:8px 12px; } #notifierAction{ display:none } }
   </style>
 </head>
 <body>
@@ -284,6 +438,21 @@
   </div>
 </header>
 
+<!-- Unified notifier: shows phase, actor, and concise instructions -->
+<div id="notifier" class="panel" style="margin:12px auto;max-width:1100px;border-radius:12px;display:none;">
+  <div class="bd" style="display:flex;align-items:center;gap:12px;padding:10px 14px;">
+    <div id="notifierIcon" style="width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.03);font-size:20px;">🔔</div>
+    <div style="flex:1;min-width:0;">
+      <div id="notifierTitle" style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Status</div>
+      <div id="notifierDetail" class="small" style="opacity:.9;">—</div>
+    </div>
+    <div id="notifierMeta" style="display:flex;align-items:center;gap:8px;">
+      <div id="notifierPlayer" class="pill" style="padding:6px 10px;border-radius:10px;">—</div>
+      <div id="notifierAction" class="btn" style="padding:8px 10px;">—</div>
+    </div>
+  </div>
+</div>
+
 <main>
   <div class="grid">
     <section id="gamePanel" class="panel">
@@ -300,7 +469,6 @@
           <div class="small">Enter 2–6 player names (one per line). Then start.</div>
           <textarea id="namesInput" class="input" rows="6" placeholder="Illya&#10;Player 2&#10;Player 3"></textarea>
           <button class="btn primary" id="startGameBtn">Start Game</button>
-          <div class="footerNote">Tip: this prototype keeps hands secret with a “Pass device” lock screen.</div>
         </div>
 
         <div id="controlsArea" class="stack" style="display:none;">
@@ -316,9 +484,7 @@
           <div id="errorBox" class="error" style="display:none;"></div>
 
           <div id="cardLog" class="cardLog" style="margin-top:8px;">
-            <div><strong>Deck</strong> <span id="deckLog" class="mono" style="margin-left:6px;">—</span></div>
-            <div><strong>Discard</strong> <span id="discardLog" class="mono" style="margin-left:6px;">—</span></div>
-            <div><strong>Played</strong> <span id="playedLog" class="mono" style="margin-left:6px;">—</span></div>
+            <!-- card log removed per UI cleanup -->
           </div>
         </div>
       </div>
@@ -347,11 +513,15 @@
               <div id="handSummary" class="small mono" style="margin-right:8px;">—</div>
               <button class="btn collapseBtn" id="collapseHandBtn">▾</button>
               <div style="display:flex; gap:8px; align-items:center;">
-                <div class="badge">Selected: <strong id="selectedCount">0</strong></div>
+                <div class="badge" id="selectedBadge" style="display:none;">Selected: <strong id="selectedCount">0</strong></div>
                 <button class="btn good" id="confirmSwapBtn" style="display:none;">Confirm Swap</button>
                 <button class="btn primary" id="confirmPlayBtn" style="display:none;">Play selected card</button>
                 <button class="btn primary" id="startHandBtn">Deal Hands</button>
-                <button class="btn" id="passBtn">Pass</button>
+                <!-- Pass button removed -->
+                <div id="autoPassViz" style="display:none;align-items:center;gap:8px;">
+                  <div class="autoPassRing" id="autoPassRing">3</div>
+                  <div class="small" id="autoPassLabel" style="white-space:nowrap;color:var(--muted);">Auto-pass</div>
+                </div>
                 <button class="btn danger" id="foldBtn" style="display:none;">Fold</button>
               </div>
             </div>
@@ -440,7 +610,7 @@ function determineTrickWinner(plays, leadSuit, trumpSuit){
   return best.playerIndex;
 }
 
-function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+// removed unused helper: clone()
 
 const state = {
   phase: PHASE.LOBBY,
@@ -480,7 +650,6 @@ const els = {
   namesInput: document.getElementById("namesInput"),
   startGameBtn: document.getElementById("startGameBtn"),
   startHandBtn: document.getElementById("startHandBtn"),
-  passBtn: document.getElementById("passBtn"),
   resetBtn: document.getElementById("resetBtn"),
 
   scoreboard: document.getElementById("scoreboard"),
@@ -491,6 +660,9 @@ const els = {
   trickArea: document.getElementById("trickArea"),
   handArea: document.getElementById("handArea"),
   handHint: document.getElementById("handHint"),
+  autoPassViz: document.getElementById("autoPassViz"),
+  autoPassRing: document.getElementById("autoPassRing"),
+  autoPassLabel: document.getElementById("autoPassLabel"),
   selectedCount: document.getElementById("selectedCount"),
   confirmSwapBtn: document.getElementById("confirmSwapBtn"),
   confirmPlayBtn: document.getElementById("confirmPlayBtn"),
@@ -504,9 +676,6 @@ const els = {
   lockText: document.getElementById("lockText"),
   revealBtn: document.getElementById("revealBtn"),
   keepLockedBtn: document.getElementById("keepLockedBtn"),
-  deckLog: document.getElementById("deckLog"),
-  discardLog: document.getElementById("discardLog"),
-  playedLog: document.getElementById("playedLog"),
   foldBtn: document.getElementById("foldBtn"),
   gamePanel: document.getElementById("gamePanel"),
   tablePanel: document.getElementById("tablePanel"),
@@ -685,8 +854,6 @@ function dealHand(){
   }
 
   // mark everyone as needing an initial reveal animation when they press Reveal
-  for(let i=0;i<state.players.length;i++) state.playersPendingInitial.add(i);
-
   // set the initial trump card to dealer's last dealt card (dealer keeps it)
   const dealer = state.players[state.dealerIndex];
   if(dealer && dealer.hand.length){
@@ -696,9 +863,7 @@ function dealHand(){
     state.trumpCard = null;
     state.trumpSuit = null;
   }
-
-  // finalize swap state
-  state.dealing = false;
+  // finalize swap state and animate the dealt cards into each player's hand
   state.phase = PHASE.SWAP;
   state.currentTurnIndex = firstActiveIndex((state.dealerIndex + 1) % state.players.length); // swap starts left of dealer
   state.leaderIndex = state.dealerIndex; // per rules: dealer leads first trick
@@ -707,14 +872,19 @@ function dealHand(){
   state.selectedCardIds.clear();
   state.selectedForSwap.clear();
 
-  // lock to dealer so they can reveal and then press Pass to move to the next player
+  // Removing per-card fly-in animations: perform an immediate, non-animated deal.
+  state.dealTimeouts.forEach(t=> clearTimeout(t));
+  state.dealTimeouts = [];
+  state.dealing = false;
+
+  // after dealing, require initial reveal for each player (so Reveal can animate if desired)
+  for(let i=0;i<state.players.length;i++) state.playersPendingInitial.add(i);
+  // lock to dealer so they can reveal and then proceed
   setLock(true, state.dealerIndex);
   render();
 }
 
-function allPlayersSwapped(){
-  return state.players.every(p => p.hasSwapped);
-}
+// removed unused helper: allPlayersSwapped()
 
 function advanceSwapTurn(){
   // next player in order who hasn't swapped
@@ -739,14 +909,7 @@ function advanceSwapTurn(){
 }
 
 // Find the next player index (starting at 'start') who has NOT swapped yet. Returns null if all have swapped.
-function nextUnswappedIndex(start){
-  if(!state.players.length) return null;
-  for(let k=0;k<state.players.length;k++){
-    const idx = (start + k) % state.players.length;
-    if(!state.players[idx].hasSwapped) return idx;
-  }
-  return null;
-}
+// removed unused helper: nextUnswappedIndex()
 
 // Return the first active (non-folded) index at or after `start`, or null if none
 function firstActiveIndex(start){
@@ -858,6 +1021,25 @@ function confirmSwap(){
     // leave device unlocked so player can immediately inspect their new cards without clicking Reveal
     setLock(false, null);
     render();
+
+    // start auto-pass countdown: inform user and advance after 3s (if still in SWAP)
+    if(state.phase === PHASE.SWAP){
+      state.autoPassCountdown = 3;
+      const tick = setInterval(()=>{
+        state.autoPassCountdown -= 1;
+        if(state.autoPassCountdown <= 0){
+          clearInterval(tick);
+          state.autoPassCountdown = null;
+          // only advance if still in SWAP phase
+          if(state.phase === PHASE.SWAP){
+            advanceSwapTurn();
+          }
+          render();
+        } else {
+          render();
+        }
+      }, 1000);
+    }
   })();
 
   // No-op for trump here (trump already set at deal)
@@ -898,16 +1080,98 @@ function playSelectedCard(){
       return;
     }
   }
+  // animate play: clone the card DOM and fly it to the trick area, then commit the play
+  const node = els.handArea.querySelector(`[data-card-id="${card.id}"]`);
+  const commitPlay = ()=>{
+    // commit play
+    p.hand = p.hand.filter(c => c.id !== card.id);
+    state.currentTrick.plays.push({ playerIndex: state.currentTurnIndex, card });
+    if(!state.currentTrick.leadSuit){
+      state.currentTrick.leadSuit = card.suit;
+      // a new trick is starting: clear the previous completed trick that was left on the table
+      state.lastCompletedTrick = null;
+    }
+    state.selectedCardIds.clear();
+    // mark this card as recently played so renderTrickArea can add an entry animation
+    state.lastPlayedCardId = card.id;
+    render();
+    // clear the marker after the animation window
+    setTimeout(()=>{ state.lastPlayedCardId = null; render(); }, 520);
+    // continue with logic after render
+    // if trick complete:
+    if(state.currentTrick.plays.length === activePlayersCount()){
+      const winnerIdx = determineTrickWinner(state.currentTrick.plays, state.currentTrick.leadSuit, state.trumpSuit);
+      state.players[winnerIdx].tricksWonThisHand += 1;
+      state.lastTrickWinnerIndex = winnerIdx;
 
-  // commit play
-  p.hand = p.hand.filter(c => c.id !== card.id);
-  state.currentTrick.plays.push({ playerIndex: state.currentTurnIndex, card });
-  if(!state.currentTrick.leadSuit){
-    state.currentTrick.leadSuit = card.suit;
-    // a new trick is starting: clear the previous completed trick that was left on the table
-    state.lastCompletedTrick = null;
+      // record the completed trick (array of plays) into the winner's wonTricks for visualization
+      const trickRecord = state.currentTrick.plays.map(p => ({ playerIndex: p.playerIndex, card: p.card }));
+      state.players[winnerIdx].wonTricks = state.players[winnerIdx].wonTricks || [];
+      state.players[winnerIdx].wonTricks.push(trickRecord);
+
+      // store the completed trick on the table so it remains visible until the next lead
+      state.lastCompletedTrick = trickRecord;
+
+      // add played cards to log
+      for(const pl of state.currentTrick.plays) state.playedCards.push(pl.card);
+
+      // next leader is trick winner
+      state.leaderIndex = winnerIdx;
+
+      // next trick or end hand
+      if(state.trickNumber >= 5){
+        endHand();
+        return;
+      } else {
+        state.trickNumber += 1;
+        state.currentTrick = { plays: [], leadSuit: null };
+        state.currentTurnIndex = firstActiveIndex(state.leaderIndex);
+        setLock(true, state.currentTurnIndex);
+        render();
+        return;
+      }
+    }
+
+    // otherwise next player's turn
+    const nextIdx = getNextActiveIndex(state.currentTurnIndex);
+    if(nextIdx !== null) state.currentTurnIndex = nextIdx;
+    setLock(true, state.currentTurnIndex);
+    render();
+  };
+
+  if(node){
+    const rect = node.getBoundingClientRect();
+    const target = els.trickArea.getBoundingClientRect();
+    const clone = node.cloneNode(true);
+    clone.classList.add('playClone');
+    clone.style.width = rect.width + 'px';
+    clone.style.height = rect.height + 'px';
+    clone.style.left = rect.left + 'px';
+    clone.style.top = rect.top + 'px';
+    clone.style.margin = '0';
+    clone.style.transform = 'translate(0,0) scale(1)';
+    document.body.appendChild(clone);
+
+    // compute center target (center of trickArea)
+    const dx = (target.left + target.width/2) - (rect.left + rect.width/2);
+    const dy = (target.top + target.height/2) - (rect.top + rect.height/2);
+
+    requestAnimationFrame(()=>{
+      clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.92)`;
+      clone.style.opacity = '0.98';
+    });
+
+    // wait for animation to complete
+    setTimeout(()=>{
+      clone.remove();
+      commitPlay();
+    }, 460);
+    return;
+  } else {
+    // no DOM node found - fall back to instant commit
+    commitPlay();
+    return;
   }
-  state.selectedCardIds.clear();
 
   // if trick complete:
   if(state.currentTrick.plays.length === activePlayersCount()){
@@ -991,59 +1255,48 @@ function renderScoreboard(){
   state.players.forEach((p, idx)=>{
     const row = document.createElement("div");
     row.className = "playerRow";
+    // highlight active turn
+    if(idx === state.currentTurnIndex) row.classList.add('activeTurn');
     const left = document.createElement("div");
-    left.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div class="name">${p.name}${idx===state.currentTurnIndex ? " •" : ""}</div>${p.folded ? '<span class="foldedBadge">folded</span>' : ''}</div>`;
-
-    // show won tricks visualization (overlapping mini-cards with winning card on top). If none, show the count.
-    const tricksRow = document.createElement('div');
-    tricksRow.className = 'small';
-    if(p.wonTricks && p.wonTricks.length){
-      const container = document.createElement('div');
-      container.className = 'wonTricksRow mono';
-      p.wonTricks.forEach(trick => {
-          const wrapper = document.createElement('div');
-        wrapper.className = 'wonTrick';
-        const CARD_W = 40; const OVERLAP = 22;
-        const stackWidth = ((trick.length - 1) * OVERLAP) + CARD_W;
-        wrapper.style.width = stackWidth + 'px';
-        wrapper.style.height = '72px';
-        wrapper.style.position = 'relative';
-        wrapper.style.overflow = 'visible';
-        // add base cards (stack left-to-right; later cards overlap and sit above earlier ones)
-        trick.forEach((pl, i) => {
-          const mc = document.createElement('div');
-          mc.className = 'miniCard ' + (isRedSuit(pl.card.suit) ? 'red' : '');
-          mc.textContent = `${RANK_LABEL[pl.card.rank] ?? pl.card.rank}${SUIT_ICON[pl.card.suit]}`;
-          mc.style.position = 'absolute';
-          mc.style.left = (i * OVERLAP) + 'px';
-          mc.style.top = '28px';
-          mc.style.zIndex = i; // ensure left-to-right stacking (higher index on top)
-          wrapper.appendChild(mc);
-        });
-        // overlay winner card sideways across top (the play where playerIndex == idx)
-        const winningPlay = trick.find(pl => pl.playerIndex === idx);
-        if(winningPlay){
-          const wc = document.createElement('div');
-          wc.className = 'miniCard winner ' + (isRedSuit(winningPlay.card.suit) ? 'red' : '');
-          wc.textContent = `${RANK_LABEL[winningPlay.card.rank] ?? winningPlay.card.rank}${SUIT_ICON[winningPlay.card.suit]}`;
-          wc.style.position = 'absolute';
-          wc.style.left = Math.max(0, (stackWidth / 2) - (CARD_W / 2)) + 'px';
-          wc.style.top = '-32px';
-          wc.style.transform = 'rotate(-90deg)';
-          wc.style.transformOrigin = 'center';
-          wc.style.zIndex = 1000; // sit above base cards
-          wrapper.appendChild(wc);
-        }
-        container.appendChild(wrapper);
-      });
-      tricksRow.appendChild(container);
-    } else {
-      tricksRow.innerHTML = `Hand tricks: <span class="mono">${p.tricksWonThisHand}</span>`;
+    // show name, dealer badge, and turn indicator; keep folded badge if applicable
+    left.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div style="display:flex;align-items:center;gap:8px"><div class="name">${p.name}</div>${idx===state.dealerIndex?'<span class="dealerBadge">Dealer</span>':''}${idx===state.currentTurnIndex?'<span class="turnDot">●</span>':''}</div>${p.folded ? '<span class="foldedPill">Folded</span>' : ''}</div>`;
+    // compact visualizer: five tiny card-chips + integrated trophy badge
+    const visual = document.createElement('div');
+    visual.className = 'trickVisualizer';
+    const chips = document.createElement('div');
+    chips.className = 'trickChipsRow';
+    const MAX_TRICKS = 5;
+    for(let i=0;i<MAX_TRICKS;i++){
+      const chip = document.createElement('div');
+      const isFilled = i < p.tricksWonThisHand;
+      chip.className = 'trickChip ' + (isFilled ? 'filled' : 'empty');
+      if(isFilled){
+        const inner = document.createElement('div');
+        inner.className = 'chipInner';
+        // show small trophy glyph centered inside the gold mini-card
+        inner.textContent = '🏆';
+        chip.appendChild(inner);
+      }
+      // highlight the most-recently-won chip for last trick winner
+      if(i === p.tricksWonThisHand - 1 && state.lastTrickWinnerIndex === idx){
+        chip.classList.add('recent');
+      }
+      chip.title = `${i+1} of ${MAX_TRICKS}`;
+      chips.appendChild(chip);
     }
-    left.appendChild(tricksRow);
+
+    // integrated trophy badge showing total tricks won for the hand
+    const badge = document.createElement('div');
+    badge.className = 'scoreTrophy';
+    badge.innerHTML = `<span>🏅</span> <strong class="mono">${p.tricksWonThisHand}</strong>`;
+
+    visual.appendChild(chips);
+    visual.appendChild(badge);
+    left.appendChild(visual);
     const right = document.createElement("div");
-    right.className = "badge";
-    right.innerHTML = `Score <strong class="mono">${p.score}</strong>`;
+    // total score pill: bold, gold
+    right.className = "totalScore";
+    right.innerHTML = `<div class="scoreLabel">Score</div><strong class="mono scoreValue">${p.score}</strong>`;
     row.appendChild(left);
     row.appendChild(right);
     els.scoreboard.appendChild(row);
@@ -1056,9 +1309,9 @@ function renderTrickArea(){
   const folded = state.players.filter(p => p.folded).map(p => p.name);
   if(folded.length){
     const f = document.createElement('div');
-    f.className = 'pill';
+    f.className = 'pill foldedPill';
     f.style.marginBottom = '8px';
-    f.textContent = `Folded: ${folded.join(', ')}`;
+    f.innerHTML = `<strong style="margin-right:8px;color:var(--muted);font-size:13px">Folded:</strong> <span style="color:var(--muted);">${folded.join(', ')}</span>`;
     els.trickArea.appendChild(f);
   }
   // show current trick plays
@@ -1084,6 +1337,10 @@ function renderTrickArea(){
         const c = pl.card;
         const face = document.createElement("div");
         face.className = "cardFace " + (isRedSuit(c.suit) ? "red":"");
+        // entry animation for recently played card
+        if(state.lastPlayedCardId && c.id === state.lastPlayedCardId){
+          face.classList.add('enter');
+        }
         face.innerHTML = `<div class="top">${RANK_LABEL[c.rank] ?? c.rank}${SUIT_ICON[c.suit]}</div>
                           <div class="mid">${SUIT_ICON[c.suit]}</div>
                           <div class="bot">${RANK_LABEL[c.rank] ?? c.rank}${SUIT_ICON[c.suit]}</div>`;
@@ -1101,27 +1358,38 @@ function renderTrickArea(){
     }
   }
 
-  if(state.phase === PHASE.SWAP){
-    const info = document.createElement("div");
-    info.className = "small";
-    info.innerHTML = `Swap phase: <span class="mono">${state.players[state.currentTurnIndex].name}</span> can discard 0–3 cards, then draw.`;
-    els.trickArea.prepend(info);
-  }
+  // Swap info moved to unified notifier
 
-  if(state.phase === PHASE.HAND_END){
+  // show the last trick winner after each completed trick (styled pill with mini-card)
+  if(state.lastCompletedTrick && state.lastTrickWinnerIndex !== null){
     const summary = document.createElement("div");
-    summary.className = "pill";
-    summary.style.justifyContent = "space-between";
-    const winner = state.lastTrickWinnerIndex !== null ? state.players[state.lastTrickWinnerIndex].name : "—";
-    summary.innerHTML = `<span>Hand complete. Last trick winner:</span> <strong>${winner}</strong>`;
+    summary.className = "pill trick-winner";
+    const winner = state.players[state.lastTrickWinnerIndex]?.name ?? "—";
+    // find the winning play so we can show the winning card visually
+    const winningPlay = state.lastCompletedTrick.find(p => p.playerIndex === state.lastTrickWinnerIndex);
+    const cardText = winningPlay ? `${RANK_LABEL[winningPlay.card.rank] ?? winningPlay.card.rank}${SUIT_ICON[winningPlay.card.suit]}` : '';
+
+    summary.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="miniCard winner">${cardText}</div>
+        <div style="display:flex;flex-direction:column">
+          <div class="label">Trick winner</div>
+          <strong>${winner}</strong>
+        </div>
+      </div>
+    `;
     els.trickArea.prepend(summary);
+    // trigger a tasteful pop animation on insertion
+    requestAnimationFrame(()=>{
+      summary.classList.add('pop');
+      setTimeout(()=> summary.classList.remove('pop'), 900);
+    });
   }
 }
 
 function renderHand(){
   els.handArea.innerHTML = "";
   els.selectedCount.textContent = "0";
-  els.confirmSwapBtn.style.display = "none";
   els.confirmPlayBtn.style.display = "none";
 
   if(state.phase === PHASE.LOBBY){
@@ -1171,6 +1439,8 @@ function renderHand(){
         setError(null);
         if(state.phase === PHASE.HAND_END) return;
         if(state.phase === PHASE.SWAP){
+          // prevent selecting after the player already swapped
+          if(p && p.hasSwapped){ setError("You have already swapped this hand."); return; }
           if(isDisabled) return;
           if(state.selectedForSwap.has(card.id)){
             state.selectedForSwap.delete(card.id);
@@ -1184,7 +1454,7 @@ function renderHand(){
             btn.classList.add("selected");
           }
           els.selectedCount.textContent = String(state.selectedForSwap.size);
-          els.confirmSwapBtn.style.display = "inline-block";
+          // visibility/label handled centrally in render()
           return;
         }
 
@@ -1215,17 +1485,25 @@ function renderHand(){
   if(state.phase === PHASE.SWAP){
     els.selectedCount.textContent = String(state.selectedForSwap.size);
     const p = state.players[state.currentTurnIndex];
-    // only show Confirm swap if this player hasn't swapped yet
+    // visibility and label are managed centrally in render(); here only ensure the button isn't disabled incorrectly
     if(p && !p.hasSwapped){
-      els.confirmSwapBtn.style.display = "inline-block";
-      els.confirmSwapBtn.disabled = (state.selectedForSwap.size === 0 && !true); // allow 0-card swaps, so not disabled
-    } else {
-      els.confirmSwapBtn.style.display = "none";
+      els.confirmSwapBtn.disabled = false; // allow 0-card keep
     }
   }
   if(state.phase === PHASE.TRICK){
     els.selectedCount.textContent = String(state.selectedCardIds.size);
     els.confirmPlayBtn.style.display = "inline-block";
+  }
+
+  // update auto-pass visual in hand header
+  if(els.autoPassViz){
+    if(state.autoPassCountdown && state.phase === PHASE.SWAP){
+      els.autoPassViz.style.display = 'flex';
+      els.autoPassRing.textContent = String(state.autoPassCountdown);
+      els.autoPassLabel.style.display = 'block';
+    } else {
+      els.autoPassViz.style.display = 'none';
+    }
   }
 }
 
@@ -1251,30 +1529,81 @@ function renderMeta(){
     els.dealerName.textContent = "—";
   }
   els.trickNum.textContent = state.phase === PHASE.TRICK ? String(state.trickNumber) : (state.phase === PHASE.SWAP ? "—" : "—");
-  els.deckText.textContent = state.deck.length ? `Deck: ${state.deck.length}` : "";
+  // deck count is shown in the deck visualizer; keep header pill clean
+  els.deckText.textContent = "";
 }
 
 function renderStatus(){
   let msg = "—";
-  if(state.phase === PHASE.LOBBY) msg = "Enter names and start the game.";
-  if(state.phase === PHASE.SWAP) msg = `Swap turn: ${state.players[state.currentTurnIndex].name}`;
-  if(state.phase === PHASE.TRICK) {
-    const lead = state.currentTrick.leadSuit ? ` | Lead: ${SUIT_ICON[state.currentTrick.leadSuit]}` : "";
-    msg = `Play a card: ${state.players[state.currentTurnIndex].name}${lead}`;
+  // If notifier exists, populate it with richer UI; otherwise fall back to statusText
+  const notifier = document.getElementById('notifier');
+  const title = document.getElementById('notifierTitle');
+  const detail = document.getElementById('notifierDetail');
+  const icon = document.getElementById('notifierIcon');
+  const playerBadge = document.getElementById('notifierPlayer');
+  const actionBtn = document.getElementById('notifierAction');
+
+  if(!notifier){
+    // legacy fallback
+    if(state.autoPassCountdown && state.autoPassCountdown > 0 && state.phase === PHASE.SWAP){
+      msg = `Auto-passing in ${state.autoPassCountdown}s — ${state.players[state.currentTurnIndex]?.name}`;
+      els.statusText.textContent = msg;
+      return;
+    }
+    if(state.phase === PHASE.LOBBY) msg = "Enter names and start the game.";
+    if(state.phase === PHASE.SWAP) msg = `Swap turn: ${state.players[state.currentTurnIndex].name}`;
+    if(state.phase === PHASE.TRICK) {
+      const lead = state.currentTrick.leadSuit ? ` | Lead: ${SUIT_ICON[state.currentTrick.leadSuit]}` : "";
+      msg = `Play a card: ${state.players[state.currentTurnIndex].name}${lead}`;
+    }
+    if(state.phase === PHASE.HAND_END) msg = `Hand over. Dealer is ${state.players[state.dealerIndex].name}. Deal next hand when ready.`;
+    els.statusText.textContent = msg;
+    return;
   }
-  if(state.phase === PHASE.HAND_END) msg = `Hand over. Dealer is ${state.players[state.dealerIndex].name}. Deal next hand when ready.`;
-  els.statusText.textContent = msg;
+
+  // show notifier
+  notifier.style.display = 'flex';
+  title.textContent = '';
+  detail.textContent = '';
+  playerBadge.style.display = 'none';
+  actionBtn.style.display = 'none';
+
+  if(state.phase === PHASE.LOBBY){
+    icon.textContent = '♠';
+    title.textContent = 'Waiting to start';
+    detail.textContent = 'Enter 2–6 player names and start the game.';
+  }
+
+  if(state.phase === PHASE.SWAP){
+    const name = state.players[state.currentTurnIndex]?.name ?? 'Player';
+    icon.textContent = '🔁';
+    title.textContent = `Swap — ${name}`;
+    detail.textContent = `${name} may discard 0–3 cards, then draw.`;
+    playerBadge.style.display = 'inline-flex'; playerBadge.textContent = name;
+    if(state.autoPassCountdown && state.autoPassCountdown > 0){ detail.textContent += ` — Auto-pass in ${state.autoPassCountdown}s`; }
+  }
+
+  if(state.phase === PHASE.TRICK){
+    const name = state.players[state.currentTurnIndex]?.name ?? 'Player';
+    icon.textContent = '▶️';
+    const lead = state.currentTrick.leadSuit ? `${SUIT_ICON[state.currentTrick.leadSuit]}` : '—';
+    title.textContent = `Play — ${name}`;
+    detail.textContent = `Lead: ${lead} · Select 1 card to play.`;
+    playerBadge.style.display = 'inline-flex'; playerBadge.textContent = name;
+  }
+
+  if(state.phase === PHASE.HAND_END){
+    icon.textContent = '🏁';
+    title.textContent = 'Hand complete';
+    detail.textContent = `Dealer: ${state.players[state.dealerIndex]?.name ?? '—'}. Deal next hand when ready.`;
+    // notifications are informational only; actions are handled in the main UI
+  }
+
+  // keep legacy status text for compact header summary
+  els.statusText.textContent = detail.textContent || '—';
 }
 
-function renderCardLog(){
-  if(!els.deckLog) return;
-  const deckLabels = state.deck.map(cardLabel).join(' ');
-  const discardLabels = state.discardPile.map(cardLabel).join(' ');
-  const playedLabels = state.playedCards.map(cardLabel).join(' ');
-  els.deckLog.textContent = state.deck.length ? `${state.deck.length} left: ${deckLabels}` : '0';
-  els.discardLog.textContent = state.discardPile.length ? `${state.discardPile.length}: ${discardLabels}` : '—';
-  els.playedLog.textContent = state.playedCards.length ? `${state.playedCards.length}: ${playedLabels}` : '—';
-}
+// deck visualizer removed
 
 function render(){
   renderHeaderPills();
@@ -1312,12 +1641,21 @@ function render(){
     renderScoreboard();
     // disable deal button while a hand is in progress
     els.startHandBtn.disabled = (state.phase !== PHASE.HAND_END) || (state.players.length < 2);
+    // hide Deal Hands unless it's time to deal
+    if(els.startHandBtn){ els.startHandBtn.style.display = (state.phase === PHASE.HAND_END && state.players.length >= 2) ? 'inline-block' : 'none'; }
   }
 
   // Confirm-swap button: disable once the current player has already confirmed swap (or if not in SWAP)
   if(els.confirmSwapBtn){
     const cur = state.players[state.currentTurnIndex];
     els.confirmSwapBtn.disabled = !(state.phase === PHASE.SWAP && cur && !cur.folded && !cur.hasSwapped && !state.dealing);
+    // hide confirm swap unless actually in swap and current player can swap
+    els.confirmSwapBtn.style.display = (state.phase === PHASE.SWAP && cur && !cur.folded && !cur.hasSwapped && !state.dealing) ? 'inline-block' : 'none';
+    // update label based on number of selected cards when visible
+    if(state.phase === PHASE.SWAP && cur && !cur.folded && !cur.hasSwapped && !state.dealing){
+      // simple confirm button — always use 'Confirm'
+      els.confirmSwapBtn.textContent = 'Confirm';
+    }
   }
 
   // Fold button: show during SWAP unless already folded; if the player has already swapped, keep it visible but disabled (greyed out)
@@ -1327,15 +1665,21 @@ function render(){
     els.foldBtn.disabled = !!(cur && (cur.hasSwapped || state.phase !== PHASE.SWAP));
   }
 
-  // Pass device button is disabled once the game moves into the TRICK phase
-  if(els.passBtn){
-    els.passBtn.disabled = (state.phase === PHASE.TRICK);
-  }
+  // Pass device button removed; auto-pass handles progression.
 
   renderTrickArea();
   renderHand();
-  renderCardLog();
   renderStatus();
+
+  // when the Game panel is collapsed, show the status pill in the Game header
+  if(els.gameSummary){
+    if(state.collapsed.game){
+      // display the existing statusText (without deck readout)
+      els.gameSummary.textContent = els.statusText.textContent;
+    } else {
+      els.gameSummary.textContent = '';
+    }
+  }
 }
 
 els.startGameBtn.addEventListener("click", ()=>{
@@ -1374,32 +1718,7 @@ els.confirmPlayBtn.addEventListener("click", ()=>{
   playSelectedCard();
 });
 
-els.passBtn.addEventListener("click", ()=>{
-  if(state.players.length < 2) return;
-  setError(null);
-
-  if(state.phase === PHASE.SWAP){
-    // If the current player has already swapped, passing advances to the next unswapped player
-    if(state.players[state.currentTurnIndex]?.hasSwapped){
-      advanceSwapTurn();
-      return;
-    }
-    // otherwise (e.g., dealer passing after deal), lock to the next unswapped player so they can reveal and swap
-    const target = nextUnswappedIndex(state.currentTurnIndex);
-    if(target !== null){
-      setLock(true, target);
-      render();
-      return;
-    }
-    // fallback
-    advanceSwapTurn();
-    return;
-  }
-
-  // default: just lock to current turn
-  setLock(true, state.currentTurnIndex);
-  render();
-});
+// Pass button removed — auto-pass handles swap progression.
 
 els.resetBtn.addEventListener("click", ()=> resetAll());
 
