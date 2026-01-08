@@ -492,7 +492,7 @@
     .settingsCard.collapsed .settingsBody{ display:none; }
     .settingRow{
       display:grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr;
       gap:10px;
       align-items:center;
       padding:10px 8px;
@@ -509,7 +509,8 @@
       border:1px solid rgba(255,255,255,.08);
       min-width:56px; text-align:center;
     }
-    .settingRow input[type="range"]{ width:180px; accent-color: var(--accent); }
+    .settingControls{ display:flex; align-items:center; gap:10px; }
+    .settingRow input[type="range"]{ width:160px; max-width:60vw; accent-color: var(--accent); }
     .settingToggle{
       display:inline-flex; align-items:center; gap:8px;
       padding:6px 10px; border-radius:999px;
@@ -613,7 +614,7 @@
                 <div class="settingLabel">Starting Score</div>
                 <div class="settingMeta">5–50</div>
               </div>
-              <div style="display:flex;align-items:center;gap:10px;">
+              <div class="settingControls">
                 <input id="startingScoreInput" type="range" min="5" max="50" step="1" value="20" />
                 <div class="settingValue" id="startingScoreValue">20</div>
               </div>
@@ -630,7 +631,7 @@
                 <div class="settingLabel">Leader Fold Threshold</div>
                 <div class="settingMeta">1–Starting Score</div>
               </div>
-              <div style="display:flex;align-items:center;gap:10px;">
+              <div class="settingControls">
                 <input id="foldThresholdInput" type="range" min="1" max="20" step="1" value="5" />
                 <div class="settingValue" id="foldThresholdValue">5</div>
               </div>
@@ -647,7 +648,7 @@
                 <div class="settingLabel">Amount of Decks</div>
                 <div class="settingMeta">1–2</div>
               </div>
-              <div style="display:flex;align-items:center;gap:10px;">
+              <div class="settingControls">
                 <input id="deckCountInput" type="range" min="1" max="2" step="1" value="1" />
                 <div class="settingValue" id="deckCountValue">1</div>
               </div>
@@ -710,6 +711,7 @@
                   <div class="autoPassRing" id="autoPassRing">3</div>
                   <div class="small" id="autoPassLabel" style="white-space:nowrap;color:var(--muted);">Auto-pass</div>
                 </div>
+                <button class="btn" id="passBtn" style="display:none;">Pass</button>
                 <button class="btn danger" id="foldBtn" style="display:none;">Fold</button>
               </div>
             </div>
@@ -731,7 +733,6 @@
     <p id="lockText">Hand is hidden. Give the device to the next player, then tap reveal.</p>
     <div class="row2">
       <button class="btn primary" id="revealBtn" style="flex:1;">Reveal</button>
-      <button class="btn" id="keepLockedBtn">Keep hidden</button>
     </div>
     <div class="footerNote">No peeking 👀</div>
   </div>
@@ -824,6 +825,7 @@ const state = {
   playersPendingInitial: new Set(),
   dealing: false,             // whether a deal animation is in progress
   dealTimeouts: [],          // timeout handles for canceling scheduled deals
+  autoPassTimer: null,
   lockOn: false,
   pendingRevealForIndex: null,
   lastTrickWinnerIndex: null,
@@ -866,6 +868,7 @@ const els = {
   autoPassViz: document.getElementById("autoPassViz"),
   autoPassRing: document.getElementById("autoPassRing"),
   autoPassLabel: document.getElementById("autoPassLabel"),
+  passBtn: document.getElementById("passBtn"),
   selectedCount: document.getElementById("selectedCount"),
   confirmSwapBtn: document.getElementById("confirmSwapBtn"),
   confirmPlayBtn: document.getElementById("confirmPlayBtn"),
@@ -878,7 +881,6 @@ const els = {
   lockTitle: document.getElementById("lockTitle"),
   lockText: document.getElementById("lockText"),
   revealBtn: document.getElementById("revealBtn"),
-  keepLockedBtn: document.getElementById("keepLockedBtn"),
   foldBtn: document.getElementById("foldBtn"),
   settingsCard: document.getElementById("settingsCard"),
   settingsHeader: document.getElementById("settingsHeader"),
@@ -1018,6 +1020,7 @@ function setLock(on, forIndex=null){
   els.lock.style.display = on ? "flex" : "none";
   if(on && forIndex !== null){
     const name = state.players[forIndex]?.name ?? "Next player";
+    const isSelf = forIndex === state.currentTurnIndex;
     // special messaging for a player who just swapped and needs to inspect new cards
     if(state.phase === PHASE.SWAP && state.players[forIndex]?.hasSwapped){
       els.lockTitle.textContent = `Inspect ${name}`;
@@ -1046,6 +1049,7 @@ function resetAll(){
   state.playersPendingInitial.clear();
   state.dealTimeouts.forEach(t => clearTimeout(t));
   state.dealTimeouts = [];
+  if(state.autoPassTimer){ clearInterval(state.autoPassTimer); state.autoPassTimer = null; }
   state.dealing = false;
   state.lastTrickWinnerIndex = null;
   state.lastCompletedTrick = null;
@@ -1143,8 +1147,8 @@ function dealHand(){
 
   // after dealing, require initial reveal for each player (so Reveal can animate if desired)
   for(let i=0;i<state.players.length;i++) state.playersPendingInitial.add(i);
-  // lock to dealer so they can reveal and then proceed
-  setLock(true, state.dealerIndex);
+  // lock to first swap player (left of dealer)
+  setLock(true, state.currentTurnIndex);
   render();
 }
 
@@ -1289,10 +1293,12 @@ function confirmSwap(){
     // start auto-pass countdown: inform user and advance after 3s (if still in SWAP)
     if(state.phase === PHASE.SWAP){
       state.autoPassCountdown = 3;
-      const tick = setInterval(()=>{
+      if(state.autoPassTimer){ clearInterval(state.autoPassTimer); }
+      state.autoPassTimer = setInterval(()=>{
         state.autoPassCountdown -= 1;
         if(state.autoPassCountdown <= 0){
-          clearInterval(tick);
+          clearInterval(state.autoPassTimer);
+          state.autoPassTimer = null;
           state.autoPassCountdown = null;
           // only advance if still in SWAP phase
           if(state.phase === PHASE.SWAP){
@@ -1773,8 +1779,10 @@ function renderHand(){
       els.autoPassViz.style.display = 'flex';
       els.autoPassRing.textContent = String(state.autoPassCountdown);
       els.autoPassLabel.style.display = 'block';
+      if(els.passBtn) els.passBtn.style.display = 'inline-block';
     } else {
       els.autoPassViz.style.display = 'none';
+      if(els.passBtn) els.passBtn.style.display = 'none';
     }
   }
 }
@@ -2016,6 +2024,16 @@ els.confirmPlayBtn.addEventListener("click", ()=>{
   playSelectedCard();
 });
 
+if(els.passBtn){
+  els.passBtn.addEventListener("click", ()=>{
+    if(state.phase !== PHASE.SWAP) return;
+    if(state.autoPassTimer){ clearInterval(state.autoPassTimer); state.autoPassTimer = null; }
+    state.autoPassCountdown = null;
+    advanceSwapTurn();
+    render();
+  });
+}
+
 // Pass button removed — auto-pass handles swap progression.
 
 els.resetBtn.addEventListener("click", ()=> resetAll());
@@ -2046,10 +2064,6 @@ els.revealBtn.addEventListener("click", ()=>{
   setLock(false, null);
   render();
 });
-els.keepLockedBtn.addEventListener("click", ()=>{
-  setLock(true, state.pendingRevealForIndex ?? state.currentTurnIndex);
-});
-
 if(els.settingsHeader){
   const toggleSettings = ()=>{
     state.settingsCollapsed = !state.settingsCollapsed;
