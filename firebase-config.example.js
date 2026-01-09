@@ -1,4 +1,4 @@
-window.FIREBASE_CONFIG = {
+globalThis.FIREBASE_CONFIG = {
   apiKey: "YOUR_API_KEY",
   authDomain: "YOUR_PROJECT.firebaseapp.com",
   projectId: "YOUR_PROJECT_ID",
@@ -7,3 +7,4 @@ window.FIREBASE_CONFIG = {
   appId: "YOUR_APP_ID",
   measurementId: "YOUR_MEASUREMENT_ID"
 };
+globalThis.FIREBASE_VAPID_KEY = "YOUR_VAPID_KEY";

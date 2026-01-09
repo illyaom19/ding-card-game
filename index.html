@@ -4,6 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>DING Online</title>
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DING Online" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <style>
     :root{
       --bg:#0b1020; --panel:#121a33; --panel2:#0f1730; --text:#e9eeff;
@@ -774,6 +780,43 @@
     .roomTitle{ font-weight:800; letter-spacing:.6px; }
     .roomCount{ font-size:12px; color:var(--muted); }
     .roomBadges{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .pwaPrompt{
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(6,9,18,.6);
+      backdrop-filter: blur(6px);
+      z-index: 40;
+    }
+    .pwaCard{
+      width: min(560px, 100%);
+      border-radius: 16px;
+      border: 1px solid var(--stroke);
+      background: linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      box-shadow: var(--shadow);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .pwaTitle{ font-weight: 900; font-size: 16px; }
+    .pwaSteps{ display:flex; flex-direction:column; gap:6px; }
+    .pwaStep{ display:flex; gap:8px; align-items:flex-start; font-size:13px; color:var(--muted); }
+    .pwaStepNum{
+      width:20px; height:20px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(124,92,255,.18);
+      border:1px solid rgba(124,92,255,.35);
+      color: var(--text);
+      font-weight: 800;
+      font-size: 11px;
+      flex: 0 0 auto;
+    }
+    .pwaActions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .pwaStatus{ font-size:12px; color:var(--muted); }
     .roomTurnBadge{
       padding:4px 8px;
       border-radius:999px;
@@ -849,6 +892,22 @@
     </div>
   </div>
 </header>
+<div id="pwaPrompt" class="pwaPrompt" role="dialog" aria-live="polite" aria-hidden="true">
+  <div class="pwaCard">
+    <div class="pwaTitle">Install DING Online for turn alerts</div>
+    <div class="small">Add this game to your Home Screen so iPhone can send you turn notifications and open faster.</div>
+    <div class="pwaSteps">
+      <div class="pwaStep"><span class="pwaStepNum">1</span>Tap the Share button in Safari.</div>
+      <div class="pwaStep"><span class="pwaStepNum">2</span>Select "Add to Home Screen".</div>
+      <div class="pwaStep"><span class="pwaStepNum">3</span>Open the new app icon to enable alerts.</div>
+    </div>
+    <div id="pwaPromptStatus" class="pwaStatus" style="display:none;"></div>
+    <div class="pwaActions">
+      <button class="btn primary" id="pwaEnableBtn" type="button">Enable turn alerts</button>
+      <button class="btn" id="pwaDismissBtn" type="button">Dismiss</button>
+    </div>
+  </div>
+</div>
 <!-- Winner banner: shows when a player hits 0 -->
 <div id="winnerBanner" class="panel" style="margin:12px auto;max-width:1100px;border-radius:12px;display:none;">
   <div class="bd" style="display:flex;align-items:center;gap:12px;padding:12px 14px;">
@@ -1086,6 +1145,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, writeBatch, addDoc, query, orderBy, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging.js";
 /** =========================
  *  Ding Prototype (Hotseat)
  *  =========================
@@ -1111,10 +1171,12 @@ const MODE = {
   MULTI: "MULTI",
 };
 
-const firebaseConfig = window.FIREBASE_CONFIG || null;
+const firebaseConfig = globalThis.FIREBASE_CONFIG || null;
+const firebaseVapidKey = globalThis.FIREBASE_VAPID_KEY || "";
 const firebaseApp = firebaseConfig ? initializeApp(firebaseConfig) : null;
 const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
 const firebaseDb = firebaseApp ? getFirestore(firebaseApp) : null;
+const firebaseMessaging = firebaseApp ? getMessaging(firebaseApp) : null;
 const googleProvider = firebaseAuth ? new GoogleAuthProvider() : null;
 const ROOM_COLLECTION = "rooms";
 const USER_COLLECTION = "users";
@@ -1179,6 +1241,10 @@ const state = {
   roomId: null,
   roomName: null,
   roomNameDraft: "",
+  hasMadeFirstMove: false,
+  pwaPromptDismissed: false,
+  pushToken: null,
+  swRegistration: null,
   hostUid: null,
   selfUid: null,
   selfName: null,
@@ -1245,6 +1311,10 @@ const els = {
   trumpPillWrap: document.getElementById("trumpPillWrap"),
   leadPillWrap: document.getElementById("leadPillWrap"),
   headerGreeting: document.getElementById("headerGreeting"),
+  pwaPrompt: document.getElementById("pwaPrompt"),
+  pwaPromptStatus: document.getElementById("pwaPromptStatus"),
+  pwaEnableBtn: document.getElementById("pwaEnableBtn"),
+  pwaDismissBtn: document.getElementById("pwaDismissBtn"),
 
   lobbyArea: document.getElementById("lobbyArea"),
   controlsArea: document.getElementById("controlsArea"),
@@ -1435,6 +1505,7 @@ function foldCurrentPlayer(){
 
   // Otherwise advance to next unswapped/active player
   advanceSwapTurn();
+  if(isMulti) handleFirstMultiplayerMove();
   if(isMulti) syncRoomState("fold");
 }
 
@@ -1614,6 +1685,171 @@ function updateNicknameUI(){
   }
   setNicknameStatus("");
 }
+function isIos(){
+  const ua = navigator.userAgent || "";
+  const isApple = /iPad|iPhone|iPod/i.test(ua);
+  const isIpadOs = ua.includes("Mac") && "ontouchend" in document;
+  return isApple || isIpadOs;
+}
+function isStandalone(){
+  if(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+  return window.navigator.standalone === true;
+}
+function supportsPush(){
+  return ("Notification" in window) && ("serviceWorker" in navigator);
+}
+function setPwaPromptStatus(msg){
+  if(!els.pwaPromptStatus) return;
+  if(!msg){
+    els.pwaPromptStatus.textContent = "";
+    els.pwaPromptStatus.style.display = "none";
+    return;
+  }
+  els.pwaPromptStatus.textContent = msg;
+  els.pwaPromptStatus.style.display = "block";
+}
+function showPwaPrompt(){
+  if(!els.pwaPrompt) return;
+  els.pwaPrompt.style.display = "flex";
+  els.pwaPrompt.setAttribute("aria-hidden", "false");
+}
+function hidePwaPrompt(){
+  if(!els.pwaPrompt) return;
+  els.pwaPrompt.style.display = "none";
+  els.pwaPrompt.setAttribute("aria-hidden", "true");
+  setPwaPromptStatus("");
+}
+async function registerServiceWorker(){
+  if(state.swRegistration) return state.swRegistration;
+  if(!("serviceWorker" in navigator)) return null;
+  try{
+    const reg = await navigator.serviceWorker.register("./sw.js");
+    state.swRegistration = reg;
+    return reg;
+  } catch (err){
+    console.error("Service worker registration failed:", err);
+    return null;
+  }
+}
+async function savePushToken(token){
+  if(!token || !state.selfUid || !firebaseDb) return;
+  if(state.pushToken === token) return;
+  state.pushToken = token;
+  try{
+    await setDoc(userRef(state.selfUid), {
+      pushTokens: arrayUnion(token),
+      pushEnabled: true,
+      pushUpdatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (err){
+    console.error("Failed to save push token:", err);
+  }
+}
+async function enableTurnNotifications(fromUser){
+  if(!state.isSignedIn || !state.selfUid){
+    setPwaPromptStatus("Sign in to enable notifications.");
+    return false;
+  }
+  if(!supportsPush()){
+    setPwaPromptStatus("Notifications are not supported on this device.");
+    return false;
+  }
+  if(!firebaseMessaging || !firebaseDb){
+    setPwaPromptStatus("Firebase messaging not configured.");
+    return false;
+  }
+  if(!firebaseVapidKey){
+    setPwaPromptStatus("Missing VAPID key for push.");
+    return false;
+  }
+  if(isIos() && !isStandalone()){
+    setPwaPromptStatus("Install to Home Screen first to enable notifications.");
+    return false;
+  }
+  if(Notification.permission === "denied"){
+    setPwaPromptStatus("Notifications are blocked in settings.");
+    return false;
+  }
+  if(Notification.permission === "default"){
+    if(!fromUser) return false;
+    try{
+      const permission = await Notification.requestPermission();
+      if(permission !== "granted"){
+        setPwaPromptStatus("Notifications not enabled.");
+        return false;
+      }
+    } catch (err){
+      console.error("Notification permission error:", err);
+      setPwaPromptStatus("Notifications not enabled.");
+      return false;
+    }
+  }
+  const reg = await registerServiceWorker();
+  if(!reg){
+    setPwaPromptStatus("Service worker unavailable.");
+    return false;
+  }
+  try{
+    const token = await getToken(firebaseMessaging, {
+      vapidKey: firebaseVapidKey,
+      serviceWorkerRegistration: reg,
+    });
+    if(!token){
+      setPwaPromptStatus("No push token available yet.");
+      return false;
+    }
+    await savePushToken(token);
+    setPwaPromptStatus("Turn alerts enabled.");
+    return true;
+  } catch (err){
+    console.error("Failed to get push token:", err);
+    setPwaPromptStatus("Failed to enable notifications.");
+    return false;
+  }
+}
+function handleFirstMultiplayerMove(){
+  if(!state.isSignedIn || !state.selfUid) return;
+  if(state.hasMadeFirstMove) return;
+  state.hasMadeFirstMove = true;
+  if(firebaseDb){
+    setDoc(userRef(state.selfUid), { hasMadeFirstMove: true }, { merge: true })
+      .catch((err)=> console.error("Failed to save first move flag:", err));
+  }
+  if(isIos() && !isStandalone()){
+    if(!state.pwaPromptDismissed) showPwaPrompt();
+    return;
+  }
+  enableTurnNotifications(true);
+}
+let messagingListenerReady = false;
+function initMessagingListeners(){
+  if(messagingListenerReady || !firebaseMessaging) return;
+  if(!supportsPush()) return;
+  messagingListenerReady = true;
+  onMessage(firebaseMessaging, (payload)=>{
+    if(Notification.permission !== "granted") return;
+    if(document.visibilityState === "visible") return;
+    const data = payload?.data || {};
+    const roomName = data.roomName || getRoomDisplayName(state.roomName);
+    const title = payload?.notification?.title || "DING Online";
+    const body = payload?.notification?.body || `DING Online - It's your turn in ${roomName}`;
+    try{
+      new Notification(title, {
+        body,
+        tag: data.roomId || "ding-turn",
+        data: { roomId: data.roomId || "" },
+      });
+    } catch (err){
+      console.error("Foreground notification failed:", err);
+    }
+  });
+}
+function maybeRestorePushNotifications(){
+  if(!state.isSignedIn) return;
+  if(!supportsPush()) return;
+  if(Notification.permission !== "granted") return;
+  enableTurnNotifications(false);
+}
 function setRoomNameStatus(msg){
   if(!els.roomNameStatus) return;
   if(!msg){
@@ -1752,6 +1988,7 @@ function updateAuthUI(){
   updateRoomMenuUI();
   renderRoomList();
   updateRoomLobbyUI();
+  if(!state.isSignedIn) hidePwaPrompt();
 }
 
 function updateRoomStatus(){
@@ -2084,6 +2321,7 @@ function serializeRoomState(){
     dealerIndex: state.dealerIndex,
     leaderIndex: state.leaderIndex,
     currentTurnIndex: state.currentTurnIndex,
+    turnUid: state.players[state.currentTurnIndex]?.uid ?? null,
     trickNumber: state.trickNumber,
     handId: state.handId,
     deck: state.deck,
@@ -2355,6 +2593,9 @@ async function loadUserProfile(){
   state.roomNicknames = {};
   state.lastRoomId = null;
   state.roomIds = [];
+  state.hasMadeFirstMove = false;
+  state.pwaPromptDismissed = false;
+  state.pushToken = null;
   state.profileLoaded = true;
   if(!state.selfUid || !firebaseDb) return;
   try{
@@ -2362,6 +2603,11 @@ async function loadUserProfile(){
     if(snap.exists()){
       const data = snap.data() || {};
       state.lastRoomId = data.lastRoomId || null;
+      state.hasMadeFirstMove = !!data.hasMadeFirstMove;
+      state.pwaPromptDismissed = !!data.pwaPromptDismissed;
+      if(Array.isArray(data.pushTokens) && data.pushTokens.length){
+        state.pushToken = data.pushTokens[0];
+      }
       if(data.roomNicknames && typeof data.roomNicknames === "object"){
         state.roomNicknames = { ...data.roomNicknames };
       }
@@ -3199,6 +3445,7 @@ function confirmSwapMultiplayer(){
 
   // advance swap turn or move to trick
   advanceSwapTurn();
+  handleFirstMultiplayerMove();
   syncRoomState("swap");
 }
 
@@ -3252,6 +3499,7 @@ function playSelectedCard(){
       return;
     }
   }
+  if(isMulti) handleFirstMultiplayerMove();
   // animate play: clone the card DOM and fly it to the trick area, then commit the play
   const node = els.handArea.querySelector(`[data-card-id="${card.id}"]`);
   const syncIfMulti = ()=>{ if(isMulti) syncRoomState("play"); };
@@ -4306,6 +4554,21 @@ if(els.roomNameInput){
     }
   });
 }
+if(els.pwaDismissBtn){
+  els.pwaDismissBtn.addEventListener("click", ()=>{
+    hidePwaPrompt();
+    state.pwaPromptDismissed = true;
+    if(firebaseDb && state.selfUid){
+      setDoc(userRef(state.selfUid), { pwaPromptDismissed: true }, { merge: true })
+        .catch((err)=> console.error("Failed to save PWA prompt dismissal:", err));
+    }
+  });
+}
+if(els.pwaEnableBtn){
+  els.pwaEnableBtn.addEventListener("click", ()=>{
+    enableTurnNotifications(true);
+  });
+}
 if(els.signInBtn){
   els.signInBtn.addEventListener("click", async ()=>{
     if(!firebaseAuth || !googleProvider){
@@ -4346,6 +4609,10 @@ if(firebaseAuth){
     state.lastRoomId = null;
     state.roomName = null;
     state.roomNameDraft = "";
+    state.hasMadeFirstMove = false;
+    state.pwaPromptDismissed = false;
+    state.pushToken = null;
+    state.swRegistration = null;
     state.roomIds = [];
     state.roomList = {};
     clearRoomListSubscriptions();
@@ -4357,6 +4624,8 @@ if(firebaseAuth){
     }
     await loadUserProfile();
     updateAuthUI();
+    initMessagingListeners();
+    maybeRestorePushNotifications();
     if(state.mode === MODE.MULTI){
       await maybeAutoJoinRoom();
     }
@@ -4367,6 +4636,8 @@ resetAll();
 updateModeUI();
 updateAuthUI();
 updateRoomStatus();
+if(supportsPush()) registerServiceWorker();
+initMessagingListeners();
 </script>
 </body>
 </html>
