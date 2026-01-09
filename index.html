@@ -20,6 +20,9 @@
       --cardW: 72px;
     }
     *{box-sizing:border-box}
+    html, body{
+      min-height:100%;
+    }
     body{
       margin:0;
       background: radial-gradient(1200px 800px at 20% 10%, rgba(124,92,255,.25), transparent 60%),
@@ -28,6 +31,7 @@
       color:var(--text);
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
       line-height:1.25;
+      min-height:100vh;
     }
     header{
       position:sticky; top:0; z-index:10;
@@ -71,6 +75,7 @@
       box-shadow: var(--shadow);
       overflow:hidden;
     }
+    #gamePanel{ overflow: visible; }
     .panel .hd{
       padding:12px 14px;
       border-bottom:1px solid var(--stroke);
@@ -688,6 +693,18 @@
     .mpRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .mpCode{ min-width:120px; text-transform:uppercase; letter-spacing:.8px; }
     .mpStatus{ font-size:12px; color:var(--muted); }
+    .mpStatus.mpHint{
+      padding:6px 10px;
+      border-radius:10px;
+      background: rgba(255,255,255,.04);
+      border:1px dashed var(--stroke);
+      font-style: italic;
+    }
+    .mpDivider{
+      height:1px;
+      background: var(--stroke);
+      margin:2px 0 6px;
+    }
     .logCard{
       border:1px solid var(--stroke);
       border-radius:16px;
@@ -960,12 +977,14 @@
               <input class="input" id="nicknameInput" placeholder="Nickname for this room" maxlength="18" />
               <button class="btn" id="saveNicknameBtn">Save nickname</button>
             </div>
-            <div class="mpStatus" id="nicknameStatus" style="display:none;"></div>
+            <div class="mpStatus mpHint" id="nicknameStatus" style="display:none;"></div>
+            <div class="mpDivider" id="nicknameDivider"></div>
             <div class="mpRow" id="roomNameRow" style="margin-bottom:8px; display:none;">
               <input class="input" id="roomNameInput" placeholder="Room name" maxlength="32" />
               <button class="btn" id="saveRoomNameBtn">Save room name</button>
             </div>
-            <div class="mpStatus" id="roomNameStatus" style="display:none;"></div>
+            <div class="mpStatus mpHint" id="roomNameStatus" style="display:none;"></div>
+            <div class="mpDivider" id="roomNameDivider"></div>
               <div class="mpRow" style="margin-bottom:8px;">
                 <input class="input mpCode" id="roomCodeInput" placeholder="ROOM CODE" />
                 <button class="btn primary" id="createRoomBtn">Create Room</button>
@@ -1339,10 +1358,12 @@ const els = {
   nicknameInput: document.getElementById("nicknameInput"),
   saveNicknameBtn: document.getElementById("saveNicknameBtn"),
   nicknameStatus: document.getElementById("nicknameStatus"),
+  nicknameDivider: document.getElementById("nicknameDivider"),
   roomNameRow: document.getElementById("roomNameRow"),
   roomNameInput: document.getElementById("roomNameInput"),
   saveRoomNameBtn: document.getElementById("saveRoomNameBtn"),
   roomNameStatus: document.getElementById("roomNameStatus"),
+  roomNameDivider: document.getElementById("roomNameDivider"),
   roomCodeInput: document.getElementById("roomCodeInput"),
   createRoomBtn: document.getElementById("createRoomBtn"),
   joinRoomBtn: document.getElementById("joinRoomBtn"),
@@ -1660,16 +1681,18 @@ function updateNicknameUI(){
   if(!els.nicknameRow || !els.nicknameInput || !els.saveNicknameBtn) return;
   if(!state.isSignedIn){
     els.nicknameRow.style.display = "none";
+    if(els.nicknameDivider) els.nicknameDivider.style.display = "none";
     setNicknameStatus("");
     return;
   }
   els.nicknameRow.style.display = "flex";
+  if(els.nicknameDivider) els.nicknameDivider.style.display = "block";
   const inRoom = !!state.roomId;
   els.nicknameInput.disabled = !inRoom;
   els.saveNicknameBtn.disabled = !inRoom;
   if(!inRoom){
     els.nicknameInput.value = "";
-    setNicknameStatus("Join a room to set a nickname.");
+    setNicknameStatus("Join a room to set a per-room nickname.");
     return;
   }
   const saved = getRoomNickname(state.roomId);
@@ -1895,10 +1918,12 @@ function updateRoomNameUI(){
   if(!els.roomNameRow || !els.roomNameInput || !els.saveRoomNameBtn) return;
   if(!state.isSignedIn){
     els.roomNameRow.style.display = "none";
+    if(els.roomNameDivider) els.roomNameDivider.style.display = "none";
     setRoomNameStatus("");
     return;
   }
   els.roomNameRow.style.display = "flex";
+  if(els.roomNameDivider) els.roomNameDivider.style.display = "block";
   const inRoom = !!state.roomId;
   const isHost = inRoom && state.selfUid && state.hostUid && state.selfUid === state.hostUid;
   els.roomNameInput.disabled = inRoom && !isHost;
@@ -1919,7 +1944,7 @@ function updateRoomNameUI(){
   if(document.activeElement !== els.roomNameInput){
     els.roomNameInput.value = draft;
   }
-  setRoomNameStatus("This name will be used for your next room.");
+  setRoomNameStatus("Set a room name for your next lobby.");
 }
 function buildPlayer(uid, name, seed=null){
   return {
@@ -2678,11 +2703,11 @@ async function ensureRoomNicknameApplied(){
 async function saveNickname(){
   if(!els.nicknameInput) return;
   if(!state.isSignedIn){
-    setNicknameStatus("Sign in to set a nickname.");
+    setNicknameStatus("Sign in to set a per-room nickname.");
     return;
   }
   if(!state.roomId){
-    setNicknameStatus("Join a room to set a nickname.");
+    setNicknameStatus("Join a room to set a per-room nickname.");
     return;
   }
   if(!state.profileLoaded){
