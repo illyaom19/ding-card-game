@@ -1925,10 +1925,11 @@ async function enableTurnNotifications(fromUser){
     return true;
   } catch (err){
     console.error("Failed to get push token:", err);
+    const detail = (err && err.message) ? ` (${err.message})` : "";
     if(isIos() && !isStandalone()){
-      notifyPushSetupIssue("App must be installed to enable notifications.");
+      notifyPushSetupIssue(`App must be installed to enable notifications.${detail}`);
     } else {
-      notifyPushSetupIssue("Failed to enable notifications.");
+      notifyPushSetupIssue(`Failed to enable notifications.${detail}`);
     }
     return false;
   }
