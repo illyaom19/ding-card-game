@@ -110,15 +110,15 @@
     .small{font-size:13px; color:var(--muted)}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;}
     .scoreboard{
-      display:flex; flex-direction:column; gap:8px;
+      display:flex; flex-direction:column; gap:6px;
     }
     .playerRow{
       display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
-      padding:12px 16px;
+      padding:10px 12px;
       border:1px solid var(--stroke);
       border-radius: 14px;
       background: rgba(0,0,0,.18);
-      min-height:80px;
+      min-height:0;
       flex-wrap:wrap;
     }
     .playerRow > div:first-child{
@@ -130,9 +130,11 @@
     .playerInfo{
       display:flex;
       flex-direction:column;
-      gap:8px;
-      min-height:72px;
-      justify-content:space-between;
+      gap:6px;
+    }
+    .playerRow .badge{
+      padding:4px 6px;
+      font-size:11px;
     }
     .playerTop{
       display:flex;
@@ -145,6 +147,12 @@
       align-items:center;
       gap:8px;
       margin-top:auto;
+    }
+    .scoreRow{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
     }
     .badge{
       padding:6px 8px; border-radius: 999px;
@@ -403,6 +411,7 @@
     /* scoreboard highlights */
     .playerRow.activeTurn{ border-color: rgba(124,92,255,.45); box-shadow: 0 12px 30px rgba(124,92,255,.06); }
     .dealerBadge{ padding:4px 8px; border-radius:8px; background: rgba(255,215,130,.06); color:#ffdca8; font-size:12px; border:1px solid rgba(255,215,130,.06); margin-left:6px; }
+    .hostBadge{ padding:4px 8px; border-radius:8px; background: rgba(62,226,138,.12); color:#d6ffe6; font-size:12px; border:1px solid rgba(62,226,138,.28); margin-left:6px; }
     .turnDot{ color: var(--good); font-size:14px; margin-right:4px; font-weight:900; }
     /* raise the top-most mini-card more so it doesn't cover lower card text */
     .wonTrick .miniCard:last-child{ transform: translateY(-28px); z-index:2; box-shadow: 0 14px 24px rgba(0,0,0,.4); }
@@ -469,10 +478,10 @@
       .row2{ gap:8px; }
       .scoreboard{ gap:6px; }
       .playerRow{
-        padding:10px 12px;
-        min-height:64px;
-        gap:12px;
-        align-items:center;
+        padding:8px 10px;
+        min-height:0;
+        gap:10px;
+        align-items:flex-start;
       }
       .badge{ padding:4px 6px; font-size:11px; }
       .trickChip{ width:32px; height:44px; border-radius:7px; }
@@ -507,7 +516,7 @@
       .pill.trick-winner{ padding:8px 10px }
       .pill.trick-winner .miniCard{ width:34px; height:44px }
       .title div{ font-size:13px }
-      .scoreboard .playerRow{ padding:10px }
+      .scoreboard .playerRow{ padding:8px }
       .hand{ gap:8px }
     }
 
@@ -670,6 +679,10 @@
       border-radius:12px;
       background: rgba(0,0,0,.18);
       font-size:13px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
     }
     /* winner banner */
     #winnerBanner{
@@ -1358,7 +1371,15 @@ function renderLobbyPlayers(){
   players.forEach((p)=>{
     const row = document.createElement("div");
     row.className = "lobbyPlayer";
-    row.textContent = p.name || "Player";
+    const name = document.createElement("span");
+    name.textContent = p.name || "Player";
+    row.appendChild(name);
+    if(state.hostUid && p.uid && p.uid === state.hostUid){
+      const host = document.createElement("span");
+      host.className = "hostBadge";
+      host.textContent = "Host";
+      row.appendChild(host);
+    }
     els.lobbyPlayers.appendChild(row);
   });
 }
@@ -2901,69 +2922,29 @@ function renderScoreboard(){
     if(idx === state.currentTurnIndex) row.classList.add('activeTurn');
     const left = document.createElement("div");
     left.className = "playerInfo";
-    const turnMark = idx === state.currentTurnIndex ? '<span class="turnDot">●</span>' : '';
+    const turnMark = idx === state.currentTurnIndex ? '<span class="turnDot">&bull;</span>' : '';
     const dealerMark = idx === state.dealerIndex ? '<span class="dealerBadge">Dealer</span>' : '';
-    const foldedMark = p.folded ? '<span class="foldedPill">Folded</span>' : '';
+    const hostMark = (state.hostUid && p.uid === state.hostUid) ? '<span class="hostBadge">Host</span>' : '';
     left.innerHTML = `
       <div class="playerTop">
         ${turnMark}
         <div class="name">${p.name}</div>
         ${dealerMark}
-        ${foldedMark}
+        ${hostMark}
       </div>
-      <div class="playerMeta">
-        <span class="dingBadge">DING <strong class="mono">${p.dingCount || 0}</strong></span>
-        <span class="winsBadge">Wins <strong class="mono">${p.totalWins || 0}</strong></span>
+      <div class="scoreRow">
+        <span class="badge">Tricks <strong class="mono">${p.tricksWonThisHand || 0}</strong></span>
+        <span class="badge">Score <strong class="mono">${p.score}</strong></span>
+      </div>
+      <div class="scoreRow">
+        <span class="badge">DING <strong class="mono">${p.dingCount || 0}</strong></span>
+        <span class="badge">Wins <strong class="mono">${p.totalWins || 0}</strong></span>
       </div>
     `;
-    // compact visualizer: five tiny card-chips + integrated trophy badge
-    const visual = document.createElement('div');
-    visual.className = 'trickVisualizer';
-    const chips = document.createElement('div');
-    chips.className = 'trickChipsRow';
-    const MAX_TRICKS = 5;
-    for(let i=0;i<MAX_TRICKS;i++){
-      const chip = document.createElement('div');
-      const isFilled = i < p.tricksWonThisHand;
-      chip.className = 'trickChip ' + (isFilled ? 'filled' : 'empty');
-      if(isFilled){
-        const inner = document.createElement('div');
-        inner.className = 'chipInner';
-        // show small trophy glyph centered inside the gold mini-card
-        inner.textContent = '🏆';
-        chip.appendChild(inner);
-      }
-      // highlight the most-recently-won chip for last trick winner
-      if(i === p.tricksWonThisHand - 1 && state.lastTrickWinnerIndex === idx){
-        chip.classList.add('recent');
-      }
-      chip.title = `${i+1} of ${MAX_TRICKS}`;
-      chips.appendChild(chip);
-    }
-
-    // integrated trophy badge showing total tricks won for the hand
-    const badge = document.createElement('div');
-    badge.className = 'scoreTrophy';
-    badge.innerHTML = `<span>🏅</span> <strong class="mono">${p.tricksWonThisHand}</strong>`;
-
-    visual.appendChild(chips);
-    visual.appendChild(badge);
-    const metaRow = left.querySelector('.playerMeta');
-    if(metaRow){
-      left.insertBefore(visual, metaRow);
-    } else {
-      left.appendChild(visual);
-    }
-    const right = document.createElement("div");
-    // total score pill: bold, gold
-    right.className = "totalScore";
-    right.innerHTML = `<div class="scoreLabel">Score</div><strong class="mono scoreValue">${p.score}</strong>`;
     row.appendChild(left);
-    row.appendChild(right);
     els.scoreboard.appendChild(row);
   });
 }
-
 function renderTrickArea(){
   els.trickArea.innerHTML = "";
   // show folded players on the table
