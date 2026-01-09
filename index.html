@@ -902,6 +902,11 @@
               <button class="btn" id="saveNicknameBtn">Save nickname</button>
             </div>
             <div class="mpStatus" id="nicknameStatus" style="display:none;"></div>
+            <div class="mpRow" id="roomNameRow" style="margin-bottom:8px; display:none;">
+              <input class="input" id="roomNameInput" placeholder="Room name" maxlength="32" />
+              <button class="btn" id="saveRoomNameBtn">Save room name</button>
+            </div>
+            <div class="mpStatus" id="roomNameStatus" style="display:none;"></div>
               <div class="mpRow" style="margin-bottom:8px;">
                 <input class="input mpCode" id="roomCodeInput" placeholder="ROOM CODE" />
                 <button class="btn primary" id="createRoomBtn">Create Room</button>
@@ -1173,6 +1178,7 @@ const state = {
   playerOrder: [],
   roomId: null,
   roomName: null,
+  roomNameDraft: "",
   hostUid: null,
   selfUid: null,
   selfName: null,
@@ -1262,6 +1268,10 @@ const els = {
   nicknameInput: document.getElementById("nicknameInput"),
   saveNicknameBtn: document.getElementById("saveNicknameBtn"),
   nicknameStatus: document.getElementById("nicknameStatus"),
+  roomNameRow: document.getElementById("roomNameRow"),
+  roomNameInput: document.getElementById("roomNameInput"),
+  saveRoomNameBtn: document.getElementById("saveRoomNameBtn"),
+  roomNameStatus: document.getElementById("roomNameStatus"),
   roomCodeInput: document.getElementById("roomCodeInput"),
   createRoomBtn: document.getElementById("createRoomBtn"),
   joinRoomBtn: document.getElementById("joinRoomBtn"),
@@ -1536,6 +1546,11 @@ function normalizeRoomName(name){
 function getRoomDisplayName(name){
   return normalizeRoomName(name) || "Player's Lobby";
 }
+function getDefaultRoomName(){
+  const raw = (state.selfName || "").trim();
+  const first = raw ? raw.split(/\s+/)[0] : "Player";
+  return normalizeRoomName(`${first}'s Lobby`) || "Player's Lobby";
+}
 function makeRoomCode(){
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -1599,6 +1614,50 @@ function updateNicknameUI(){
   }
   setNicknameStatus("");
 }
+function setRoomNameStatus(msg){
+  if(!els.roomNameStatus) return;
+  if(!msg){
+    els.roomNameStatus.textContent = "";
+    els.roomNameStatus.style.display = "none";
+    return;
+  }
+  els.roomNameStatus.textContent = msg;
+  els.roomNameStatus.style.display = "block";
+}
+function flashRoomNameStatus(msg){
+  setRoomNameStatus(msg);
+  setTimeout(()=> setRoomNameStatus(""), 2000);
+}
+function updateRoomNameUI(){
+  if(!els.roomNameRow || !els.roomNameInput || !els.saveRoomNameBtn) return;
+  if(!state.isSignedIn){
+    els.roomNameRow.style.display = "none";
+    setRoomNameStatus("");
+    return;
+  }
+  els.roomNameRow.style.display = "flex";
+  const inRoom = !!state.roomId;
+  const isHost = inRoom && state.selfUid && state.hostUid && state.selfUid === state.hostUid;
+  els.roomNameInput.disabled = inRoom && !isHost;
+  els.saveRoomNameBtn.disabled = inRoom && !isHost;
+  if(inRoom){
+    const current = getRoomDisplayName(state.roomName);
+    if(document.activeElement !== els.roomNameInput){
+      els.roomNameInput.value = current;
+    }
+    if(!isHost){
+      setRoomNameStatus("Only the host can rename this room.");
+    } else {
+      setRoomNameStatus("");
+    }
+    return;
+  }
+  const draft = getRoomDisplayName(state.roomNameDraft || getDefaultRoomName());
+  if(document.activeElement !== els.roomNameInput){
+    els.roomNameInput.value = draft;
+  }
+  setRoomNameStatus("This name will be used for your next room.");
+}
 function buildPlayer(uid, name, seed=null){
   return {
     uid,
@@ -1637,6 +1696,7 @@ function updateModeUI(){
   renderLobbyPlayers();
   renderRoomLog();
   renderRoomList();
+  updateRoomNameUI();
   updateRoomMenuUI();
   updateRoomLobbyUI();
 }
@@ -1688,6 +1748,7 @@ function updateAuthUI(){
     }
   }
   updateNicknameUI();
+  updateRoomNameUI();
   updateRoomMenuUI();
   renderRoomList();
   updateRoomLobbyUI();
@@ -1699,6 +1760,7 @@ function updateRoomStatus(){
       els.roomStatus.textContent = "";
       if(els.shareRoomBtn) els.shareRoomBtn.disabled = true;
       updateNicknameUI();
+      updateRoomNameUI();
       updateRoomMenuUI();
       updateRoomLobbyUI();
       return;
@@ -1709,6 +1771,7 @@ function updateRoomStatus(){
   if(els.roomCodeInput && state.roomId) els.roomCodeInput.value = state.roomId;
   if(els.shareRoomBtn) els.shareRoomBtn.disabled = !state.roomId;
   updateNicknameUI();
+  updateRoomNameUI();
   updateRoomMenuUI();
   updateRoomLobbyUI();
 }
@@ -2372,6 +2435,50 @@ async function saveNickname(){
   flashNicknameStatus("Nickname saved.");
 }
 
+async function saveRoomName(){
+  if(!els.roomNameInput) return;
+  if(!state.isSignedIn){
+    setRoomNameStatus("Sign in to set a room name.");
+    return;
+  }
+  const name = normalizeRoomName(els.roomNameInput.value);
+  if(!name){
+    setRoomNameStatus("Enter a room name.");
+    return;
+  }
+  state.roomNameDraft = name;
+  if(!state.roomId){
+    if(els.roomNameInput) els.roomNameInput.value = name;
+    flashRoomNameStatus("Room name saved for your next room.");
+    return;
+  }
+  const isHost = state.selfUid && state.hostUid && state.selfUid === state.hostUid;
+  if(!isHost){
+    setRoomNameStatus("Only the host can rename this room.");
+    return;
+  }
+  if(!firebaseDb){
+    setRoomNameStatus("Firebase config missing.");
+    return;
+  }
+  try{
+    await updateDoc(roomRef(state.roomId), { roomName: name });
+  } catch (err){
+    console.error("Failed to save room name:", err);
+    setRoomNameStatus("Room name save failed.");
+    return;
+  }
+  state.roomName = name;
+  if(state.roomList && state.roomId && state.roomList[state.roomId]){
+    state.roomList[state.roomId].roomName = name;
+  }
+  if(els.roomNameInput) els.roomNameInput.value = name;
+  updateRoomLobbyUI();
+  renderRoomList();
+  updateRoomNameUI();
+  flashRoomNameStatus("Room name saved.");
+}
+
 async function maybeAutoJoinRoom(){
   if(!state.isSignedIn || !hasFirebase()) return;
   if(state.roomId) return;
@@ -2394,9 +2501,9 @@ async function createRoom(){
   if(!state.isSignedIn){ setError("Sign in first."); return; }
   if(!hasFirebase()){ setError("Firebase config missing."); return; }
   state.handId = 0;
-  const defaultRoomName = "Player's Lobby";
-  const nameInput = prompt("Room name", defaultRoomName);
-  const roomName = getRoomDisplayName(nameInput || defaultRoomName);
+  const nameInput = els.roomNameInput ? normalizeRoomName(els.roomNameInput.value) : "";
+  const roomName = getRoomDisplayName(nameInput || state.roomNameDraft || getDefaultRoomName());
+  state.roomNameDraft = roomName;
   let roomId = "";
   for(let i=0;i<5;i++){
     const candidate = makeRoomCode();
@@ -4183,6 +4290,22 @@ if(els.nicknameInput){
     }
   });
 }
+if(els.saveRoomNameBtn){
+  els.saveRoomNameBtn.addEventListener("click", async ()=>{
+    await saveRoomName();
+  });
+}
+if(els.roomNameInput){
+  els.roomNameInput.addEventListener("input", ()=>{
+    state.roomNameDraft = normalizeRoomName(els.roomNameInput.value);
+  });
+  els.roomNameInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){
+      e.preventDefault();
+      saveRoomName();
+    }
+  });
+}
 if(els.signInBtn){
   els.signInBtn.addEventListener("click", async ()=>{
     if(!firebaseAuth || !googleProvider){
@@ -4222,6 +4345,7 @@ if(firebaseAuth){
     state.roomNicknames = {};
     state.lastRoomId = null;
     state.roomName = null;
+    state.roomNameDraft = "";
     state.roomIds = [];
     state.roomList = {};
     clearRoomListSubscriptions();
