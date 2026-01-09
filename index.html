@@ -691,7 +691,7 @@
         <div class="bd stack">
           <div id="lobbyArea" class="stack">
             <div id="lobbyHotseatIntro" class="small">Enter 2-6 player names (one per line). Then start.</div>
-            <textarea id="namesInput" class="input" rows="6" placeholder="Illya&#10;Player 2&#10;Player 3"></textarea>
+            <textarea id="namesInput" class="input" rows="6" placeholder="Player 1&#10;Player 2&#10;Player 3"></textarea>
             <div id="lobbyMultiIntro" class="small" style="display:none;">Who's currently in the lobby (2-6 needed to start).</div>
             <div id="lobbyPlayers" class="lobbyList" style="display:none;"></div>
             <div class="modeCard" id="modeCard">
@@ -700,7 +700,7 @@
               <button class="modeBtn active" id="modeHotseatBtn">Hotseat</button>
               <button class="modeBtn" id="modeMultiBtn">Multiplayer</button>
             </div>
-            <div class="mpStatus" id="modeHint">Hotseat runs on one device. Multiplayer syncs via Firebase.</div>
+            <div class="mpStatus" id="modeHint">Hotseat runs on one device. Multiplayer requires Google sign-in.</div>
           </div>
           <div class="mpCard" id="mpCard" style="display:none;">
             <div class="small" style="margin-bottom:8px;">Multiplayer</div>
@@ -776,7 +776,7 @@
             <div class="settingRow">
               <div>
                 <div class="settingLabel">Hyperrealistic Mode</div>
-                <div class="settingMeta">No highlights, no forced follow</div>
+                <div class="settingMeta">No handholding</div>
               </div>
               <label class="settingToggle">
                 <input id="hyperrealisticInput" type="checkbox" />
@@ -799,7 +799,7 @@
 
           <div id="logCard" class="logCard collapsed">
             <div class="logHeader" id="logHeader" role="button" tabindex="0" aria-expanded="false">
-              <span class="logCaret" id="logCaret">▸</span>
+              <span class="logCaret" id="logCaret">▾</span>
               <div style="font-weight:800;">Room log</div>
               <div class="small" id="logHint" style="margin-left:auto;color:var(--muted);">Collapsed</div>
             </div>
