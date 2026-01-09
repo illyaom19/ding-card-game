@@ -91,6 +91,22 @@
     .btn.danger{background: rgba(255,92,122,.18); border-color: rgba(255,92,122,.45)}
     .btn.good{background: rgba(62,226,138,.18); border-color: rgba(62,226,138,.45)}
     .btn:disabled{opacity:.45; cursor:not-allowed; transform:none}
+    #startGameBtn{
+      font-size:16px;
+      font-weight:900;
+      letter-spacing:.3px;
+      padding:14px 16px;
+      background: linear-gradient(135deg, rgba(124,92,255,.38), rgba(62,226,138,.18));
+      border-color: rgba(124,92,255,.75);
+      box-shadow: 0 14px 32px rgba(124,92,255,.2), 0 8px 20px rgba(0,0,0,.35);
+    }
+    #startGameBtn:hover{
+      background: linear-gradient(135deg, rgba(124,92,255,.48), rgba(62,226,138,.26));
+      transform: translateY(-2px);
+    }
+    @media (max-width: 640px){
+      #startGameBtn{ width:100%; font-size:16px; }
+    }
     .stack{display:flex; flex-direction:column; gap:10px;}
     .small{font-size:13px; color:var(--muted)}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;}
@@ -681,7 +697,7 @@
   <div class="grid">
     <section id="gamePanel" class="panel">
       <div id="gameHeader" class="hd">
-        <div style="font-weight:900;"><span class="caret" id="gameCaret">▾</span>Game</div>
+        <div style="font-weight:900;"><span class="caret" id="gameCaret">▾</span>Game Lobby</div>
         <div class="row2">
           <div id="gameSummary" class="small mono" style="margin-right:8px;">—</div>
           <button class="btn collapseBtn" id="collapseGameBtn">▾</button>
@@ -692,7 +708,7 @@
           <div id="lobbyArea" class="stack">
             <div id="lobbyHotseatIntro" class="small">Enter 2-6 player names (one per line). Then start.</div>
             <textarea id="namesInput" class="input" rows="6" placeholder="Player 1&#10;Player 2&#10;Player 3"></textarea>
-            <div id="lobbyMultiIntro" class="small" style="display:none;">Who's currently in the lobby (2-6 needed to start).</div>
+            <div id="lobbyMultiIntro" class="small" style="display:none;">Who's currently in the lobby:</div>
             <div id="lobbyPlayers" class="lobbyList" style="display:none;"></div>
             <div class="modeCard" id="modeCard">
               <div class="small" style="margin-bottom:8px;">Game mode</div>
@@ -810,7 +826,7 @@
         </div>
       </section>
 
-    <section class="panel">
+    <section id="tablePanel" class="panel">
       <div id="tableHeader" class="hd">
         <div style="font-weight:900;"><span class="caret" id="tableCaret">▾</span>Table</div>
         <div class="row2">
@@ -1229,8 +1245,8 @@ async function shareRoomCode(){
   try{
     if(navigator.share){
       await navigator.share({
-        title: "Ding lobby",
-        text: `Join my Ding room: ${roomCode}`,
+        title: "DING Online - Room invite",
+        text: `Join my DING room: ${roomCode}`,
         url: link,
       });
       return;
@@ -1266,7 +1282,7 @@ function renderLobbyPlayers(){
   if(!players.length){
     const empty = document.createElement("div");
     empty.className = "small";
-    empty.textContent = "No one yet. Share the room code to invite players.";
+    empty.textContent = "Your lobby is empty. 2-6 players are needed to start. Create a room and share the room code to invite players.";
     els.lobbyPlayers.appendChild(empty);
     return;
   }
@@ -1317,11 +1333,11 @@ function updateModeUI(){
   if(els.lobbyPlayers) els.lobbyPlayers.style.display = isMulti ? "flex" : "none";
   if(els.modeHint){
     if(!hasFirebase()){
-      els.modeHint.textContent = "Firebase config missing. Multiplayer disabled.";
+      els.modeHint.textContent = "Multiplayer config missing. Multiplayer disabled.";
     } else {
       els.modeHint.textContent = isMulti
-        ? "Multiplayer syncs via Firebase. Sign in to join a room."
-        : "Hotseat runs on one device. Multiplayer syncs via Firebase.";
+        ? ""
+        : "Hotseat runs on one device.";
     }
   }
   if(els.modeMultiBtn) els.modeMultiBtn.disabled = !hasFirebase();
@@ -1364,10 +1380,10 @@ function updateAuthUI(){
   if(els.shareRoomBtn) els.shareRoomBtn.disabled = !state.roomId;
   if(els.headerGreeting){
     if(state.isSignedIn && state.selfName){
-      els.headerGreeting.textContent = `Hi ${state.selfName} — welcome back.`;
+      els.headerGreeting.textContent = `Hi ${state.selfName} - welcome back.`;
       els.headerGreeting.style.display = "block";
     } else if(state.isSignedIn){
-      els.headerGreeting.textContent = "Hi there — welcome back.";
+      els.headerGreeting.textContent = "Hi there - welcome back.";
       els.headerGreeting.style.display = "block";
     } else {
       els.headerGreeting.textContent = "";
@@ -1379,7 +1395,7 @@ function updateAuthUI(){
 function updateRoomStatus(){
   if(!els.roomStatus) return;
   if(!state.roomId){
-    els.roomStatus.textContent = "No room joined.";
+    els.roomStatus.textContent = "";
     if(els.shareRoomBtn) els.shareRoomBtn.disabled = true;
     return;
   }
@@ -3038,6 +3054,9 @@ function render(){
     els.startHandBtn.disabled = (state.phase !== PHASE.HAND_END) || (state.players.length < 2) || !isSelfDealer;
     // hide Deal Hands unless it's time to deal
     if(els.startHandBtn){ els.startHandBtn.style.display = (state.phase === PHASE.HAND_END && state.players.length >= 2 && isSelfDealer) ? 'inline-block' : 'none'; }
+  }
+  if(els.tablePanel){
+    els.tablePanel.style.display = (state.phase === PHASE.LOBBY) ? "none" : "block";
   }
 
   // settings: lock after lobby, but allow peek by expanding
