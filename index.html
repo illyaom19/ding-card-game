@@ -770,6 +770,11 @@
               <button class="btn danger" id="signOutBtn" style="display:none;">Sign out</button>
               <div class="mpStatus" id="authStatus">Not signed in.</div>
             </div>
+            <div class="mpRow" id="nicknameRow" style="margin-bottom:8px; display:none;">
+              <input class="input" id="nicknameInput" placeholder="Nickname for this room" maxlength="18" />
+              <button class="btn" id="saveNicknameBtn">Save nickname</button>
+            </div>
+            <div class="mpStatus" id="nicknameStatus" style="display:none;"></div>
               <div class="mpRow" style="margin-bottom:8px;">
                 <input class="input mpCode" id="roomCodeInput" placeholder="ROOM CODE" />
                 <button class="btn primary" id="createRoomBtn">Create Room</button>
@@ -973,6 +978,7 @@ const ROOM_COLLECTION = "rooms";
 const USER_COLLECTION = "users";
 const LOG_COLLECTION = "roomLog";
 const MAX_PLAYERS = 6;
+const MAX_NICKNAME_LENGTH = 18;
 
 function makeDeck(){
   return makeDecks(1);
@@ -1031,6 +1037,10 @@ const state = {
   hostUid: null,
   selfUid: null,
   selfName: null,
+  selfNickname: null,
+  roomNicknames: {},
+  lastRoomId: null,
+  profileLoaded: false,
   selfIndex: null,
   selfHand: [],
   isSignedIn: false,
@@ -1097,6 +1107,10 @@ const els = {
   signInBtn: document.getElementById("signInBtn"),
   signOutBtn: document.getElementById("signOutBtn"),
   authStatus: document.getElementById("authStatus"),
+  nicknameRow: document.getElementById("nicknameRow"),
+  nicknameInput: document.getElementById("nicknameInput"),
+  saveNicknameBtn: document.getElementById("saveNicknameBtn"),
+  nicknameStatus: document.getElementById("nicknameStatus"),
   roomCodeInput: document.getElementById("roomCodeInput"),
   createRoomBtn: document.getElementById("createRoomBtn"),
   joinRoomBtn: document.getElementById("joinRoomBtn"),
@@ -1360,6 +1374,61 @@ function makeRoomCode(){
   }
   return code;
 }
+function normalizeNickname(name){
+  return (name || "").trim().replace(/\s+/g, " ").slice(0, MAX_NICKNAME_LENGTH);
+}
+function getRoomNickname(roomId){
+  if(!roomId || !state.roomNicknames || typeof state.roomNicknames !== "object") return null;
+  const nickname = state.roomNicknames[roomId];
+  return (nickname && typeof nickname === "string") ? nickname : null;
+}
+function getSelfRoomName(roomId){
+  return getRoomNickname(roomId) || state.selfName || "Player";
+}
+function setNicknameStatus(msg){
+  if(!els.nicknameStatus) return;
+  if(!msg){
+    els.nicknameStatus.textContent = "";
+    els.nicknameStatus.style.display = "none";
+    return;
+  }
+  els.nicknameStatus.textContent = msg;
+  els.nicknameStatus.style.display = "block";
+}
+function flashNicknameStatus(msg){
+  setNicknameStatus(msg);
+  setTimeout(()=> setNicknameStatus(""), 2000);
+}
+function updateNicknameUI(){
+  if(!els.nicknameRow || !els.nicknameInput || !els.saveNicknameBtn) return;
+  if(!state.isSignedIn){
+    els.nicknameRow.style.display = "none";
+    setNicknameStatus("");
+    return;
+  }
+  els.nicknameRow.style.display = "flex";
+  const inRoom = !!state.roomId;
+  els.nicknameInput.disabled = !inRoom;
+  els.saveNicknameBtn.disabled = !inRoom;
+  if(!inRoom){
+    els.nicknameInput.value = "";
+    setNicknameStatus("Join a room to set a nickname.");
+    return;
+  }
+  const saved = getRoomNickname(state.roomId);
+  if(saved){
+    if(document.activeElement !== els.nicknameInput){
+      els.nicknameInput.value = saved;
+    }
+    setNicknameStatus("");
+    return;
+  }
+  if(!els.nicknameInput.value && state.selfIndex !== null && state.selfIndex !== undefined && state.selfIndex >= 0){
+    const currentName = state.players[state.selfIndex]?.name;
+    if(currentName) els.nicknameInput.value = currentName;
+  }
+  setNicknameStatus("");
+}
 function buildPlayer(uid, name, seed=null){
   return {
     uid,
@@ -1425,11 +1494,12 @@ function setMode(mode){
 }
 
 function updateAuthUI(){
-  if(!els.authStatus) return;
-  if(state.isSignedIn){
-    els.authStatus.textContent = `Signed in as ${state.selfName || "Player"}.`;
-  } else {
-    els.authStatus.textContent = "Not signed in.";
+  if(els.authStatus){
+    if(state.isSignedIn){
+      els.authStatus.textContent = `Signed in as ${state.selfName || "Player"}.`;
+    } else {
+      els.authStatus.textContent = "Not signed in.";
+    }
   }
   if(els.signInBtn) els.signInBtn.style.display = state.isSignedIn ? "none" : "inline-block";
   if(els.signOutBtn) els.signOutBtn.style.display = state.isSignedIn ? "inline-block" : "none";
@@ -1446,19 +1516,23 @@ function updateAuthUI(){
       els.headerGreeting.style.display = "none";
     }
   }
+  updateNicknameUI();
 }
 
 function updateRoomStatus(){
-  if(!els.roomStatus) return;
-  if(!state.roomId){
-    els.roomStatus.textContent = "";
-    if(els.shareRoomBtn) els.shareRoomBtn.disabled = true;
-    return;
+  if(els.roomStatus){
+    if(!state.roomId){
+      els.roomStatus.textContent = "";
+      if(els.shareRoomBtn) els.shareRoomBtn.disabled = true;
+      updateNicknameUI();
+      return;
+    }
+    const role = (state.selfUid && state.hostUid && state.selfUid === state.hostUid) ? "host" : "guest";
+    els.roomStatus.textContent = `Room ${state.roomId} (${role}).`;
   }
-  const role = (state.selfUid && state.hostUid && state.selfUid === state.hostUid) ? "host" : "guest";
-  els.roomStatus.textContent = `Room ${state.roomId} (${role}).`;
-  if(els.roomCodeInput) els.roomCodeInput.value = state.roomId;
-  if(els.shareRoomBtn) els.shareRoomBtn.disabled = false;
+  if(els.roomCodeInput && state.roomId) els.roomCodeInput.value = state.roomId;
+  if(els.shareRoomBtn) els.shareRoomBtn.disabled = !state.roomId;
+  updateNicknameUI();
 }
 
 function leaveRoom(){
@@ -1468,14 +1542,15 @@ function leaveRoom(){
   state.roomId = null;
   state.hostUid = null;
   state.selfIndex = null;
+  state.selfNickname = null;
   state.selfHand = [];
   state.players = [];
   state.logEntries = [];
   updateRoomStatus();
 }
 
-function serializeRoomState(){
-  const players = state.players.map(p => ({
+function serializePlayersForRoom(){
+  return state.players.map(p => ({
     uid: p.uid ?? null,
     name: p.name,
     tricksWonThisHand: p.tricksWonThisHand || 0,
@@ -1490,6 +1565,10 @@ function serializeRoomState(){
     hasSwapped: !!p.hasSwapped,
     folded: !!p.folded,
   }));
+}
+
+function serializeRoomState(){
+  const players = serializePlayersForRoom();
   return {
     mode: MODE.MULTI,
     phase: state.phase,
@@ -1604,6 +1683,7 @@ function subscribeToRoom(roomId){
       return;
     }
     applyRoomState(snap.data());
+    ensureRoomNicknameApplied().catch((err)=> console.error("Failed to apply nickname:", err));
   }, (err)=>{
     console.error("Room subscription error:", err);
     setError("Room sync failed.");
@@ -1762,6 +1842,81 @@ function scrollLogToBottom(){
   els.logList.scrollTop = els.logList.scrollHeight;
 }
 
+async function loadUserProfile(){
+  state.roomNicknames = {};
+  state.lastRoomId = null;
+  state.profileLoaded = true;
+  if(!state.selfUid || !firebaseDb) return;
+  try{
+    const snap = await getDoc(userRef(state.selfUid));
+    if(snap.exists()){
+      const data = snap.data() || {};
+      state.lastRoomId = data.lastRoomId || null;
+      if(data.roomNicknames && typeof data.roomNicknames === "object"){
+        state.roomNicknames = { ...data.roomNicknames };
+      }
+    }
+  } catch (err){
+    console.error("Failed to load user profile:", err);
+  }
+  updateNicknameUI();
+  ensureRoomNicknameApplied().catch((err)=> console.error("Failed to apply nickname:", err));
+}
+
+async function ensureRoomNicknameApplied(){
+  if(!state.roomId || !state.isSignedIn) return;
+  const nickname = getRoomNickname(state.roomId);
+  if(!nickname) return;
+  if(state.selfIndex === null || state.selfIndex === undefined || state.selfIndex < 0) return;
+  if(state.players[state.selfIndex]?.name === nickname){
+    state.selfNickname = nickname;
+    return;
+  }
+  state.players[state.selfIndex].name = nickname;
+  state.selfNickname = nickname;
+  renderLobbyPlayers();
+  render();
+  if(!firebaseDb) return;
+  try{
+    await updateDoc(roomRef(state.roomId), { players: serializePlayersForRoom() });
+  } catch (err){
+    console.error("Failed to update nickname in room:", err);
+  }
+}
+
+async function saveNickname(){
+  if(!els.nicknameInput) return;
+  if(!state.isSignedIn){
+    setNicknameStatus("Sign in to set a nickname.");
+    return;
+  }
+  if(!state.roomId){
+    setNicknameStatus("Join a room to set a nickname.");
+    return;
+  }
+  if(!state.profileLoaded){
+    await loadUserProfile();
+  }
+  const nickname = normalizeNickname(els.nicknameInput.value);
+  if(!nickname){
+    setNicknameStatus("Enter a nickname.");
+    return;
+  }
+  state.roomNicknames = { ...(state.roomNicknames || {}), [state.roomId]: nickname };
+  if(firebaseDb && state.selfUid){
+    try{
+      await setDoc(userRef(state.selfUid), { roomNicknames: state.roomNicknames }, { merge: true });
+    } catch (err){
+      console.error("Failed to save nickname:", err);
+      setNicknameStatus("Nickname save failed.");
+      return;
+    }
+  }
+  await ensureRoomNicknameApplied();
+  if(els.nicknameInput) els.nicknameInput.value = nickname;
+  flashNicknameStatus("Nickname saved.");
+}
+
 async function maybeAutoJoinRoom(){
   if(!state.isSignedIn || !hasFirebase()) return;
   if(state.roomId) return;
@@ -1770,14 +1925,11 @@ async function maybeAutoJoinRoom(){
     await joinRoom(hashRoom);
     return;
   }
-  try{
-    const snap = await getDoc(userRef(state.selfUid));
-    const lastRoomId = snap.exists() ? snap.data().lastRoomId : null;
-    if(lastRoomId){
-      await joinRoom(lastRoomId);
-    }
-  } catch (err){
-    console.error("Auto-join failed:", err);
+  if(!state.profileLoaded){
+    await loadUserProfile();
+  }
+  if(state.lastRoomId){
+    await joinRoom(state.lastRoomId);
   }
 }
 
@@ -1798,7 +1950,7 @@ async function createRoom(){
     setError("Couldn't create a room. Try again.");
     return;
   }
-  const player = buildPlayer(state.selfUid, state.selfName || "Player");
+  const player = buildPlayer(state.selfUid, getSelfRoomName(roomId));
   const roomState = {
     hostUid: state.selfUid,
     createdAt: serverTimestamp(),
@@ -1821,6 +1973,7 @@ async function createRoom(){
   };
   await setDoc(roomRef(roomId), roomState);
   await setDoc(userRef(state.selfUid), { lastRoomId: roomId }, { merge: true });
+  state.lastRoomId = roomId;
   if(els.roomCodeInput) els.roomCodeInput.value = roomId;
   location.hash = roomId;
   subscribeToRoom(roomId);
@@ -1853,10 +2006,11 @@ async function joinRoom(roomId){
       setError("Room is full.");
       return;
     }
-    players.push(buildPlayer(state.selfUid, state.selfName || "Player"));
+    players.push(buildPlayer(state.selfUid, getSelfRoomName(code)));
     await updateDoc(roomRef(code), { players });
   }
   await setDoc(userRef(state.selfUid), { lastRoomId: code }, { merge: true });
+  state.lastRoomId = code;
   if(els.roomCodeInput) els.roomCodeInput.value = code;
   location.hash = code;
   subscribeToRoom(code);
@@ -3482,6 +3636,19 @@ if(els.joinRoomBtn){
 if(els.shareRoomBtn){
   els.shareRoomBtn.addEventListener("click", ()=> shareRoomCode());
 }
+if(els.saveNicknameBtn){
+  els.saveNicknameBtn.addEventListener("click", async ()=>{
+    await saveNickname();
+  });
+}
+if(els.nicknameInput){
+  els.nicknameInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){
+      e.preventDefault();
+      saveNickname();
+    }
+  });
+}
 if(els.signInBtn){
   els.signInBtn.addEventListener("click", async ()=>{
     if(!firebaseAuth || !googleProvider){
@@ -3517,11 +3684,17 @@ if(firebaseAuth){
     state.isSignedIn = !!user;
     state.selfUid = user ? user.uid : null;
     state.selfName = user ? (user.displayName || (user.email ? user.email.split("@")[0] : "Player")) : null;
+    state.selfNickname = null;
+    state.roomNicknames = {};
+    state.lastRoomId = null;
+    state.profileLoaded = false;
     updateAuthUI();
     if(!user){
       leaveRoom();
       return;
     }
+    await loadUserProfile();
+    updateAuthUI();
     if(state.mode === MODE.MULTI){
       await maybeAutoJoinRoom();
     }
