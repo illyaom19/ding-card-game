@@ -50,7 +50,6 @@
     }
     .pill strong{color:var(--text); font-weight:700;}
     main{padding:16px; max-width:1100px; margin:0 auto;}
-    body.notifier-on main{ padding-top:80px; }
     .grid{
       display:grid;
       grid-template-columns: 360px 1fr;
@@ -128,6 +127,25 @@
       max-width: 100%;
     }
     .playerRow .name{font-weight:800}
+    .playerInfo{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      min-height:72px;
+      justify-content:space-between;
+    }
+    .playerTop{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .playerMeta{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-top:auto;
+    }
     .badge{
       padding:6px 8px; border-radius: 999px;
       border:1px solid var(--stroke);
@@ -161,6 +179,8 @@
       display:flex; flex-direction:column; justify-content:space-between;
       padding:10px;
       box-shadow: 0 10px 22px rgba(0,0,0,.35);
+      backface-visibility: hidden;
+      transform: translateZ(0);
     }
     .cardFace .top{font-weight:900; font-size:14px}
     .cardFace .mid{font-size:20px; text-align:center}
@@ -183,6 +203,8 @@
       display:flex; flex-direction:column; justify-content:space-between;
       transition: .12s transform, .12s border, .12s background;
       user-select:none;
+      backface-visibility: hidden;
+      transform: translateZ(0);
     }
     .cardBtn:hover{transform: translateY(-2px); border-color: rgba(124,92,255,.7)}
     .cardBtn.selected{
@@ -201,11 +223,28 @@
     .trickSlot{ display:flex; flex-direction:column; align-items:center; gap:6px; min-width: var(--cardW); }
     /* Table card faces are slightly larger and styled differently than in-hand cards */
     .trickSlot .cardFace{ width: var(--cardW); height: calc(var(--cardW) * 1.45); border-radius:10px; background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.12); }
-    .trickSlot .cardFace.enter{ animation: trickIn 420ms cubic-bezier(.2,.9,.2,1); }
-    @keyframes trickIn{ 0%{ transform: translateY(-14px) scale(.98); opacity:0 } 60%{ transform: translateY(4px) scale(1.04); opacity:1 } 100%{ transform: translateY(0) scale(1) } }
+    .trickSlot .cardFace.enter{ animation: trickIn 360ms cubic-bezier(.2,.9,.2,1); will-change: transform, opacity; }
+    @keyframes trickIn{
+      0%{ transform: translate3d(0,-12px,0) scale(.98); opacity:0 }
+      100%{ transform: translate3d(0,0,0) scale(1); opacity:1 }
+    }
     .cardBtn .top,.cardBtn .bot{font-weight:900; font-size:14px}
     .cardBtn .mid{font-size:20px; text-align:center}
     .row2{display:flex; gap:10px; flex-wrap:wrap;}
+    .tableChips{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:nowrap;
+      overflow-x:auto;
+      max-width:100%;
+      min-width:0;
+      padding-bottom:2px;
+      scroll-behavior:smooth;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+    }
+    .tableChips .badge{ flex: 0 0 auto; }
     .input{
       width:100%;
       padding:10px 12px;
@@ -297,6 +336,8 @@
       color: var(--text);
       gap:12px;
       align-items:center;
+      backface-visibility: hidden;
+      transform: translateZ(0);
     }
     .pill.trick-winner .miniCard{ width:48px; height:64px; font-size:14px; border-radius:8px; }
     .pill.trick-winner .label{ color:var(--muted); font-size:12px; }
@@ -362,32 +403,36 @@
     /* scoreboard highlights */
     .playerRow.activeTurn{ border-color: rgba(124,92,255,.45); box-shadow: 0 12px 30px rgba(124,92,255,.06); }
     .dealerBadge{ padding:4px 8px; border-radius:8px; background: rgba(255,215,130,.06); color:#ffdca8; font-size:12px; border:1px solid rgba(255,215,130,.06); margin-left:6px; }
-    .turnDot{ color: var(--good); font-size:14px; margin-left:6px; font-weight:900; }
+    .turnDot{ color: var(--good); font-size:14px; margin-right:4px; font-weight:900; }
     /* raise the top-most mini-card more so it doesn't cover lower card text */
     .wonTrick .miniCard:last-child{ transform: translateY(-28px); z-index:2; box-shadow: 0 14px 24px rgba(0,0,0,.4); }
     .wonTricksRow{ display:flex; align-items:flex-start; gap:12px; margin-top:8px; }
 
     /* Deal & swap animations 🔧 */
     .fly-in{
-      animation: flyIn .45s cubic-bezier(.2,.9,.2,1) both;
+      animation: flyIn .4s cubic-bezier(.2,.9,.2,1) both;
+      will-change: transform, opacity;
     }
     .fly-out{
       animation: flyOut .35s cubic-bezier(.4,.0,.2,1) both;
       transform-origin: center;
+      will-change: transform, opacity;
     }
     @keyframes flyIn{
-      from { transform: translateY(-24px) scale(.96); opacity: 0; filter: blur(1px); }
-      to   { transform: translateY(0) scale(1);    opacity: 1; filter: none; }
+      from { transform: translate3d(0,-18px,0) scale(.97); opacity: 0; }
+      to   { transform: translate3d(0,0,0) scale(1);    opacity: 1; }
     }
     @keyframes flyOut{
-      from { transform: translateY(0) scale(1); opacity: 1; }
-      to   { transform: translateY(-28px) scale(.7) rotate(-8deg); opacity: 0; filter: blur(2px); }
+      from { transform: translate3d(0,0,0) scale(1); opacity: 1; }
+      to   { transform: translate3d(0,-24px,0) scale(.72) rotate(-8deg); opacity: 0; }
     }
     /* play animation clone (card flying to table) */
     .playClone{
       position:fixed; z-index:9999; pointer-events:none; border-radius:14px; box-shadow: 0 18px 40px rgba(0,0,0,.45);
       transition: transform .45s cubic-bezier(.2,.9,.2,1), opacity .35s ease;
       transform-origin: center center;
+      will-change: transform, opacity;
+      backface-visibility: hidden;
     }
 
     /* incoming-card sparkle */
@@ -405,12 +450,11 @@
     }
 
     /* pop animation for trick-winner pill */
-    .pill.trick-winner.pop{ animation: popIn 420ms cubic-bezier(.2,.85,.25,1); }
+    .pill.trick-winner.pop{ animation: popIn 380ms cubic-bezier(.2,.85,.25,1); }
     @keyframes popIn{
-      0%{ transform: scale(.88); opacity:0; }
-      40%{ transform: scale(1.06); opacity:1; }
-      70%{ transform: scale(.98); }
-      100%{ transform: scale(1); }
+      0%{ transform: translate3d(0,0,0) scale(.94); opacity:0; }
+      55%{ transform: translate3d(0,0,0) scale(1.02); opacity:1; }
+      100%{ transform: translate3d(0,0,0) scale(1); }
     }
     /* Responsive tweaks for iPhone / narrow screens */
     @media (max-width: 640px){
@@ -474,23 +518,22 @@
       border:1px solid rgba(255,255,255,.06); color:var(--muted);
       box-shadow: 0 6px 12px rgba(0,0,0,.3);
     }
-    /* notifier styles */
-    #notifier{ border:1px solid rgba(255,255,255,.08); background: linear-gradient(180deg, rgba(12,18,36,.92), rgba(12,18,36,.78)); }
+    /* notifier styles (now in header) */
     #notifier{
-      position: fixed;
-      left: 50%;
-      top: 100px;
-      transform: translateX(-50%);
-      width: min(1100px, calc(100% - 24px));
-      margin: 0;
-      z-index: 20;
+      display:none;
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px solid var(--stroke);
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
     }
     #notifierIcon{ font-size:20px; }
     #notifierTitle{ font-size:15px }
     /* notifier action visually present but non-interactive; actions belong in main UI */
-    #notifierAction{ background: rgba(124,92,255,.14); border:1px solid rgba(124,92,255,.28); color:var(--text); display:none !important; pointer-events:none; }
-    @media (max-width:720px){ #notifier{ top:100px; width: calc(100% - 24px); } #notifierAction{ display:none } }
-    @media (max-width:640px){ body.notifier-on main{ padding-top:88px; } .tableArea{ padding-bottom:24px; } }
+    #notifierAction{ background: rgba(124,92,255,.14); border:1px solid rgba(124,92,255,.28); color:var(--text); display:none; pointer-events:none; }
+    @media (max-width:720px){ #notifier{ gap:10px; } #notifierAction{ display:none } }
+    @media (max-width:640px){ .tableArea{ padding-bottom:24px; } }
     /* lobby settings */
     .settingsCard{
       padding:12px;
@@ -647,6 +690,12 @@
       background: rgba(255,92,122,.12);
       font-size:12px; color:#ffd6de; display:inline-flex; gap:6px; align-items:center;
     }
+    .winsBadge{
+      padding:4px 8px; border-radius:10px;
+      border:1px solid rgba(255,215,130,.35);
+      background: rgba(255,215,130,.12);
+      font-size:12px; color:#ffe3b8; display:inline-flex; gap:6px; align-items:center;
+    }
   </style>
 </head>
 <body>
@@ -666,22 +715,18 @@
     </div>
   </div>
   <div id="headerGreeting" class="small" style="margin-top:6px;display:none;"></div>
-</header>
-
-<!-- Unified notifier: shows phase, actor, and concise instructions -->
-<div id="notifier" class="panel" style="margin:12px auto;max-width:1100px;border-radius:12px;display:none;">
-  <div class="bd" style="display:flex;align-items:center;gap:12px;padding:10px 14px;">
-    <div id="notifierIcon" style="width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.03);font-size:20px;">🔔</div>
+  <div id="notifier">
+    <div id="notifierIcon" style="width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.03);font-size:20px;">?</div>
     <div style="flex:1;min-width:0;">
       <div id="notifierTitle" style="font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Status</div>
-      <div id="notifierDetail" class="small" style="opacity:.9;">—</div>
+      <div id="notifierDetail" class="small" style="opacity:.9;">-</div>
     </div>
-    <div id="notifierMeta" style="display:flex;align-items:center;gap:8px;">
-      <div id="notifierPlayer" class="pill" style="padding:6px 10px;border-radius:10px;">—</div>
-      <div id="notifierAction" class="btn" style="padding:8px 10px;">—</div>
+    <div id="notifierMeta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div id="notifierPlayer" class="pill" style="padding:6px 10px;border-radius:10px;">-</div>
+      <div id="notifierAction" class="btn" style="padding:8px 10px;">-</div>
     </div>
   </div>
-</div>
+</header>
 <!-- Winner banner: shows when a player hits 0 -->
 <div id="winnerBanner" class="panel" style="margin:12px auto;max-width:1100px;border-radius:12px;display:none;">
   <div class="bd" style="display:flex;align-items:center;gap:12px;padding:12px 14px;">
@@ -804,14 +849,18 @@
 
         <div id="controlsArea" class="stack" style="display:none;">
           <div class="scoreboard" id="scoreboard"></div>
+          <div id="gameOverActions" class="panel" style="display:none;">
+            <div class="bd" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <div class="small" id="gameOverHint">Game over.</div>
+              <button class="btn good" id="newGameBtn">Start New Game</button>
+            </div>
+          </div>
 
           <div id="statusBox" class="pill" style="justify-content:space-between;">
             <span id="statusText">—</span>
             <span class="mono" id="deckText"></span>
           </div>
-
-            <div id="errorBox" class="error" style="display:none;"></div>
-          </div>
+          <div id="errorBox" class="error" style="display:none;"></div>
 
           <div id="logCard" class="logCard collapsed">
             <div class="logHeader" id="logHeader" role="button" tabindex="0" aria-expanded="false">
@@ -832,7 +881,7 @@
         <div class="row2">
           <div id="tableSummary" class="small mono" style="margin-right:8px;">—</div>
           <button class="btn collapseBtn" id="collapseTableBtn">▾</button>
-          <div style="display:flex; gap:10px;">
+          <div class="tableChips" id="tableChips">
             <div class="badge">Turn: <strong id="turnName">—</strong></div>
             <div class="badge">Dealer: <strong id="dealerName">—</strong></div>
             <div class="badge">Trick: <strong id="trickNum">—</strong></div>
@@ -908,6 +957,7 @@ const PHASE = {
   SWAP: "SWAP",
   TRICK: "TRICK",
   HAND_END: "HAND_END",
+  GAME_OVER: "GAME_OVER",
 };
 const MODE = {
   HOTSEAT: "HOTSEAT",
@@ -1062,6 +1112,9 @@ const els = {
   logHint: document.getElementById("logHint"),
 
   scoreboard: document.getElementById("scoreboard"),
+  gameOverActions: document.getElementById("gameOverActions"),
+  gameOverHint: document.getElementById("gameOverHint"),
+  newGameBtn: document.getElementById("newGameBtn"),
   statusText: document.getElementById("statusText"),
   deckText: document.getElementById("deckText"),
   errorBox: document.getElementById("errorBox"),
@@ -1080,6 +1133,7 @@ const els = {
   turnName: document.getElementById("turnName"),
   dealerName: document.getElementById("dealerName"),
   trickNum: document.getElementById("trickNum"),
+  tableChips: document.getElementById("tableChips"),
 
   lock: document.getElementById("lock"),
   lockTitle: document.getElementById("lockTitle"),
@@ -1150,6 +1204,7 @@ function clampSettings(){
 function foldCurrentPlayer(){
   if(state.phase !== PHASE.SWAP) return;
   const isMulti = isMultiplayer();
+  const isHost = !isMulti || (state.selfUid && state.hostUid && state.selfUid === state.hostUid);
   if(isMulti && state.selfIndex !== state.currentTurnIndex){
     setError("Not your turn.");
     return;
@@ -1305,7 +1360,7 @@ function makeRoomCode(){
   }
   return code;
 }
-function buildPlayer(uid, name){
+function buildPlayer(uid, name, seed=null){
   return {
     uid,
     name: name || "Player",
@@ -1313,7 +1368,8 @@ function buildPlayer(uid, name){
     tricksWonThisHand: 0,
     wonTricks: [],
     score: state.settings.startingScore,
-    dingCount: 0,
+    dingCount: (seed && typeof seed.dingCount === "number") ? seed.dingCount : 0,
+    totalWins: (seed && typeof seed.totalWins === "number") ? seed.totalWins : 0,
     hasSwapped: false,
     folded: false,
   };
@@ -1430,6 +1486,7 @@ function serializeRoomState(){
       : [],
     score: typeof p.score === "number" ? p.score : state.settings.startingScore,
     dingCount: p.dingCount || 0,
+    totalWins: p.totalWins || 0,
     hasSwapped: !!p.hasSwapped,
     folded: !!p.folded,
   }));
@@ -1481,6 +1538,7 @@ function applyRoomState(data){
             wonTricks,
             score: typeof p.score === "number" ? p.score : state.settings.startingScore,
             dingCount: p.dingCount || 0,
+            totalWins: p.totalWins || 0,
             hasSwapped: !!p.hasSwapped,
             folded: !!p.folded,
           };
@@ -1819,7 +1877,7 @@ async function startMultiplayerGame(){
     setError("Need at least 2 players.");
     return;
   }
-  const players = state.players.map(p => buildPlayer(p.uid, p.name));
+  const players = state.players.map(p => buildPlayer(p.uid, p.name, p));
   state.players = players;
   state.phase = PHASE.HAND_END;
   state.dealerIndex = 0;
@@ -1967,6 +2025,66 @@ function resetAll(){
   render();
 }
 
+function startNewGame(){
+  setError(null);
+  if(state.phase !== PHASE.GAME_OVER){
+    setError("Game is not over yet.");
+    return;
+  }
+  if(isMultiplayer() && state.selfUid !== state.hostUid){
+    setError("Only the host can start a new game.");
+    return;
+  }
+  state.phase = PHASE.HAND_END;
+  state.dealerIndex = 0;
+  state.leaderIndex = 0;
+  state.currentTurnIndex = 0;
+  state.trickNumber = 0;
+  state.deck = [];
+  state.trumpCard = null;
+  state.trumpSuit = null;
+  state.currentTrick = { plays: [], leadSuit: null };
+  state.handId = 0;
+  state.lastTrickWinnerIndex = null;
+  state.lastCompletedTrick = null;
+  state.winnerIndex = null;
+  state.discardPile = [];
+  state.playedCards = [];
+  state.selectedCardIds.clear();
+  state.selectedForSwap.clear();
+  state.incomingCardIds.clear();
+  state.playersPendingInitial.clear();
+  state.dealTimeouts.forEach(t => clearTimeout(t));
+  state.dealTimeouts = [];
+  if(state.autoPassTimer){ clearInterval(state.autoPassTimer); state.autoPassTimer = null; }
+  state.dealing = false;
+  state.selfHand = [];
+  for(const p of state.players){
+    p.hand = [];
+    p.tricksWonThisHand = 0;
+    p.wonTricks = [];
+    p.score = state.settings.startingScore;
+    p.hasSwapped = false;
+    p.folded = false;
+  }
+  state.settingsCollapsed = true;
+  setLock(false, null);
+  render();
+
+  if(isMultiplayer() && firebaseDb && state.roomId){
+    const batch = writeBatch(firebaseDb);
+    for(const p of state.players){
+      if(p.uid){
+        batch.set(handRef(state.roomId, p.uid), { hand: [], updatedAt: serverTimestamp() }, { merge: true });
+      }
+    }
+    batch.commit().catch((err)=>{
+      console.error("Failed to reset hands:", err);
+    });
+    syncRoomState("new-game");
+  }
+}
+
 // collapse toggles: only Game header is collapsible; Table & Hand are fixed open
 if(els.gameHeader){
   els.gameHeader.style.cursor = 'pointer';
@@ -1988,6 +2106,7 @@ function initPlayers(names){
     wonTricks: [],
     score: state.settings.startingScore,
     dingCount: 0,
+    totalWins: 0,
     hasSwapped: false,
     folded: false,
   }));
@@ -1999,6 +2118,10 @@ function initPlayers(names){
 
 function dealHand(){
   setError(null);
+  if(state.phase === PHASE.GAME_OVER){
+    setError("Game over. Start a new game.");
+    return;
+  }
   if(state.dealing) return;
   if(isMultiplayer()){
     if(state.phase !== PHASE.HAND_END){
@@ -2491,7 +2614,7 @@ function playSelectedCard(){
     clone.style.left = rect.left + 'px';
     clone.style.top = rect.top + 'px';
     clone.style.margin = '0';
-    clone.style.transform = 'translate(0,0) scale(1)';
+    clone.style.transform = 'translate3d(0,0,0) scale(1)';
     document.body.appendChild(clone);
 
     // compute center target (center of trickArea)
@@ -2499,7 +2622,7 @@ function playSelectedCard(){
     const dy = (target.top + target.height/2) - (rect.top + rect.height/2);
 
     requestAnimationFrame(()=>{
-      clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.92)`;
+      clone.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(0.92)`;
       clone.style.opacity = '0.98';
     });
 
@@ -2569,7 +2692,13 @@ function endHand(){
     }
   }
   const winnerIdx = state.players.findIndex(p => p.score <= 0);
-  state.winnerIndex = winnerIdx >= 0 ? winnerIdx : null;
+  if(winnerIdx >= 0){
+    state.winnerIndex = winnerIdx;
+    state.players[winnerIdx].totalWins = (state.players[winnerIdx].totalWins || 0) + 1;
+    state.phase = PHASE.GAME_OVER;
+  } else {
+    state.winnerIndex = null;
+  }
   if(isMultiplayer()){
     const scores = state.players.map(p => ({ name: p.name, score: p.score }));
     logRoomEvent({ type: "hand_end", handId: state.handId, scores });
@@ -2600,7 +2729,11 @@ function endHand(){
   state.selectedForSwap.clear();
 
   // auto lock to dealer (who will hit deal)
-  setLock(true, state.dealerIndex);
+  if(state.phase === PHASE.GAME_OVER){
+    setLock(false, null);
+  } else {
+    setLock(true, state.dealerIndex);
+  }
   render();
   if(isMultiplayer()) syncRoomState("end-hand");
 }
@@ -2613,8 +2746,22 @@ function renderScoreboard(){
     // highlight active turn
     if(idx === state.currentTurnIndex) row.classList.add('activeTurn');
     const left = document.createElement("div");
-    // show name, dealer badge, and turn indicator; keep folded badge if applicable
-    left.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div style="display:flex;align-items:center;gap:8px"><div class="name">${p.name}</div>${idx===state.dealerIndex?'<span class="dealerBadge">Dealer</span>':''}${idx===state.currentTurnIndex?'<span class="turnDot">●</span>':''}</div><span class="dingBadge">DING <strong class="mono">${p.dingCount || 0}</strong></span>${p.folded ? '<span class="foldedPill">Folded</span>' : ''}</div>`;
+    left.className = "playerInfo";
+    const turnMark = idx === state.currentTurnIndex ? '<span class="turnDot">●</span>' : '';
+    const dealerMark = idx === state.dealerIndex ? '<span class="dealerBadge">Dealer</span>' : '';
+    const foldedMark = p.folded ? '<span class="foldedPill">Folded</span>' : '';
+    left.innerHTML = `
+      <div class="playerTop">
+        ${turnMark}
+        <div class="name">${p.name}</div>
+        ${dealerMark}
+        ${foldedMark}
+      </div>
+      <div class="playerMeta">
+        <span class="dingBadge">DING <strong class="mono">${p.dingCount || 0}</strong></span>
+        <span class="winsBadge">Wins <strong class="mono">${p.totalWins || 0}</strong></span>
+      </div>
+    `;
     // compact visualizer: five tiny card-chips + integrated trophy badge
     const visual = document.createElement('div');
     visual.className = 'trickVisualizer';
@@ -2647,7 +2794,12 @@ function renderScoreboard(){
 
     visual.appendChild(chips);
     visual.appendChild(badge);
-    left.appendChild(visual);
+    const metaRow = left.querySelector('.playerMeta');
+    if(metaRow){
+      left.insertBefore(visual, metaRow);
+    } else {
+      left.appendChild(visual);
+    }
     const right = document.createElement("div");
     // total score pill: bold, gold
     right.className = "totalScore";
@@ -2676,7 +2828,7 @@ function renderTrickArea(){
   }
 
   const plays = state.currentTrick.plays;
-  if(state.phase === PHASE.TRICK || state.phase === PHASE.HAND_END){
+  if(state.phase === PHASE.TRICK || state.phase === PHASE.HAND_END || state.phase === PHASE.GAME_OVER){
     const renderPlays = plays.length ? plays : (state.lastCompletedTrick || []);
     if(renderPlays.length === 0){
       const d = document.createElement("div");
@@ -2756,6 +2908,13 @@ function renderHand(){
     els.handHint.textContent = isMulti ? "Join a room to see your hand." : "Start a hand to see cards.";
     return;
   }
+  if(state.phase === PHASE.GAME_OVER){
+    const hostNote = isMulti
+      ? (state.selfUid === state.hostUid ? "Start a new game to reset scores." : "Waiting for host to start a new game.")
+      : "Start a new game to reset scores.";
+    els.handHint.textContent = `Game over. ${hostNote}`;
+    return;
+  }
 
   // if locked, hide hand
   if(!isMulti && state.lockOn){
@@ -2778,7 +2937,7 @@ function renderHand(){
       ? "Select 1 card to play, then confirm."
       : `Waiting for ${currentName} to play.`;
   } else {
-    els.handHint.textContent = "Hand ended — deal next hand.";
+    els.handHint.textContent = "Hand ended - deal next hand.";
   }
   // ensure hand visual is shown in player-held order (do not sort)
   const handForRender = isMulti ? (state.selfHand || []).slice() : (selfPlayer.hand || []).slice();
@@ -2806,14 +2965,15 @@ function renderHand(){
       const isDisabled =
         !actionAllowed ||
         (!hyper && state.phase === PHASE.TRICK && playable && !playable.has(card.id)) ||
-        (state.phase === PHASE.HAND_END);
+        (state.phase === PHASE.HAND_END) ||
+        (state.phase === PHASE.GAME_OVER);
 
       if(isDisabled) btn.classList.add("disabled");
 
       btn.addEventListener("click", ()=>{
         setError(null);
         if(!actionAllowed) return;
-        if(state.phase === PHASE.HAND_END) return;
+        if(state.phase === PHASE.HAND_END || state.phase === PHASE.GAME_OVER) return;
         if(state.phase === PHASE.SWAP){
           // prevent selecting after the player already swapped
           if(selfPlayer && selfPlayer.hasSwapped){ setError("You have already swapped this hand."); return; }
@@ -2892,7 +3052,8 @@ function renderHand(){
 }
 
 function renderHeaderPills(){
-  els.phasePill.textContent = state.phase;
+  const phaseLabel = state.phase === PHASE.GAME_OVER ? "GAME OVER" : state.phase;
+  els.phasePill.textContent = phaseLabel;
   if(state.trumpSuit){
     els.trumpPill.textContent = `${SUIT_ICON[state.trumpSuit]} (${cardLabel(state.trumpCard)})`;
     if(isRedSuit(state.trumpSuit)) els.trumpPill.classList.add('red'); else els.trumpPill.classList.remove('red');
@@ -2912,14 +3073,19 @@ function renderMeta(){
     els.turnName.textContent = "—";
     els.dealerName.textContent = "—";
   }
-  els.trickNum.textContent = state.phase === PHASE.TRICK ? String(state.trickNumber) : (state.phase === PHASE.SWAP ? "—" : "—");
+  els.trickNum.textContent = state.phase === PHASE.TRICK ? String(state.trickNumber) : "-";
   // deck count is shown in the deck visualizer; keep header pill clean
   els.deckText.textContent = "";
+  if(els.tableChips){
+    const overflow = els.tableChips.scrollWidth - els.tableChips.clientWidth;
+    els.tableChips.scrollLeft = overflow > 0 ? overflow : 0;
+  }
 }
 
 function renderStatus(){
   let msg = "—";
   const isMulti = isMultiplayer();
+  const isHost = !isMulti || (state.selfUid && state.hostUid && state.selfUid === state.hostUid);
   const winnerBanner = document.getElementById('winnerBanner');
   const winnerDetail = document.getElementById('winnerDetail');
   if(winnerBanner){
@@ -2938,8 +3104,6 @@ function renderStatus(){
   const icon = document.getElementById('notifierIcon');
   const playerBadge = document.getElementById('notifierPlayer');
   const actionBtn = document.getElementById('notifierAction');
-  if(document.body) document.body.classList.remove('notifier-on');
-
   if(!notifier){
     // legacy fallback
     if(state.autoPassCountdown && state.autoPassCountdown > 0 && state.phase === PHASE.SWAP){
@@ -2954,13 +3118,13 @@ function renderStatus(){
       msg = `Play a card: ${state.players[state.currentTurnIndex].name}${lead}`;
     }
     if(state.phase === PHASE.HAND_END) msg = `Hand over. Dealer is ${state.players[state.dealerIndex].name}. Deal next hand when ready.`;
+    if(state.phase === PHASE.GAME_OVER) msg = isHost ? "Game over. Start a new game to reset scores." : "Game over. Waiting for host to start a new game.";
     els.statusText.textContent = msg;
     return;
   }
 
   // show notifier
   notifier.style.display = 'flex';
-  if(document.body) document.body.classList.add('notifier-on');
   title.textContent = '';
   detail.textContent = '';
   playerBadge.style.display = 'none';
@@ -2995,6 +3159,13 @@ function renderStatus(){
     title.textContent = 'Hand complete';
     detail.textContent = `Dealer: ${state.players[state.dealerIndex]?.name ?? '—'}. Deal next hand when ready.`;
     // notifications are informational only; actions are handled in the main UI
+  }
+
+  if(state.phase === PHASE.GAME_OVER){
+    const winnerName = state.players[state.winnerIndex]?.name ?? 'Player';
+    icon.textContent = 'WIN';
+    title.textContent = `${winnerName} wins`;
+    detail.textContent = isHost ? "Start a new game to reset scores." : "Waiting for host to start a new game.";
   }
 
   // keep legacy status text for compact header summary
@@ -3057,6 +3228,19 @@ function render(){
   }
   if(els.tablePanel){
     els.tablePanel.style.display = (state.phase === PHASE.LOBBY) ? "none" : "block";
+  }
+  if(els.gameOverActions){
+    const showGameOver = state.phase === PHASE.GAME_OVER;
+    els.gameOverActions.style.display = showGameOver ? "block" : "none";
+    if(els.newGameBtn){
+      els.newGameBtn.disabled = !isHost;
+      els.newGameBtn.style.display = showGameOver ? "inline-block" : "none";
+    }
+    if(els.gameOverHint && showGameOver){
+      els.gameOverHint.textContent = isHost
+        ? "Game over. Start a new game to reset scores."
+        : "Game over. Waiting for host to start a new game.";
+    }
   }
 
   // settings: lock after lobby, but allow peek by expanding
@@ -3138,8 +3322,15 @@ els.startGameBtn.addEventListener("click", ()=>{
   render();
 });
 
+if(els.newGameBtn){
+  els.newGameBtn.addEventListener("click", ()=>{
+    startNewGame();
+  });
+}
+
 els.startHandBtn.addEventListener("click", ()=>{
   if(state.players.length < 2) return;
+  if(state.phase === PHASE.GAME_OVER){ setError("Game over. Start a new game."); return; }
   if(state.phase !== PHASE.HAND_END){ setError("Can't deal: finish the current hand first."); return; }
   dealHand();
 });
