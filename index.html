@@ -783,6 +783,16 @@
       font-size:11px;
       font-weight:700;
     }
+    .roomLobbyCard{
+      border:1px solid var(--stroke);
+      border-radius:12px;
+      background: rgba(0,0,0,.18);
+      padding:10px 12px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .roomLobbyTitle{ font-weight:800; }
     /* winner banner */
     #winnerBanner{
       border:1px solid rgba(255,230,140,.12);
@@ -821,9 +831,9 @@
       </div>
     </div>
     <div class="row2">
-      <div class="pill"><span>Phase:</span> <strong id="phasePill">LOBBY</strong></div>
-      <div class="pill"><span>Trump:</span> <strong id="trumpPill">—</strong></div>
-      <div class="pill"><span>Lead suit:</span> <strong id="leadPill">—</strong></div>
+      <div class="pill" id="phasePillWrap"><span>Phase:</span> <strong id="phasePill">LOBBY</strong></div>
+      <div class="pill" id="trumpPillWrap"><span>Trump:</span> <strong id="trumpPill">—</strong></div>
+      <div class="pill" id="leadPillWrap"><span>Lead suit:</span> <strong id="leadPill">—</strong></div>
     </div>
   </div>
   <div id="headerGreeting" class="small" style="margin-top:6px;display:none;"></div>
@@ -872,8 +882,6 @@
           <div id="lobbyArea" class="stack">
             <div id="lobbyHotseatIntro" class="small">Enter 2-6 player names (one per line). Then start.</div>
             <textarea id="namesInput" class="input" rows="6" placeholder="Player 1&#10;Player 2&#10;Player 3"></textarea>
-            <div id="lobbyMultiIntro" class="small" style="display:none;">Who's currently in the lobby:</div>
-            <div id="lobbyPlayers" class="lobbyList" style="display:none;"></div>
             <div class="modeCard" id="modeCard">
               <div class="small" style="margin-bottom:8px;">Game mode</div>
               <div class="modeRow">
@@ -901,6 +909,11 @@
                 <button class="btn" id="shareRoomBtn">Copy/Share</button>
               </div>
             <div class="mpStatus" id="roomStatus">No room joined.</div>
+            <div class="roomLobbyCard" id="roomLobbyCard" style="display:none;">
+              <div class="roomLobbyTitle" id="roomLobbyTitle">Room</div>
+              <div class="small" id="roomLobbySub">—</div>
+              <div id="lobbyPlayers" class="lobbyList"></div>
+            </div>
           </div>
           <div id="roomListSection" class="roomListSection" style="display:none;">
             <div class="small" style="margin-bottom:6px;">Your rooms</div>
@@ -1103,6 +1116,7 @@ const USER_COLLECTION = "users";
 const LOG_COLLECTION = "roomLog";
 const MAX_PLAYERS = 6;
 const MAX_NICKNAME_LENGTH = 18;
+const MAX_ROOM_NAME_LENGTH = 32;
 
 function makeDeck(){
   return makeDecks(1);
@@ -1158,6 +1172,7 @@ const state = {
   players: [],
   playerOrder: [],
   roomId: null,
+  roomName: null,
   hostUid: null,
   selfUid: null,
   selfName: null,
@@ -1220,6 +1235,9 @@ const els = {
   phasePill: document.getElementById("phasePill"),
   trumpPill: document.getElementById("trumpPill"),
   leadPill: document.getElementById("leadPill"),
+  phasePillWrap: document.getElementById("phasePillWrap"),
+  trumpPillWrap: document.getElementById("trumpPillWrap"),
+  leadPillWrap: document.getElementById("leadPillWrap"),
   headerGreeting: document.getElementById("headerGreeting"),
 
   lobbyArea: document.getElementById("lobbyArea"),
@@ -1250,8 +1268,10 @@ const els = {
   shareRoomBtn: document.getElementById("shareRoomBtn"),
   roomStatus: document.getElementById("roomStatus"),
   lobbyHotseatIntro: document.getElementById("lobbyHotseatIntro"),
-  lobbyMultiIntro: document.getElementById("lobbyMultiIntro"),
   lobbyPlayers: document.getElementById("lobbyPlayers"),
+  roomLobbyCard: document.getElementById("roomLobbyCard"),
+  roomLobbyTitle: document.getElementById("roomLobbyTitle"),
+  roomLobbySub: document.getElementById("roomLobbySub"),
   roomListSection: document.getElementById("roomListSection"),
   roomList: document.getElementById("roomList"),
   roomListEmpty: document.getElementById("roomListEmpty"),
@@ -1510,6 +1530,12 @@ function renderLobbyPlayers(){
 function normalizeRoomCode(code){
   return (code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
 }
+function normalizeRoomName(name){
+  return (name || "").trim().replace(/\s+/g, " ").slice(0, MAX_ROOM_NAME_LENGTH);
+}
+function getRoomDisplayName(name){
+  return normalizeRoomName(name) || "Player's Lobby";
+}
 function makeRoomCode(){
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -1598,8 +1624,6 @@ function updateModeUI(){
     els.namesInput.style.display = isMulti ? "none" : "block";
   }
   if(els.lobbyHotseatIntro) els.lobbyHotseatIntro.style.display = isMulti ? "none" : "block";
-  if(els.lobbyMultiIntro) els.lobbyMultiIntro.style.display = isMulti ? "block" : "none";
-  if(els.lobbyPlayers) els.lobbyPlayers.style.display = isMulti ? "flex" : "none";
   if(els.modeHint){
     if(!hasFirebase()){
       els.modeHint.textContent = "Multiplayer config missing. Multiplayer disabled.";
@@ -1614,6 +1638,7 @@ function updateModeUI(){
   renderRoomLog();
   renderRoomList();
   updateRoomMenuUI();
+  updateRoomLobbyUI();
 }
 
 function setMode(mode){
@@ -1665,6 +1690,7 @@ function updateAuthUI(){
   updateNicknameUI();
   updateRoomMenuUI();
   renderRoomList();
+  updateRoomLobbyUI();
 }
 
 function updateRoomStatus(){
@@ -1674,6 +1700,7 @@ function updateRoomStatus(){
       if(els.shareRoomBtn) els.shareRoomBtn.disabled = true;
       updateNicknameUI();
       updateRoomMenuUI();
+      updateRoomLobbyUI();
       return;
     }
     const role = (state.selfUid && state.hostUid && state.selfUid === state.hostUid) ? "host" : "guest";
@@ -1683,6 +1710,7 @@ function updateRoomStatus(){
   if(els.shareRoomBtn) els.shareRoomBtn.disabled = !state.roomId;
   updateNicknameUI();
   updateRoomMenuUI();
+  updateRoomLobbyUI();
 }
 
 function updateRoomMenuUI(){
@@ -1695,6 +1723,20 @@ function updateRoomMenuUI(){
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.style.display = isMulti ? "block" : "none";
   if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.disabled = !inRoom;
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.disabled = !inRoom;
+}
+
+function updateRoomLobbyUI(){
+  if(!els.roomLobbyCard || !els.roomLobbyTitle || !els.roomLobbySub) return;
+  const isMulti = isMultiplayer();
+  const inRoom = !!state.roomId;
+  if(!isMulti || !state.isSignedIn || !inRoom){
+    els.roomLobbyCard.style.display = "none";
+    return;
+  }
+  const role = (state.selfUid && state.hostUid && state.selfUid === state.hostUid) ? "host" : "guest";
+  els.roomLobbyTitle.textContent = getRoomDisplayName(state.roomName);
+  els.roomLobbySub.textContent = `Room ${state.roomId} (${role})`;
+  els.roomLobbyCard.style.display = "flex";
 }
 
 function closeRoomMenu(){
@@ -1754,6 +1796,7 @@ function subscribeToRoomList(){
         && (phase === PHASE.SWAP || phase === PHASE.TRICK);
       state.roomList[roomId] = {
         roomId,
+        roomName: getRoomDisplayName(data.roomName),
         playerCount,
         hostUid: data.hostUid || null,
         isHost: !!(data.hostUid && data.hostUid === state.selfUid),
@@ -1782,7 +1825,11 @@ function renderRoomList(){
     return;
   }
   if(els.roomListEmpty) els.roomListEmpty.style.display = "none";
-  const entries = ids.map((roomId)=> state.roomList[roomId] || { roomId, playerCount: null, isHost:false, isYourTurn:false });
+  const entries = ids.map((roomId)=>{
+    if(state.roomList[roomId]) return state.roomList[roomId];
+    const fallbackName = (state.roomId === roomId && state.roomName) ? state.roomName : "Player's Lobby";
+    return { roomId, roomName: fallbackName, playerCount: null, isHost:false, isYourTurn:false };
+  });
   entries.sort((a,b)=> a.roomId.localeCompare(b.roomId));
   entries.forEach((room)=>{
     const card = document.createElement("div");
@@ -1796,11 +1843,11 @@ function renderRoomList(){
     titleWrap.style.minWidth = "0";
     const title = document.createElement("div");
     title.className = "roomTitle";
-    title.textContent = room.roomId;
+    title.textContent = room.roomName || "Player's Lobby";
     const count = document.createElement("div");
     count.className = "roomCount";
     const countText = (typeof room.playerCount === "number") ? `${room.playerCount}/${MAX_PLAYERS}` : `-/${MAX_PLAYERS}`;
-    count.textContent = countText;
+    count.textContent = `${room.roomId} · ${countText}`;
     titleWrap.appendChild(title);
     titleWrap.appendChild(count);
     meta.appendChild(titleWrap);
@@ -1934,6 +1981,7 @@ function leaveRoom(){
   if(state.unsubHand){ state.unsubHand(); state.unsubHand = null; }
   if(state.unsubLog){ state.unsubLog(); state.unsubLog = null; }
   state.roomId = null;
+  state.roomName = null;
   state.hostUid = null;
   state.selfIndex = null;
   state.selfNickname = null;
@@ -2032,6 +2080,7 @@ function applyRoomState(data){
     state.lastTrickWinnerIndex = data.lastTrickWinnerIndex ?? null;
     state.lastCompletedTrick = data.lastCompletedTrick ?? null;
     state.winnerIndex = data.winnerIndex ?? null;
+    if("roomName" in data) state.roomName = getRoomDisplayName(data.roomName);
     state.settings = { ...state.settings, ...(data.settings || {}) };
     state.discardPile = Array.isArray(data.discardPile) ? data.discardPile : [];
     state.playedCards = Array.isArray(data.playedCards) ? data.playedCards : [];
@@ -2345,6 +2394,9 @@ async function createRoom(){
   if(!state.isSignedIn){ setError("Sign in first."); return; }
   if(!hasFirebase()){ setError("Firebase config missing."); return; }
   state.handId = 0;
+  const defaultRoomName = "Player's Lobby";
+  const nameInput = prompt("Room name", defaultRoomName);
+  const roomName = getRoomDisplayName(nameInput || defaultRoomName);
   let roomId = "";
   for(let i=0;i<5;i++){
     const candidate = makeRoomCode();
@@ -2361,6 +2413,7 @@ async function createRoom(){
   const player = buildPlayer(state.selfUid, getSelfRoomName(roomId));
   const roomState = {
     hostUid: state.selfUid,
+    roomName,
     createdAt: serverTimestamp(),
     ...serializeRoomState(),
     phase: PHASE.LOBBY,
@@ -2380,6 +2433,7 @@ async function createRoom(){
     playedCards: [],
   };
   await setDoc(roomRef(roomId), roomState);
+  state.roomName = roomName;
   await addRoomToProfile(roomId);
   if(els.roomCodeInput) els.roomCodeInput.value = roomId;
   location.hash = roomId;
@@ -2402,6 +2456,7 @@ async function joinRoom(roomId){
     return;
   }
   const data = snap.data();
+  state.roomName = getRoomDisplayName(data.roomName);
   const players = Array.isArray(data.players) ? data.players.slice() : [];
   const existingIdx = players.findIndex(p => p.uid === state.selfUid);
   if(existingIdx === -1){
@@ -3654,6 +3709,10 @@ function renderHand(){
 function renderHeaderPills(){
   const phaseLabel = state.phase === PHASE.GAME_OVER ? "GAME OVER" : state.phase;
   els.phasePill.textContent = phaseLabel;
+  const showPills = state.phase !== PHASE.LOBBY;
+  if(els.phasePillWrap) els.phasePillWrap.style.display = showPills ? "inline-flex" : "none";
+  if(els.trumpPillWrap) els.trumpPillWrap.style.display = showPills ? "inline-flex" : "none";
+  if(els.leadPillWrap) els.leadPillWrap.style.display = showPills ? "inline-flex" : "none";
   if(state.trumpSuit){
     els.trumpPill.textContent = `${SUIT_ICON[state.trumpSuit]} (${cardLabel(state.trumpCard)})`;
     if(isRedSuit(state.trumpSuit)) els.trumpPill.classList.add('red'); else els.trumpPill.classList.remove('red');
@@ -4162,6 +4221,7 @@ if(firebaseAuth){
     state.selfNickname = null;
     state.roomNicknames = {};
     state.lastRoomId = null;
+    state.roomName = null;
     state.roomIds = [];
     state.roomList = {};
     clearRoomListSubscriptions();
