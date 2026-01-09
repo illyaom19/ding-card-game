@@ -301,6 +301,46 @@
     .menuItem:hover{ background: rgba(255,255,255,.06); }
     .menuItem.danger{ color:#ff9cb1; }
     .menuItem:disabled{ opacity:.45; cursor:not-allowed; }
+    .headerTapZone{
+      position:absolute;
+      top:8px;
+      right:8px;
+      width:36px;
+      height:36px;
+      opacity:0;
+      pointer-events:auto;
+    }
+    .footerDebug{
+      position:fixed;
+      left:10px;
+      right:10px;
+      bottom:8px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      z-index: 20;
+      pointer-events:none;
+    }
+    .commitHash{
+      font-size:11px;
+      color:var(--muted);
+      opacity:.7;
+      letter-spacing:.2px;
+    }
+    .debugLog{
+      display:none;
+      max-height:180px;
+      overflow:auto;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid var(--stroke);
+      background: rgba(0,0,0,.35);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size:11px;
+      color:var(--text);
+      pointer-events:auto;
+      white-space:pre-wrap;
+    }
     .tableChips{
       display:flex;
       gap:10px;
@@ -925,6 +965,7 @@
       <div id="notifierAction" class="btn" style="padding:8px 10px;">-</div>
     </div>
   </div>
+  <div id="headerTapZone" class="headerTapZone" aria-hidden="true"></div>
 </header>
 <div id="pwaPrompt" class="pwaPrompt" role="dialog" aria-live="polite" aria-hidden="true">
   <div class="pwaCard">
@@ -932,13 +973,13 @@
     <div class="small" id="pwaPromptBody">Add this game to your Home Screen so iPhone can send you turn notifications and open faster.</div>
     <div class="pwaSteps" id="pwaPromptSteps">
       <div class="pwaStep"><span class="pwaStepNum">1</span>Tap the Share button in Safari.</div>
-      <div class="pwaStep"><span class="pwaStepNum">2</span>Select "Add to Home Screen".</div>
+      <div class="pwaStep"><span class="pwaStepNum">2</span>Tap More and select "Add to Home Screen".</div>
       <div class="pwaStep"><span class="pwaStepNum">3</span>Open the new app icon to enable alerts.</div>
     </div>
     <div id="pwaPromptStatus" class="pwaStatus" style="display:none;"></div>
     <div class="pwaActions">
-      <button class="btn primary" id="pwaEnableBtn" type="button">Enable turn alerts</button>
-      <button class="btn" id="pwaDismissBtn" type="button">Dismiss</button>
+      <button class="btn primary" id="pwaEnableBtn" type="button">Will do</button>
+      <button class="btn" id="pwaDismissBtn" type="button">No thanks</button>
     </div>
   </div>
 </div>
@@ -1176,6 +1217,10 @@
     <div class="footerNote">No peeking 👀</div>
   </div>
 </div>
+<div id="footerDebug" class="footerDebug">
+  <div id="commitHash" class="commitHash"></div>
+  <div id="debugLog" class="debugLog"></div>
+</div>
 
 <script src="firebase-config.js"></script>
 <script type="module">
@@ -1339,6 +1384,8 @@ const state = {
   remoteCommit: "",
   hasSavedAppCommit: false,
   unsubAppMeta: null,
+  debugLogEnabled: false,
+  debugLogLines: [],
   discardPile: [],
   playedCards: [],
   logEntries: [],
@@ -1354,6 +1401,7 @@ const els = {
   trumpPillWrap: document.getElementById("trumpPillWrap"),
   leadPillWrap: document.getElementById("leadPillWrap"),
   headerGreeting: document.getElementById("headerGreeting"),
+  headerTapZone: document.getElementById("headerTapZone"),
   pwaPrompt: document.getElementById("pwaPrompt"),
   pwaPromptTitle: document.getElementById("pwaPromptTitle"),
   pwaPromptBody: document.getElementById("pwaPromptBody"),
@@ -1361,6 +1409,9 @@ const els = {
   pwaPromptStatus: document.getElementById("pwaPromptStatus"),
   pwaEnableBtn: document.getElementById("pwaEnableBtn"),
   pwaDismissBtn: document.getElementById("pwaDismissBtn"),
+  commitHash: document.getElementById("commitHash"),
+  debugLog: document.getElementById("debugLog"),
+  footerDebug: document.getElementById("footerDebug"),
 
   lobbyArea: document.getElementById("lobbyArea"),
   controlsArea: document.getElementById("controlsArea"),
@@ -1578,6 +1629,51 @@ function hasFirebase(){ return !!(firebaseApp && firebaseAuth && firebaseDb); }
 function roomRef(roomId){ return doc(firebaseDb, ROOM_COLLECTION, roomId); }
 function userRef(uid){ return doc(firebaseDb, USER_COLLECTION, uid); }
 function appMetaRef(){ return doc(firebaseDb, "meta", "app"); }
+function formatCommitHash(commit){
+  if(!commit) return "dev";
+  return commit.length > 8 ? commit.slice(0, 7) : commit;
+}
+function updateCommitHashUI(){
+  if(!els.commitHash) return;
+  const label = formatCommitHash(state.appCommit);
+  els.commitHash.textContent = `Commit: ${label}`;
+}
+function renderDebugLog(){
+  if(!els.debugLog) return;
+  if(!state.debugLogEnabled){
+    els.debugLog.style.display = "none";
+    if(els.footerDebug) els.footerDebug.style.pointerEvents = "none";
+    return;
+  }
+  els.debugLog.style.display = "block";
+  if(els.footerDebug) els.footerDebug.style.pointerEvents = "auto";
+  els.debugLog.textContent = state.debugLogLines.join("\n");
+  els.debugLog.scrollTop = els.debugLog.scrollHeight;
+}
+function appendDebugLine(type, args){
+  const parts = [];
+  for(const arg of args){
+    if(typeof arg === "string"){
+      parts.push(arg);
+      continue;
+    }
+    try{
+      parts.push(JSON.stringify(arg));
+    } catch (err){
+      parts.push(String(arg));
+    }
+  }
+  const line = `[${type}] ${parts.join(" ")}`;
+  state.debugLogLines.push(line);
+  if(state.debugLogLines.length > 200){
+    state.debugLogLines = state.debugLogLines.slice(-200);
+  }
+  renderDebugLog();
+}
+function toggleDebugLog(){
+  state.debugLogEnabled = !state.debugLogEnabled;
+  renderDebugLog();
+}
 function handRef(roomId, uid){ return doc(firebaseDb, ROOM_COLLECTION, roomId, "hands", uid); }
 function logCollectionRef(roomId){ return collection(firebaseDb, ROOM_COLLECTION, roomId, LOG_COLLECTION); }
 function flashRoomStatus(msg){
@@ -2072,7 +2168,7 @@ function updateRoomNameUI(){
       els.roomNameInput.value = current;
     }
     if(!isHost){
-      setRoomNameStatus("Only the host can rename this room.");
+      flashRoomNameStatus("Only the host can rename this room.");
     } else {
       setRoomNameStatus("");
     }
@@ -2082,7 +2178,7 @@ function updateRoomNameUI(){
   if(document.activeElement !== els.roomNameInput){
     els.roomNameInput.value = draft;
   }
-  setRoomNameStatus("Set a room name for your next lobby.");
+  setRoomNameStatus("");
 }
 function buildPlayer(uid, name, seed=null){
   return {
@@ -3184,6 +3280,7 @@ function resetAll(){
   syncSettingsUI();
   setLock(false, null);
   setError(null);
+  updateCommitHashUI();
   render();
 }
 
@@ -4683,6 +4780,17 @@ if(els.deckCountInput){
     syncSettingsUI();
   });
 }
+const nativeConsole = {
+  log: console.log,
+  info: console.info,
+  warn: console.warn,
+  error: console.error,
+};
+console.log = (...args)=>{ nativeConsole.log(...args); appendDebugLine("log", args); };
+console.info = (...args)=>{ nativeConsole.info(...args); appendDebugLine("info", args); };
+console.warn = (...args)=>{ nativeConsole.warn(...args); appendDebugLine("warn", args); };
+console.error = (...args)=>{ nativeConsole.error(...args); appendDebugLine("error", args); };
+
 if(els.hyperrealisticInput){
   els.hyperrealisticInput.addEventListener("change", ()=>{
     state.settings.hyperrealistic = !!els.hyperrealisticInput.checked;
@@ -4701,6 +4809,19 @@ if(els.menuEnableNotificationsBtn){
       return;
     }
     showPwaInstallPrompt();
+  });
+}
+if(els.headerTapZone){
+  let tapCount = 0;
+  let tapTimer = null;
+  els.headerTapZone.addEventListener("click", ()=>{
+    tapCount += 1;
+    if(tapTimer) clearTimeout(tapTimer);
+    tapTimer = setTimeout(()=>{ tapCount = 0; }, 1200);
+    if(tapCount >= 5){
+      tapCount = 0;
+      toggleDebugLog();
+    }
   });
 }
 
