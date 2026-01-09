@@ -1909,7 +1909,6 @@ async function enableTurnNotifications(fromUser){
   }
   const reg = await registerServiceWorker();
   if(!reg){
-    notifyPushSetupIssue("Service worker unavailable.");
     return false;
   }
   try{
