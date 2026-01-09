@@ -547,6 +547,63 @@
     .mpRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .mpCode{ min-width:120px; text-transform:uppercase; letter-spacing:.8px; }
     .mpStatus{ font-size:12px; color:var(--muted); }
+    .logCard{
+      border:1px solid var(--stroke);
+      border-radius:16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .logHeader{
+      display:flex; align-items:center; gap:8px;
+      padding:10px 12px;
+      cursor:pointer;
+      border-bottom:1px solid var(--stroke);
+      background: rgba(255,255,255,.04);
+    }
+    .logCaret{
+      display:inline-block; width:14px; text-align:center;
+      transition: transform .12s ease;
+    }
+    .logCard.collapsed .logCaret{ transform: rotate(-90deg); }
+    .logBody{ padding:12px; display:block; }
+    .logCard.collapsed .logBody{ display:none; }
+    .logList{
+      max-height:240px;
+      overflow-y:auto;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding-right:4px;
+    }
+    .handLog{
+      border:1px solid var(--stroke);
+      border-radius:12px;
+      background: rgba(0,0,0,.18);
+      padding:6px 10px;
+    }
+    .handLog summary{
+      list-style:none;
+      cursor:pointer;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .handLog summary::-webkit-details-marker{ display:none; }
+    .handTitle{ font-weight:800; font-size:13px; }
+    .handScores{ font-size:12px; color:var(--muted); }
+    .handPlays{ margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+    .trickLog{
+      border-top:1px dashed var(--stroke);
+      padding-top:6px;
+    }
+    .trickLog:first-child{ border-top:none; padding-top:0; }
+    .playLine{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:8px;
+      font-size:12px;
+      color:var(--muted);
+    }
     .lobbyList{ display:flex; flex-direction:column; gap:6px; }
     .lobbyPlayer{
       padding:8px 10px;
@@ -592,6 +649,7 @@
       <div class="pill"><span>Lead suit:</span> <strong id="leadPill">—</strong></div>
     </div>
   </div>
+  <div id="headerGreeting" class="small" style="margin-top:6px;display:none;"></div>
 </header>
 
 <!-- Unified notifier: shows phase, actor, and concise instructions -->
@@ -736,10 +794,21 @@
             <span class="mono" id="deckText"></span>
           </div>
 
-          <div id="errorBox" class="error" style="display:none;"></div>
+            <div id="errorBox" class="error" style="display:none;"></div>
+          </div>
+
+          <div id="logCard" class="logCard collapsed">
+            <div class="logHeader" id="logHeader" role="button" tabindex="0" aria-expanded="false">
+              <span class="logCaret" id="logCaret">▸</span>
+              <div style="font-weight:800;">Room log</div>
+              <div class="small" id="logHint" style="margin-left:auto;color:var(--muted);">Collapsed</div>
+            </div>
+            <div class="logBody" id="logBody">
+              <div class="logList" id="logList"></div>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
     <section class="panel">
       <div id="tableHeader" class="hd">
@@ -804,7 +873,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, serverTimestamp, writeBatch, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, serverTimestamp, writeBatch, addDoc, query, orderBy, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 /** =========================
  *  Ding Prototype (Hotseat)
  *  =========================
@@ -836,6 +905,7 @@ const firebaseDb = firebaseApp ? getFirestore(firebaseApp) : null;
 const googleProvider = firebaseAuth ? new GoogleAuthProvider() : null;
 const ROOM_COLLECTION = "rooms";
 const USER_COLLECTION = "users";
+const LOG_COLLECTION = "roomLog";
 const MAX_PLAYERS = 6;
 
 function makeDeck(){
@@ -900,6 +970,7 @@ const state = {
   unsubRoom: null,
   unsubPlayers: null,
   unsubHand: null,
+  unsubLog: null,
   isApplyingRemote: false,
   dealerIndex: 0,
   leaderIndex: 0,        // who leads the current trick
@@ -909,6 +980,7 @@ const state = {
   trumpCard: null,
   trumpSuit: null,
   currentTrick: { plays: [], leadSuit: null },
+  handId: 0,
   selectedCardIds: new Set(),
   selectedForSwap: new Set(),
   // animation & deal helpers
@@ -934,6 +1006,8 @@ const state = {
   settingsCollapsed: false,
   discardPile: [],
   playedCards: [],
+  logEntries: [],
+  logCollapsed: true,
   collapsed: { game:false, table:false, hand:false },
 };
 
@@ -941,6 +1015,7 @@ const els = {
   phasePill: document.getElementById("phasePill"),
   trumpPill: document.getElementById("trumpPill"),
   leadPill: document.getElementById("leadPill"),
+  headerGreeting: document.getElementById("headerGreeting"),
 
   lobbyArea: document.getElementById("lobbyArea"),
   controlsArea: document.getElementById("controlsArea"),
@@ -963,6 +1038,11 @@ const els = {
   lobbyHotseatIntro: document.getElementById("lobbyHotseatIntro"),
   lobbyMultiIntro: document.getElementById("lobbyMultiIntro"),
   lobbyPlayers: document.getElementById("lobbyPlayers"),
+  logCard: document.getElementById("logCard"),
+  logHeader: document.getElementById("logHeader"),
+  logCaret: document.getElementById("logCaret"),
+  logList: document.getElementById("logList"),
+  logHint: document.getElementById("logHint"),
 
   scoreboard: document.getElementById("scoreboard"),
   statusText: document.getElementById("statusText"),
@@ -1126,6 +1206,7 @@ function hasFirebase(){ return !!(firebaseApp && firebaseAuth && firebaseDb); }
 function roomRef(roomId){ return doc(firebaseDb, ROOM_COLLECTION, roomId); }
 function userRef(uid){ return doc(firebaseDb, USER_COLLECTION, uid); }
 function handRef(roomId, uid){ return doc(firebaseDb, ROOM_COLLECTION, roomId, "hands", uid); }
+function logCollectionRef(roomId){ return collection(firebaseDb, ROOM_COLLECTION, roomId, LOG_COLLECTION); }
 function flashRoomStatus(msg){
   if(!els.roomStatus) return;
   const prev = els.roomStatus.textContent;
@@ -1244,6 +1325,7 @@ function updateModeUI(){
   }
   if(els.modeMultiBtn) els.modeMultiBtn.disabled = !hasFirebase();
   renderLobbyPlayers();
+  renderRoomLog();
 }
 
 function setMode(mode){
@@ -1279,6 +1361,18 @@ function updateAuthUI(){
   if(els.signInBtn) els.signInBtn.style.display = state.isSignedIn ? "none" : "inline-block";
   if(els.signOutBtn) els.signOutBtn.style.display = state.isSignedIn ? "inline-block" : "none";
   if(els.shareRoomBtn) els.shareRoomBtn.disabled = !state.roomId;
+  if(els.headerGreeting){
+    if(state.isSignedIn && state.selfName){
+      els.headerGreeting.textContent = `Hi ${state.selfName} — welcome back.`;
+      els.headerGreeting.style.display = "block";
+    } else if(state.isSignedIn){
+      els.headerGreeting.textContent = "Hi there — welcome back.";
+      els.headerGreeting.style.display = "block";
+    } else {
+      els.headerGreeting.textContent = "";
+      els.headerGreeting.style.display = "none";
+    }
+  }
 }
 
 function updateRoomStatus(){
@@ -1297,11 +1391,13 @@ function updateRoomStatus(){
 function leaveRoom(){
   if(state.unsubRoom){ state.unsubRoom(); state.unsubRoom = null; }
   if(state.unsubHand){ state.unsubHand(); state.unsubHand = null; }
+  if(state.unsubLog){ state.unsubLog(); state.unsubLog = null; }
   state.roomId = null;
   state.hostUid = null;
   state.selfIndex = null;
   state.selfHand = [];
   state.players = [];
+  state.logEntries = [];
   updateRoomStatus();
 }
 
@@ -1328,6 +1424,7 @@ function serializeRoomState(){
     leaderIndex: state.leaderIndex,
     currentTurnIndex: state.currentTurnIndex,
     trickNumber: state.trickNumber,
+    handId: state.handId,
     deck: state.deck,
     trumpCard: state.trumpCard,
     trumpSuit: state.trumpSuit,
@@ -1376,6 +1473,7 @@ function applyRoomState(data){
     state.leaderIndex = data.leaderIndex ?? state.leaderIndex;
     state.currentTurnIndex = data.currentTurnIndex ?? state.currentTurnIndex;
     state.trickNumber = data.trickNumber ?? state.trickNumber;
+    state.handId = data.handId ?? state.handId;
     state.deck = Array.isArray(data.deck) ? data.deck : state.deck;
     state.trumpCard = data.trumpCard ?? null;
     state.trumpSuit = data.trumpSuit ?? null;
@@ -1468,6 +1566,127 @@ async function syncSelfHand(){
   }
 }
 
+function subscribeToLog(){
+  if(state.unsubLog){ state.unsubLog(); state.unsubLog = null; }
+  if(!state.roomId || !firebaseDb) return;
+  const q = query(logCollectionRef(state.roomId), orderBy("createdAt", "asc"));
+  state.unsubLog = onSnapshot(q, (snap)=>{
+    state.logEntries = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderRoomLog();
+  }, (err)=>{
+    console.error("Log subscription error:", err);
+  });
+}
+
+async function logRoomEvent(entry){
+  if(!isMultiplayer() || !state.roomId || !firebaseDb) return;
+  try{
+    await addDoc(logCollectionRef(state.roomId), {
+      ...entry,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err){
+    console.error("Failed to write log entry:", err);
+  }
+}
+
+function renderRoomLog(){
+  if(!els.logList) return;
+  els.logList.innerHTML = "";
+  let hint = "Multiplayer only";
+  if(state.mode !== MODE.MULTI){
+    const empty = document.createElement("div");
+    empty.className = "small";
+    empty.textContent = "Room log is available in multiplayer.";
+    els.logList.appendChild(empty);
+  } else if(!state.roomId){
+    const empty = document.createElement("div");
+    empty.className = "small";
+    empty.textContent = "Join a room to see the log.";
+    els.logList.appendChild(empty);
+    hint = "No room";
+  } else if(!state.logEntries.length){
+    const empty = document.createElement("div");
+    empty.className = "small";
+    empty.textContent = "No hands logged yet.";
+    els.logList.appendChild(empty);
+    hint = "No hands yet";
+  } else {
+    const hands = new Map();
+    state.logEntries.forEach((entry)=>{
+      const handId = Number(entry.handId || 0);
+      if(!handId) return;
+      if(!hands.has(handId)) hands.set(handId, { plays: [], end: null });
+      const hand = hands.get(handId);
+      if(entry.type === "play") hand.plays.push(entry);
+      if(entry.type === "hand_end") hand.end = entry;
+    });
+    const handIds = Array.from(hands.keys()).sort((a,b)=>a-b);
+    hint = `${handIds.length} hand${handIds.length === 1 ? "" : "s"}`;
+    handIds.forEach((handId)=>{
+      const hand = hands.get(handId);
+      const details = document.createElement("details");
+      details.className = "handLog";
+      const summary = document.createElement("summary");
+      const title = document.createElement("div");
+      title.className = "handTitle";
+      const scores = (hand.end && Array.isArray(hand.end.scores)) ? hand.end.scores : [];
+      const scoreLine = scores.length
+        ? scores.map(s => `${s.name}: ${s.score}`).join(" · ")
+        : `Hand ${handId} (in progress)`;
+      title.textContent = scoreLine;
+      const meta = document.createElement("div");
+      meta.className = "handScores";
+      meta.textContent = scores.length ? `Hand ${handId}` : "Scores pending";
+      summary.appendChild(title);
+      summary.appendChild(meta);
+      details.appendChild(summary);
+
+      const playsByTrick = new Map();
+      hand.plays.forEach((play)=>{
+        const trick = Number(play.trickNumber || 0);
+        if(!playsByTrick.has(trick)) playsByTrick.set(trick, []);
+        playsByTrick.get(trick).push(play);
+      });
+      const trickIds = Array.from(playsByTrick.keys()).sort((a,b)=>a-b);
+      const playsWrap = document.createElement("div");
+      playsWrap.className = "handPlays";
+      trickIds.forEach((trickId)=>{
+        const trickBlock = document.createElement("div");
+        trickBlock.className = "trickLog";
+        const trickTitle = document.createElement("div");
+        trickTitle.className = "small";
+        trickTitle.textContent = `Trick ${trickId}`;
+        trickBlock.appendChild(trickTitle);
+        playsByTrick.get(trickId).forEach((play)=>{
+          const line = document.createElement("div");
+          line.className = "playLine";
+          const name = play.playerName || "Player";
+          const card = play.card ? cardLabel(play.card) : "—";
+          line.innerHTML = `<span>${name}</span><span>${card}</span>`;
+          trickBlock.appendChild(line);
+        });
+        playsWrap.appendChild(trickBlock);
+      });
+      if(!playsWrap.childNodes.length){
+        const empty = document.createElement("div");
+        empty.className = "small";
+        empty.textContent = "No plays recorded.";
+        playsWrap.appendChild(empty);
+      }
+      details.appendChild(playsWrap);
+      els.logList.appendChild(details);
+    });
+  }
+  if(els.logHint) els.logHint.textContent = hint;
+  requestAnimationFrame(()=> scrollLogToBottom());
+}
+
+function scrollLogToBottom(){
+  if(!els.logList) return;
+  els.logList.scrollTop = els.logList.scrollHeight;
+}
+
 async function maybeAutoJoinRoom(){
   if(!state.isSignedIn || !hasFirebase()) return;
   if(state.roomId) return;
@@ -1490,6 +1709,7 @@ async function maybeAutoJoinRoom(){
 async function createRoom(){
   if(!state.isSignedIn){ setError("Sign in first."); return; }
   if(!hasFirebase()){ setError("Firebase config missing."); return; }
+  state.handId = 0;
   let roomId = "";
   for(let i=0;i<5;i++){
     const candidate = makeRoomCode();
@@ -1530,6 +1750,7 @@ async function createRoom(){
   location.hash = roomId;
   subscribeToRoom(roomId);
   subscribeToHand();
+  subscribeToLog();
 }
 
 async function joinRoom(roomId){
@@ -1565,6 +1786,7 @@ async function joinRoom(roomId){
   location.hash = code;
   subscribeToRoom(code);
   subscribeToHand();
+  subscribeToLog();
 }
 
 async function startMultiplayerGame(){
@@ -1588,6 +1810,7 @@ async function startMultiplayerGame(){
   state.currentTurnIndex = 0;
   state.trickNumber = 0;
   state.deck = [];
+  state.handId = 0;
   state.trumpCard = null;
   state.trumpSuit = null;
   state.currentTrick = { plays: [], leadSuit: null };
@@ -1769,6 +1992,7 @@ function dealHand(){
       return;
     }
     state.dealing = true;
+    state.handId = (state.handId || 0) + 1;
 
     // reset hand-only fields
     const handsByUid = new Map();
@@ -1831,6 +2055,7 @@ function dealHand(){
     return;
   }
   state.dealing = true;
+  state.handId = (state.handId || 0) + 1;
 
   // reset hand-only fields
   for(const p of state.players){
@@ -2172,6 +2397,17 @@ function playSelectedCard(){
       p.hand = p.hand.filter(c => c.id !== card.id);
     }
     state.currentTrick.plays.push({ playerIndex: state.currentTurnIndex, card });
+    if(isMulti){
+      const name = state.players[state.currentTurnIndex]?.name ?? "Player";
+      logRoomEvent({
+        type: "play",
+        handId: state.handId,
+        trickNumber: state.trickNumber,
+        playerIndex: state.currentTurnIndex,
+        playerName: name,
+        card: { suit: card.suit, rank: card.rank, id: card.id },
+      });
+    }
     if(!state.currentTrick.leadSuit){
       state.currentTrick.leadSuit = card.suit;
       // a new trick is starting: clear the previous completed trick that was left on the table
@@ -2316,6 +2552,10 @@ function endHand(){
   }
   const winnerIdx = state.players.findIndex(p => p.score <= 0);
   state.winnerIndex = winnerIdx >= 0 ? winnerIdx : null;
+  if(isMultiplayer()){
+    const scores = state.players.map(p => ({ name: p.name, score: p.score }));
+    logRoomEvent({ type: "hand_end", handId: state.handId, scores });
+  }
 
   // dealer update
   if(DEALER_RULE === "LAST_TRICK_WINNER" && state.lastTrickWinnerIndex !== null){
@@ -2759,6 +2999,7 @@ function render(){
   // ensure hand panel defaults to open
   state.collapsed.hand = !!state.collapsed.hand;
   if(els.handPanel) els.handPanel.classList.toggle('collapsed', !!state.collapsed.hand);
+  if(els.logCard) els.logCard.classList.toggle('collapsed', !!state.logCollapsed);
   if(els.collapseGameBtn) els.collapseGameBtn.textContent = state.collapsed.game ? '▸' : '▾';
   if(els.collapseTableBtn) els.collapseTableBtn.textContent = state.collapsed.table ? '▸' : '▾';
   if(els.collapseHandBtn) els.collapseHandBtn.textContent = state.collapsed.hand ? '▸' : '▾';
@@ -2770,6 +3011,7 @@ function render(){
   if(els.gameHeader){ els.gameHeader.setAttribute('aria-expanded', String(!state.collapsed.game)); }
   if(els.tableHeader){ els.tableHeader.setAttribute('aria-expanded', String(!state.collapsed.table)); }
   if(els.handHeader){ els.handHeader.setAttribute('aria-expanded', String(!state.collapsed.hand)); }
+  if(els.logHeader){ els.logHeader.setAttribute('aria-expanded', String(!state.logCollapsed)); }
 
   // remove rough subtitles from headers (keep headers minimal)
   if(els.gameSummary){ els.gameSummary.textContent = ''; }
@@ -2839,6 +3081,7 @@ function render(){
   renderTrickArea();
   renderHand();
   renderStatus();
+  renderRoomLog();
 
   // keep Game header summary empty; notifier handles status now
   if(els.gameSummary){ els.gameSummary.textContent = ''; }
@@ -2945,6 +3188,23 @@ if(els.settingsHeader){
     if(e.key === "Enter" || e.key === " "){
       e.preventDefault();
       toggleSettings();
+    }
+  });
+}
+if(els.logHeader){
+  const toggleLog = ()=>{
+    state.logCollapsed = !state.logCollapsed;
+    render();
+    if(!state.logCollapsed) requestAnimationFrame(()=> scrollLogToBottom());
+  };
+  els.logHeader.addEventListener("click", (e)=>{
+    e.preventDefault();
+    toggleLog();
+  });
+  els.logHeader.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      toggleLog();
     }
   });
 }
