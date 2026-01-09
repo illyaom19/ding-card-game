@@ -518,6 +518,35 @@
       font-weight:800; font-size:12px; color:var(--muted);
     }
     .settingToggle input{ width:18px; height:18px; }
+    /* mode + multiplayer */
+    .modeCard{
+      padding:12px;
+      border-radius:16px;
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(62,226,138,.10), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+    }
+    .modeRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .modeBtn{
+      padding:8px 12px; border-radius:12px; font-weight:800;
+      border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.06);
+      cursor:pointer; color:var(--muted);
+    }
+    .modeBtn.active{
+      color:var(--text);
+      border-color: rgba(124,92,255,.45);
+      background: rgba(124,92,255,.22);
+    }
+    .mpCard{
+      padding:12px;
+      border-radius:16px;
+      border:1px solid var(--stroke);
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+      box-shadow: var(--shadow);
+    }
+    .mpRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .mpCode{ min-width:120px; text-transform:uppercase; letter-spacing:.8px; }
+    .mpStatus{ font-size:12px; color:var(--muted); }
     /* winner banner */
     #winnerBanner{
       border:1px solid rgba(255,230,140,.12);
@@ -597,6 +626,28 @@
         <div id="lobbyArea" class="stack">
           <div class="small">Enter 2–6 player names (one per line). Then start.</div>
           <textarea id="namesInput" class="input" rows="6" placeholder="Illya&#10;Player 2&#10;Player 3"></textarea>
+          <div class="modeCard" id="modeCard">
+            <div class="small" style="margin-bottom:8px;">Game mode</div>
+            <div class="modeRow">
+              <button class="modeBtn active" id="modeHotseatBtn">Hotseat</button>
+              <button class="modeBtn" id="modeMultiBtn">Multiplayer</button>
+            </div>
+            <div class="mpStatus" id="modeHint">Hotseat runs on one device. Multiplayer syncs via Firebase.</div>
+          </div>
+          <div class="mpCard" id="mpCard" style="display:none;">
+            <div class="small" style="margin-bottom:8px;">Multiplayer</div>
+            <div class="mpRow" style="margin-bottom:8px;">
+              <button class="btn" id="signInBtn">Sign in with Google</button>
+              <button class="btn danger" id="signOutBtn" style="display:none;">Sign out</button>
+              <div class="mpStatus" id="authStatus">Not signed in.</div>
+            </div>
+            <div class="mpRow" style="margin-bottom:8px;">
+              <input class="input mpCode" id="roomCodeInput" placeholder="ROOM CODE" />
+              <button class="btn primary" id="createRoomBtn">Create Room</button>
+              <button class="btn" id="joinRoomBtn">Join Room</button>
+            </div>
+            <div class="mpStatus" id="roomStatus">No room joined.</div>
+          </div>
           <button class="btn primary" id="startGameBtn">Start Game</button>
         </div>
 
@@ -738,7 +789,11 @@
   </div>
 </div>
 
-<script>
+<script src="firebase-config.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, serverTimestamp, writeBatch, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 /** =========================
  *  Ding Prototype (Hotseat)
  *  =========================
@@ -758,6 +813,16 @@ const PHASE = {
   TRICK: "TRICK",
   HAND_END: "HAND_END",
 };
+const MODE = {
+  HOTSEAT: "HOTSEAT",
+  MULTI: "MULTI",
+};
+
+const firebaseConfig = window.FIREBASE_CONFIG || null;
+const firebaseApp = firebaseConfig ? initializeApp(firebaseConfig) : null;
+const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
+const firebaseDb = firebaseApp ? getFirestore(firebaseApp) : null;
+const googleProvider = firebaseAuth ? new GoogleAuthProvider() : null;
 
 function makeDeck(){
   return makeDecks(1);
@@ -807,8 +872,20 @@ function determineTrickWinner(plays, leadSuit, trumpSuit){
 // removed unused helper: clone()
 
 const state = {
+  mode: MODE.HOTSEAT,
   phase: PHASE.LOBBY,
   players: [],
+  playerOrder: [],
+  roomId: null,
+  hostUid: null,
+  selfUid: null,
+  selfName: null,
+  selfIndex: null,
+  selfHand: [],
+  isSignedIn: false,
+  unsubRoom: null,
+  unsubPlayers: null,
+  unsubHand: null,
   dealerIndex: 0,
   leaderIndex: 0,        // who leads the current trick
   currentTurnIndex: 0,   // whose action is required (swap or play)
@@ -856,6 +933,17 @@ const els = {
   startGameBtn: document.getElementById("startGameBtn"),
   startHandBtn: document.getElementById("startHandBtn"),
   resetBtn: document.getElementById("resetBtn"),
+  modeHotseatBtn: document.getElementById("modeHotseatBtn"),
+  modeMultiBtn: document.getElementById("modeMultiBtn"),
+  modeHint: document.getElementById("modeHint"),
+  mpCard: document.getElementById("mpCard"),
+  signInBtn: document.getElementById("signInBtn"),
+  signOutBtn: document.getElementById("signOutBtn"),
+  authStatus: document.getElementById("authStatus"),
+  roomCodeInput: document.getElementById("roomCodeInput"),
+  createRoomBtn: document.getElementById("createRoomBtn"),
+  joinRoomBtn: document.getElementById("joinRoomBtn"),
+  roomStatus: document.getElementById("roomStatus"),
 
   scoreboard: document.getElementById("scoreboard"),
   statusText: document.getElementById("statusText"),
