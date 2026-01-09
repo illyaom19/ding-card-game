@@ -1072,6 +1072,15 @@
                 OFF
               </label>
             </div>
+            <div class="settingRow">
+              <div>
+                <div class="settingLabel">Notifications</div>
+                <div class="settingMeta">Tap to enable turn alerts</div>
+              </div>
+              <div class="settingControls">
+                <button class="btn" id="enableNotificationsBtn" type="button">Enable notifications</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1423,6 +1432,7 @@ const els = {
   settingsCaret: document.getElementById("settingsCaret"),
   settingsBody: document.getElementById("settingsBody"),
   settingsLockPill: document.getElementById("settingsLockPill"),
+  enableNotificationsBtn: document.getElementById("enableNotificationsBtn"),
   startingScoreInput: document.getElementById("startingScoreInput"),
   startingScoreValue: document.getElementById("startingScoreValue"),
   foldThresholdInput: document.getElementById("foldThresholdInput"),
@@ -4615,6 +4625,18 @@ if(els.hyperrealisticInput){
     state.settings.hyperrealistic = !!els.hyperrealisticInput.checked;
     syncSettingsUI();
     render();
+  });
+}
+if(els.enableNotificationsBtn){
+  els.enableNotificationsBtn.addEventListener("click", ()=>{
+    if(isStandalone()){
+      if(Notification.permission === "default"){
+        showPwaEnablePrompt();
+      }
+      enableTurnNotifications(true);
+      return;
+    }
+    showPwaInstallPrompt();
   });
 }
 
