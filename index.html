@@ -1763,7 +1763,7 @@ async function enableTurnNotifications(fromUser){
     return false;
   }
   if(isIos() && !isStandalone()){
-    setPwaPromptStatus("Install to Home Screen first to enable notifications.");
+    setPwaPromptStatus("App must be installed to enable notifications.");
     return false;
   }
   if(Notification.permission === "denied"){
@@ -1803,7 +1803,11 @@ async function enableTurnNotifications(fromUser){
     return true;
   } catch (err){
     console.error("Failed to get push token:", err);
-    setPwaPromptStatus("Failed to enable notifications.");
+    if(isIos() && !isStandalone()){
+      setPwaPromptStatus("App must be installed to enable notifications.");
+    } else {
+      setPwaPromptStatus("Failed to enable notifications.");
+    }
     return false;
   }
 }
@@ -1849,6 +1853,14 @@ function maybeRestorePushNotifications(){
   if(!supportsPush()) return;
   if(Notification.permission !== "granted") return;
   enableTurnNotifications(false);
+}
+function maybePromptNotificationPermissionOnPwa(){
+  if(!state.isSignedIn) return;
+  if(!isStandalone()) return;
+  if(!supportsPush()) return;
+  if(Notification.permission !== "default") return;
+  if(!firebaseVapidKey || !firebaseMessaging || !firebaseDb) return;
+  enableTurnNotifications(true);
 }
 function setRoomNameStatus(msg){
   if(!els.roomNameStatus) return;
@@ -4626,6 +4638,7 @@ if(firebaseAuth){
     updateAuthUI();
     initMessagingListeners();
     maybeRestorePushNotifications();
+    maybePromptNotificationPermissionOnPwa();
     if(state.mode === MODE.MULTI){
       await maybeAutoJoinRoom();
     }
