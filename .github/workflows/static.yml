@@ -19,6 +19,7 @@ jobs:
         run: |
           cat > firebase-config.js <<'EOF'
           window.FIREBASE_CONFIG = ${{ secrets.FIREBASE_CONFIG }};
+          window.FIREBASE_VAPID_KEY = "${{ secrets.FIREBASE_VAPID_KEY }}";
           EOF
 
       - uses: actions/configure-pages@v5
