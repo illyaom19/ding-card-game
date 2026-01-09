@@ -1,3 +1,6 @@
+if(typeof self.window === "undefined"){
+  self.window = self;
+}
 importScripts("https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging-compat.js");
 importScripts("./firebase-config.js");
