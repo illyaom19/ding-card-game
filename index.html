@@ -956,8 +956,9 @@ function determineTrickWinner(plays, leadSuit, trumpSuit){
 // removed unused helper: clone()
 
 const state = {
-  mode: MODE.HOTSEAT,
+  mode: MODE.MULTI,
   phase: PHASE.LOBBY,
+  lastPhase: PHASE.LOBBY,
   players: [],
   playerOrder: [],
   roomId: null,
@@ -1917,6 +1918,7 @@ function setLock(on, forIndex=null){
 
 function resetAll(){
   state.phase = PHASE.LOBBY;
+  state.lastPhase = PHASE.LOBBY;
   state.players = [];
   state.selfHand = [];
   state.dealerIndex = 0;
@@ -2986,6 +2988,9 @@ function renderStatus(){
 // deck visualizer removed
 
 function render(){
+  if(state.phase !== PHASE.LOBBY && state.lastPhase === PHASE.LOBBY){
+    state.settingsCollapsed = true;
+  }
   renderHeaderPills();
   renderMeta();
   const isMulti = isMultiplayer();
@@ -3082,6 +3087,7 @@ function render(){
   renderHand();
   renderStatus();
   renderRoomLog();
+  state.lastPhase = state.phase;
 
   // keep Game header summary empty; notifier handles status now
   if(els.gameSummary){ els.gameSummary.textContent = ''; }
