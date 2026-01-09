@@ -823,6 +823,9 @@ const firebaseApp = firebaseConfig ? initializeApp(firebaseConfig) : null;
 const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
 const firebaseDb = firebaseApp ? getFirestore(firebaseApp) : null;
 const googleProvider = firebaseAuth ? new GoogleAuthProvider() : null;
+const ROOM_COLLECTION = "rooms";
+const USER_COLLECTION = "users";
+const MAX_PLAYERS = 6;
 
 function makeDeck(){
   return makeDecks(1);
@@ -886,6 +889,7 @@ const state = {
   unsubRoom: null,
   unsubPlayers: null,
   unsubHand: null,
+  isApplyingRemote: false,
   dealerIndex: 0,
   leaderIndex: 0,        // who leads the current trick
   currentTurnIndex: 0,   // whose action is required (swap or play)
@@ -1033,7 +1037,12 @@ function clampSettings(){
 
 function foldCurrentPlayer(){
   if(state.phase !== PHASE.SWAP) return;
-  const p = state.players[state.currentTurnIndex];
+  const isMulti = isMultiplayer();
+  if(isMulti && state.selfIndex !== state.currentTurnIndex){
+    setError("Not your turn.");
+    return;
+  }
+  const p = isMulti ? state.players[state.selfIndex] : state.players[state.currentTurnIndex];
   if(!p || p.folded) return;
   if(state.currentTurnIndex === state.dealerIndex){
     setError("Dealer cannot fold.");
@@ -1044,17 +1053,23 @@ function foldCurrentPlayer(){
   p.folded = true;
   p.hasSwapped = true;
   // move their hand to discard pile (also handle trump if present)
-  if(p.hand && p.hand.length){
+  const hand = isMulti ? state.selfHand : p.hand;
+  if(hand && hand.length){
     // if trump is in their hand, clear the global trump reference
-    const trumpIdx = p.hand.findIndex(c => state.trumpCard && c.id === state.trumpCard.id);
+    const trumpIdx = hand.findIndex(c => state.trumpCard && c.id === state.trumpCard.id);
     if(trumpIdx !== -1){
-      state.discardPile.push(...p.hand);
+      state.discardPile.push(...hand);
       state.trumpCard = null;
       state.trumpSuit = null;
     } else {
-      state.discardPile.push(...p.hand);
+      state.discardPile.push(...hand);
     }
-    p.hand = [];
+    if(isMulti){
+      state.selfHand = [];
+      syncSelfHand();
+    } else {
+      p.hand = [];
+    }
   }
   state.selectedForSwap.clear();
   setError(null);
@@ -1073,6 +1088,7 @@ function foldCurrentPlayer(){
 
   // Otherwise advance to next unswapped/active player
   advanceSwapTurn();
+  if(isMulti) syncRoomState("fold");
 }
 
 // wire fold button
@@ -1090,11 +1106,446 @@ function setError(msg){
   els.errorBox.textContent = msg;
 }
 
+function isMultiplayer(){ return state.mode === MODE.MULTI; }
+function hasFirebase(){ return !!(firebaseApp && firebaseAuth && firebaseDb); }
+function roomRef(roomId){ return doc(firebaseDb, ROOM_COLLECTION, roomId); }
+function userRef(uid){ return doc(firebaseDb, USER_COLLECTION, uid); }
+function handRef(roomId, uid){ return doc(firebaseDb, ROOM_COLLECTION, roomId, "hands", uid); }
+
+function normalizeRoomCode(code){
+  return (code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+}
+function makeRoomCode(){
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for(let i=0;i<6;i++){
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+function buildPlayer(uid, name){
+  return {
+    uid,
+    name: name || "Player",
+    hand: [],
+    tricksWonThisHand: 0,
+    wonTricks: [],
+    score: state.settings.startingScore,
+    dingCount: 0,
+    hasSwapped: false,
+    folded: false,
+  };
+}
+
+function updateModeUI(){
+  const isMulti = state.mode === MODE.MULTI;
+  if(els.modeHotseatBtn) els.modeHotseatBtn.classList.toggle("active", !isMulti);
+  if(els.modeMultiBtn) els.modeMultiBtn.classList.toggle("active", isMulti);
+  if(els.mpCard) els.mpCard.style.display = isMulti ? "block" : "none";
+  if(els.namesInput) els.namesInput.disabled = isMulti;
+  if(els.modeHint){
+    if(!hasFirebase()){
+      els.modeHint.textContent = "Firebase config missing. Multiplayer disabled.";
+    } else {
+      els.modeHint.textContent = isMulti
+        ? "Multiplayer syncs via Firebase. Sign in to join a room."
+        : "Hotseat runs on one device. Multiplayer syncs via Firebase.";
+    }
+  }
+  if(els.modeMultiBtn) els.modeMultiBtn.disabled = !hasFirebase();
+}
+
+function setMode(mode){
+  if(mode === state.mode){
+    updateModeUI();
+    return;
+  }
+  if(mode === MODE.MULTI && !hasFirebase()){
+    setError("Firebase config missing.");
+    updateModeUI();
+    return;
+  }
+  state.mode = mode;
+  if(mode === MODE.HOTSEAT){
+    leaveRoom();
+    resetAll();
+  }
+  if(mode === MODE.MULTI){
+    setLock(false, null);
+    if(state.isSignedIn) maybeAutoJoinRoom();
+  }
+  updateModeUI();
+  render();
+}
+
+function updateAuthUI(){
+  if(!els.authStatus) return;
+  if(state.isSignedIn){
+    els.authStatus.textContent = `Signed in as ${state.selfName || "Player"}.`;
+  } else {
+    els.authStatus.textContent = "Not signed in.";
+  }
+  if(els.signInBtn) els.signInBtn.style.display = state.isSignedIn ? "none" : "inline-block";
+  if(els.signOutBtn) els.signOutBtn.style.display = state.isSignedIn ? "inline-block" : "none";
+}
+
+function updateRoomStatus(){
+  if(!els.roomStatus) return;
+  if(!state.roomId){
+    els.roomStatus.textContent = "No room joined.";
+    return;
+  }
+  const role = (state.selfUid && state.hostUid && state.selfUid === state.hostUid) ? "host" : "guest";
+  els.roomStatus.textContent = `Room ${state.roomId} (${role}).`;
+}
+
+function leaveRoom(){
+  if(state.unsubRoom){ state.unsubRoom(); state.unsubRoom = null; }
+  if(state.unsubHand){ state.unsubHand(); state.unsubHand = null; }
+  state.roomId = null;
+  state.hostUid = null;
+  state.selfIndex = null;
+  state.selfHand = [];
+  state.players = [];
+  updateRoomStatus();
+}
+
+function serializeRoomState(){
+  const players = state.players.map(p => ({
+    uid: p.uid ?? null,
+    name: p.name,
+    tricksWonThisHand: p.tricksWonThisHand || 0,
+    wonTricks: p.wonTricks || [],
+    score: typeof p.score === "number" ? p.score : state.settings.startingScore,
+    dingCount: p.dingCount || 0,
+    hasSwapped: !!p.hasSwapped,
+    folded: !!p.folded,
+  }));
+  return {
+    mode: MODE.MULTI,
+    phase: state.phase,
+    players,
+    dealerIndex: state.dealerIndex,
+    leaderIndex: state.leaderIndex,
+    currentTurnIndex: state.currentTurnIndex,
+    trickNumber: state.trickNumber,
+    deck: state.deck,
+    trumpCard: state.trumpCard,
+    trumpSuit: state.trumpSuit,
+    currentTrick: state.currentTrick,
+    lastTrickWinnerIndex: state.lastTrickWinnerIndex,
+    lastCompletedTrick: state.lastCompletedTrick,
+    winnerIndex: state.winnerIndex,
+    settings: state.settings,
+    discardPile: state.discardPile,
+    playedCards: state.playedCards,
+    updatedAt: serverTimestamp(),
+  };
+}
+
+function applyRoomState(data){
+  if(!data) return;
+  const prevPhase = state.phase;
+  const prevTurn = state.currentTurnIndex;
+  state.isApplyingRemote = true;
+  try{
+    state.mode = MODE.MULTI;
+    state.phase = data.phase ?? state.phase;
+    state.players = Array.isArray(data.players) ? data.players : state.players;
+    state.dealerIndex = data.dealerIndex ?? state.dealerIndex;
+    state.leaderIndex = data.leaderIndex ?? state.leaderIndex;
+    state.currentTurnIndex = data.currentTurnIndex ?? state.currentTurnIndex;
+    state.trickNumber = data.trickNumber ?? state.trickNumber;
+    state.deck = Array.isArray(data.deck) ? data.deck : state.deck;
+    state.trumpCard = data.trumpCard ?? null;
+    state.trumpSuit = data.trumpSuit ?? null;
+    state.currentTrick = data.currentTrick || { plays: [], leadSuit: null };
+    state.lastTrickWinnerIndex = data.lastTrickWinnerIndex ?? null;
+    state.lastCompletedTrick = data.lastCompletedTrick ?? null;
+    state.winnerIndex = data.winnerIndex ?? null;
+    state.settings = { ...state.settings, ...(data.settings || {}) };
+    state.discardPile = Array.isArray(data.discardPile) ? data.discardPile : [];
+    state.playedCards = Array.isArray(data.playedCards) ? data.playedCards : [];
+    state.hostUid = data.hostUid ?? state.hostUid;
+    state.selfIndex = state.players.findIndex(p => p.uid === state.selfUid);
+    if(state.selfIndex < 0) state.selfHand = [];
+    state.lockOn = false;
+    state.pendingRevealForIndex = null;
+    if(prevPhase !== state.phase || prevTurn !== state.currentTurnIndex){
+      state.selectedCardIds.clear();
+      state.selectedForSwap.clear();
+    }
+  } finally {
+    state.isApplyingRemote = false;
+  }
+  syncSettingsUI();
+  updateModeUI();
+  updateRoomStatus();
+  render();
+}
+
+async function syncRoomState(reason){
+  if(!isMultiplayer() || !state.roomId || !firebaseDb) return;
+  if(state.isApplyingRemote) return;
+  try{
+    const payload = serializeRoomState();
+    if(state.hostUid) payload.hostUid = state.hostUid;
+    await setDoc(roomRef(state.roomId), payload, { merge: true });
+    updateRoomStatus();
+  } catch (err){
+    console.error("Failed to sync room state:", reason, err);
+    setError("Failed to sync room state.");
+  }
+}
+
+function subscribeToRoom(roomId){
+  if(state.unsubRoom){ state.unsubRoom(); state.unsubRoom = null; }
+  state.mode = MODE.MULTI;
+  state.roomId = roomId;
+  updateRoomStatus();
+  const ref = roomRef(roomId);
+  state.unsubRoom = onSnapshot(ref, (snap)=>{
+    if(!snap.exists()){
+      setError("Room not found.");
+      return;
+    }
+    applyRoomState(snap.data());
+  }, (err)=>{
+    console.error("Room subscription error:", err);
+    setError("Room sync failed.");
+  });
+}
+
+function subscribeToHand(){
+  if(state.unsubHand){ state.unsubHand(); state.unsubHand = null; }
+  if(!state.roomId || !state.selfUid || !firebaseDb) return;
+  const ref = handRef(state.roomId, state.selfUid);
+  state.unsubHand = onSnapshot(ref, (snap)=>{
+    if(!snap.exists()){
+      state.selfHand = [];
+      render();
+      return;
+    }
+    const data = snap.data();
+    state.selfHand = Array.isArray(data.hand) ? data.hand : [];
+    render();
+  }, (err)=>{
+    console.error("Hand subscription error:", err);
+  });
+}
+
+async function syncSelfHand(){
+  if(!isMultiplayer() || !state.roomId || !state.selfUid || !firebaseDb) return;
+  try{
+    await setDoc(handRef(state.roomId, state.selfUid), {
+      hand: state.selfHand,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (err){
+    console.error("Failed to sync hand:", err);
+    setError("Failed to sync hand.");
+  }
+}
+
+async function maybeAutoJoinRoom(){
+  if(!state.isSignedIn || !hasFirebase()) return;
+  if(state.roomId) return;
+  const hashRoom = normalizeRoomCode(location.hash.replace("#", ""));
+  if(hashRoom){
+    await joinRoom(hashRoom);
+    return;
+  }
+  try{
+    const snap = await getDoc(userRef(state.selfUid));
+    const lastRoomId = snap.exists() ? snap.data().lastRoomId : null;
+    if(lastRoomId){
+      await joinRoom(lastRoomId);
+    }
+  } catch (err){
+    console.error("Auto-join failed:", err);
+  }
+}
+
+async function createRoom(){
+  if(!state.isSignedIn){ setError("Sign in first."); return; }
+  if(!hasFirebase()){ setError("Firebase config missing."); return; }
+  let roomId = "";
+  for(let i=0;i<5;i++){
+    const candidate = makeRoomCode();
+    const snap = await getDoc(roomRef(candidate));
+    if(!snap.exists()){
+      roomId = candidate;
+      break;
+    }
+  }
+  if(!roomId){
+    setError("Couldn't create a room. Try again.");
+    return;
+  }
+  const player = buildPlayer(state.selfUid, state.selfName || "Player");
+  const roomState = {
+    hostUid: state.selfUid,
+    createdAt: serverTimestamp(),
+    ...serializeRoomState(),
+    phase: PHASE.LOBBY,
+    players: [player],
+    dealerIndex: 0,
+    leaderIndex: 0,
+    currentTurnIndex: 0,
+    trickNumber: 0,
+    deck: [],
+    trumpCard: null,
+    trumpSuit: null,
+    currentTrick: { plays: [], leadSuit: null },
+    lastTrickWinnerIndex: null,
+    lastCompletedTrick: null,
+    winnerIndex: null,
+    discardPile: [],
+    playedCards: [],
+  };
+  await setDoc(roomRef(roomId), roomState);
+  await setDoc(userRef(state.selfUid), { lastRoomId: roomId }, { merge: true });
+  if(els.roomCodeInput) els.roomCodeInput.value = roomId;
+  location.hash = roomId;
+  subscribeToRoom(roomId);
+  subscribeToHand();
+}
+
+async function joinRoom(roomId){
+  if(!state.isSignedIn){ setError("Sign in first."); return; }
+  if(!hasFirebase()){ setError("Firebase config missing."); return; }
+  const code = normalizeRoomCode(roomId || (els.roomCodeInput ? els.roomCodeInput.value : ""));
+  if(!code){
+    setError("Enter a valid room code.");
+    return;
+  }
+  const snap = await getDoc(roomRef(code));
+  if(!snap.exists()){
+    setError("Room not found.");
+    return;
+  }
+  const data = snap.data();
+  const players = Array.isArray(data.players) ? data.players.slice() : [];
+  const existingIdx = players.findIndex(p => p.uid === state.selfUid);
+  if(existingIdx === -1){
+    if(data.phase && data.phase !== PHASE.LOBBY){
+      setError("Game already in progress.");
+      return;
+    }
+    if(players.length >= MAX_PLAYERS){
+      setError("Room is full.");
+      return;
+    }
+    players.push(buildPlayer(state.selfUid, state.selfName || "Player"));
+    await updateDoc(roomRef(code), { players });
+  }
+  await setDoc(userRef(state.selfUid), { lastRoomId: code }, { merge: true });
+  if(els.roomCodeInput) els.roomCodeInput.value = code;
+  location.hash = code;
+  subscribeToRoom(code);
+  subscribeToHand();
+}
+
+async function startMultiplayerGame(){
+  if(!state.roomId){
+    setError("Join a room first.");
+    return;
+  }
+  if(state.selfUid !== state.hostUid){
+    setError("Only the host can start the game.");
+    return;
+  }
+  if(state.players.length < 2){
+    setError("Need at least 2 players.");
+    return;
+  }
+  const players = state.players.map(p => buildPlayer(p.uid, p.name));
+  state.players = players;
+  state.phase = PHASE.HAND_END;
+  state.dealerIndex = 0;
+  state.leaderIndex = 0;
+  state.currentTurnIndex = 0;
+  state.trickNumber = 0;
+  state.deck = [];
+  state.trumpCard = null;
+  state.trumpSuit = null;
+  state.currentTrick = { plays: [], leadSuit: null };
+  state.lastTrickWinnerIndex = null;
+  state.lastCompletedTrick = null;
+  state.winnerIndex = null;
+  state.discardPile = [];
+  state.playedCards = [];
+  state.selectedCardIds.clear();
+  state.selectedForSwap.clear();
+  state.settingsCollapsed = true;
+  state.selfHand = [];
+  if(firebaseDb && state.roomId){
+    const batch = writeBatch(firebaseDb);
+    for(const p of state.players){
+      if(p.uid){
+        batch.set(handRef(state.roomId, p.uid), { hand: [], updatedAt: serverTimestamp() }, { merge: true });
+      }
+    }
+    batch.commit().catch((err)=>{
+      console.error("Failed to reset hands:", err);
+    });
+  }
+  syncRoomState("start-game");
+}
+
+async function resetRoomState(){
+  if(!state.roomId || !isMultiplayer()){
+    resetAll();
+    return;
+  }
+  if(state.selfUid !== state.hostUid){
+    setError("Only the host can reset the room.");
+    return;
+  }
+  const players = state.players.map(p => buildPlayer(p.uid, p.name));
+  state.players = players;
+  state.phase = PHASE.LOBBY;
+  state.dealerIndex = 0;
+  state.leaderIndex = 0;
+  state.currentTurnIndex = 0;
+  state.trickNumber = 0;
+  state.deck = [];
+  state.trumpCard = null;
+  state.trumpSuit = null;
+  state.currentTrick = { plays: [], leadSuit: null };
+  state.lastTrickWinnerIndex = null;
+  state.lastCompletedTrick = null;
+  state.winnerIndex = null;
+  state.discardPile = [];
+  state.playedCards = [];
+  state.selectedCardIds.clear();
+  state.selectedForSwap.clear();
+  state.selfHand = [];
+  if(firebaseDb && state.roomId){
+    const batch = writeBatch(firebaseDb);
+    for(const p of state.players){
+      if(p.uid){
+        batch.set(handRef(state.roomId, p.uid), { hand: [], updatedAt: serverTimestamp() }, { merge: true });
+      }
+    }
+    batch.commit().catch((err)=>{
+      console.error("Failed to reset hands:", err);
+    });
+  }
+  syncRoomState("reset");
+}
+
 // Toggle to temporarily disable lock behavior while testing.
 // Set to `false` to restore normal lock UI/behavior.
 const LOCKS_DISABLED = false;
 
 function setLock(on, forIndex=null){
+  if(isMultiplayer()){
+    state.lockOn = false;
+    state.pendingRevealForIndex = null;
+    if (els && els.lock) els.lock.style.display = "none";
+    return;
+  }
   // Short-circuit lock behavior when disabled for tests.
   if (typeof LOCKS_DISABLED !== "undefined" && LOCKS_DISABLED) {
     state.lockOn = false;
@@ -1123,6 +1574,7 @@ function setLock(on, forIndex=null){
 function resetAll(){
   state.phase = PHASE.LOBBY;
   state.players = [];
+  state.selfHand = [];
   state.dealerIndex = 0;
   state.leaderIndex = 0;
   state.currentTurnIndex = 0;
@@ -1186,6 +1638,77 @@ function initPlayers(names){
 function dealHand(){
   setError(null);
   if(state.dealing) return;
+  if(isMultiplayer()){
+    if(state.phase !== PHASE.HAND_END){
+      setError("Can't deal: finish the current hand first.");
+      return;
+    }
+    if(state.selfIndex === null || state.selfIndex !== state.dealerIndex){
+      setError("Only the dealer can deal.");
+      return;
+    }
+    state.dealing = true;
+
+    // reset hand-only fields
+    const handsByUid = new Map();
+    for(const p of state.players){
+      p.tricksWonThisHand = 0;
+      p.wonTricks = [];
+      p.hasSwapped = false;
+      p.folded = false;
+      if(p.uid) handsByUid.set(p.uid, []);
+    }
+    state.deck = shuffle(makeDecks(state.settings.decks));
+    state.incomingCardIds.clear();
+    state.playersPendingInitial.clear();
+
+    for(let i=0;i<5;i++){
+      for(const p of state.players){
+        const hand = handsByUid.get(p.uid);
+        if(hand && state.deck.length){
+          hand.push(state.deck.pop());
+        }
+      }
+    }
+
+    const dealerUid = state.players[state.dealerIndex]?.uid;
+    const dealerHand = dealerUid ? handsByUid.get(dealerUid) : null;
+    if(dealerHand && dealerHand.length){
+      state.trumpCard = dealerHand[dealerHand.length - 1];
+      state.trumpSuit = state.trumpCard.suit;
+    } else {
+      state.trumpCard = null;
+      state.trumpSuit = null;
+    }
+
+    state.selfHand = handsByUid.get(state.selfUid) || [];
+    if(firebaseDb && state.roomId){
+      const batch = writeBatch(firebaseDb);
+      for(const [uid, hand] of handsByUid.entries()){
+        batch.set(handRef(state.roomId, uid), { hand, updatedAt: serverTimestamp() }, { merge: true });
+      }
+      batch.commit().catch((err)=>{
+        console.error("Failed to deal hands:", err);
+        setError("Failed to deal hands.");
+      });
+    }
+
+    state.phase = PHASE.SWAP;
+    state.currentTurnIndex = firstActiveIndex((state.dealerIndex + 1) % state.players.length);
+    state.leaderIndex = state.dealerIndex;
+    state.trickNumber = 0;
+    state.currentTrick = { plays: [], leadSuit: null };
+    state.selectedCardIds.clear();
+    state.selectedForSwap.clear();
+    state.dealTimeouts.forEach(t=> clearTimeout(t));
+    state.dealTimeouts = [];
+    state.dealing = false;
+    state.lockOn = false;
+    state.pendingRevealForIndex = null;
+    syncRoomState("deal");
+    render();
+    return;
+  }
   state.dealing = true;
 
   // reset hand-only fields
@@ -1292,6 +1815,10 @@ function activePlayersCount(){
 }
 
 function confirmSwap(){
+  if(isMultiplayer()){
+    confirmSwapMultiplayer();
+    return;
+  }
   setError(null);
   if(state.phase !== PHASE.SWAP) return;
   const p = state.players[state.currentTurnIndex];
@@ -1406,26 +1933,100 @@ function confirmSwap(){
   // Trump already set during deal; do not draw an extra trump here.
 }
 
-function playableCardIdsForCurrentPlayer(){
-  const p = state.players[state.currentTurnIndex];
-  const lead = state.currentTrick.leadSuit;
-  if(!lead) return new Set(p.hand.map(c=>c.id));
-  if(canFollowSuit(p.hand, lead)){
-    return new Set(p.hand.filter(c=>c.suit===lead).map(c=>c.id));
+function confirmSwapMultiplayer(){
+  setError(null);
+  if(state.phase !== PHASE.SWAP) return;
+  if(state.selfIndex === null || state.selfIndex !== state.currentTurnIndex){
+    setError("Not your turn.");
+    return;
   }
-  return new Set(p.hand.map(c=>c.id));
+  const p = state.players[state.selfIndex];
+  if(!p){
+    setError("Player not found.");
+    return;
+  }
+  if(!Array.isArray(state.selfHand)){
+    setError("Hand not loaded.");
+    return;
+  }
+  if(p.hasSwapped){
+    setError("You have already swapped this hand.");
+    return;
+  }
+  const discards = Array.from(state.selectedForSwap);
+  if(discards.length > 3){
+    setError("You can swap at most 3 cards.");
+    return;
+  }
+  if(state.dealing){
+    setError("Deal in progress.");
+    return;
+  }
+
+  const workingHand = (state.selfHand || []).slice();
+  for(const id of discards){
+    const curIdx = workingHand.findIndex(c => c.id === id);
+    if(curIdx === -1) continue;
+    const discarded = workingHand[curIdx];
+    if(discarded) state.discardPile.push(discarded);
+    workingHand.splice(curIdx, 1);
+    if(state.deck.length){
+      const card = state.deck.pop();
+      const insertIdx = Math.min(curIdx, workingHand.length);
+      workingHand.splice(insertIdx, 0, card);
+    }
+  }
+
+  state.selfHand = workingHand;
+  syncSelfHand();
+  p.hasSwapped = true;
+  state.selectedForSwap.clear();
+  if(state.autoPassTimer){ clearInterval(state.autoPassTimer); state.autoPassTimer = null; }
+  state.autoPassCountdown = null;
+
+  // advance swap turn or move to trick
+  advanceSwapTurn();
+  syncRoomState("swap");
+}
+
+function playableCardIdsForCurrentPlayer(){
+  const isMulti = isMultiplayer();
+  if(isMulti && state.selfIndex !== state.currentTurnIndex) return new Set();
+  const p = isMulti ? state.players[state.selfIndex] : state.players[state.currentTurnIndex];
+  const hand = isMulti ? state.selfHand : (p ? p.hand : null);
+  if(!hand) return new Set();
+  const lead = state.currentTrick.leadSuit;
+  if(!lead) return new Set(hand.map(c=>c.id));
+  if(canFollowSuit(hand, lead)){
+    return new Set(hand.filter(c=>c.suit===lead).map(c=>c.id));
+  }
+  return new Set(hand.map(c=>c.id));
 }
 
 function playSelectedCard(){
   setError(null);
   if(state.phase !== PHASE.TRICK) return;
+  const isMulti = isMultiplayer();
+  if(isMulti && state.selfIndex !== state.currentTurnIndex){
+    setError("Not your turn.");
+    return;
+  }
   const selected = Array.from(state.selectedCardIds);
   if(selected.length !== 1){
     setError("Select exactly 1 card to play.");
     return;
   }
-  const p = state.players[state.currentTurnIndex];
-  const card = p.hand.find(c => c.id === selected[0]);
+  const p = isMulti ? state.players[state.selfIndex] : state.players[state.currentTurnIndex];
+  const hand = isMulti ? state.selfHand : (p ? p.hand : null);
+  if(!p){
+    setError("Player not found.");
+    return;
+  }
+  if(!hand){
+    setError("Hand not loaded.");
+    return;
+  }
+  const card = hand.find(c => c.id === selected[0]);
   if(!card){
     setError("That card isn't in your hand.");
     return;
@@ -1433,16 +2034,22 @@ function playSelectedCard(){
   // enforce follow suit unless hyperrealistic mode is on
   const lead = state.currentTrick.leadSuit;
   if(!state.settings.hyperrealistic && lead){
-    if(canFollowSuit(p.hand, lead) && card.suit !== lead){
+    if(canFollowSuit(hand, lead) && card.suit !== lead){
       setError(`You must follow suit (${SUIT_ICON[lead]}) if you can.`);
       return;
     }
   }
   // animate play: clone the card DOM and fly it to the trick area, then commit the play
   const node = els.handArea.querySelector(`[data-card-id="${card.id}"]`);
+  const syncIfMulti = ()=>{ if(isMulti) syncRoomState("play"); };
   const commitPlay = ()=>{
     // commit play
-    p.hand = p.hand.filter(c => c.id !== card.id);
+    if(isMulti){
+      state.selfHand = state.selfHand.filter(c => c.id !== card.id);
+      syncSelfHand();
+    } else {
+      p.hand = p.hand.filter(c => c.id !== card.id);
+    }
     state.currentTrick.plays.push({ playerIndex: state.currentTurnIndex, card });
     if(!state.currentTrick.leadSuit){
       state.currentTrick.leadSuit = card.suit;
@@ -1486,6 +2093,7 @@ function playSelectedCard(){
         state.currentTurnIndex = firstActiveIndex(state.leaderIndex);
         setLock(true, state.currentTurnIndex);
         render();
+        syncIfMulti();
         return;
       }
     }
@@ -1495,6 +2103,7 @@ function playSelectedCard(){
     if(nextIdx !== null) state.currentTurnIndex = nextIdx;
     setLock(true, state.currentTurnIndex);
     render();
+    syncIfMulti();
   };
 
   if(node){
@@ -1597,6 +2206,7 @@ function endHand(){
   // move trump to discard pile so it appears in logs (remove from any player's hand)
   if(state.trumpCard){
     for(const pl of state.players){
+      if(!Array.isArray(pl.hand)) continue;
       const i = pl.hand.findIndex(c => c.id === state.trumpCard.id);
       if(i !== -1){ pl.hand.splice(i,1); break; }
     }
@@ -1613,6 +2223,7 @@ function endHand(){
   // auto lock to dealer (who will hit deal)
   setLock(true, state.dealerIndex);
   render();
+  if(isMultiplayer()) syncRoomState("end-hand");
 }
 
 function renderScoreboard(){
@@ -1757,27 +2368,45 @@ function renderHand(){
   els.selectedCount.textContent = "0";
   els.confirmPlayBtn.style.display = "none";
 
+  const isMulti = isMultiplayer();
+  const selfIndex = isMulti ? state.selfIndex : state.currentTurnIndex;
+  const selfPlayer = (selfIndex !== null && selfIndex !== undefined) ? state.players[selfIndex] : null;
+  const isSelfTurn = !isMulti || (state.selfIndex === state.currentTurnIndex);
+
   if(state.phase === PHASE.LOBBY){
-    els.handHint.textContent = "Start a hand to see cards.";
+    els.handHint.textContent = isMulti ? "Join a room to see your hand." : "Start a hand to see cards.";
     return;
   }
 
   // if locked, hide hand
-  if(state.lockOn){
+  if(!isMulti && state.lockOn){
     els.handHint.textContent = "Hand hidden. Tap Reveal on the lock screen.";
     return;
   }
 
-  const p = state.players[state.currentTurnIndex];
-  els.handHint.textContent =
-    state.phase === PHASE.SWAP
-      ? "Select 0–3 cards to discard, then confirm."
-      : (state.phase === PHASE.TRICK ? "Select 1 card to play, then confirm." : "Hand ended — deal next hand.");
-  // ensure hand visual is shown in player-held order (do not sort)
-  const handForRender = p.hand.slice();
+  if(!selfPlayer){
+    els.handHint.textContent = isMulti ? "Join a room to see your hand." : "Waiting for players.";
+    return;
+  }
 
-  const playable = (state.phase === PHASE.TRICK) ? playableCardIdsForCurrentPlayer() : null;
+  const currentName = state.players[state.currentTurnIndex]?.name ?? "Player";
+  if(state.phase === PHASE.SWAP){
+    els.handHint.textContent = isSelfTurn
+      ? "Select 0–3 cards to discard, then confirm."
+      : `Waiting for ${currentName} to swap.`;
+  } else if(state.phase === PHASE.TRICK){
+    els.handHint.textContent = isSelfTurn
+      ? "Select 1 card to play, then confirm."
+      : `Waiting for ${currentName} to play.`;
+  } else {
+    els.handHint.textContent = "Hand ended — deal next hand.";
+  }
+  // ensure hand visual is shown in player-held order (do not sort)
+  const handForRender = isMulti ? (state.selfHand || []).slice() : (selfPlayer.hand || []).slice();
+
+  const playable = (state.phase === PHASE.TRICK && isSelfTurn) ? playableCardIdsForCurrentPlayer() : null;
   const hyper = state.settings.hyperrealistic;
+  const actionAllowed = !isMulti || isSelfTurn;
 
   handForRender.forEach(card=>{
       const btn = document.createElement("div");
@@ -1796,6 +2425,7 @@ function renderHand(){
                        <div class="bot">${top}</div>`;
 
       const isDisabled =
+        !actionAllowed ||
         (!hyper && state.phase === PHASE.TRICK && playable && !playable.has(card.id)) ||
         (state.phase === PHASE.HAND_END);
 
@@ -1803,10 +2433,11 @@ function renderHand(){
 
       btn.addEventListener("click", ()=>{
         setError(null);
+        if(!actionAllowed) return;
         if(state.phase === PHASE.HAND_END) return;
         if(state.phase === PHASE.SWAP){
           // prevent selecting after the player already swapped
-          if(p && p.hasSwapped){ setError("You have already swapped this hand."); return; }
+          if(selfPlayer && selfPlayer.hasSwapped){ setError("You have already swapped this hand."); return; }
           if(isDisabled) return;
           if(state.selectedForSwap.has(card.id)){
             state.selectedForSwap.delete(card.id);
@@ -1849,20 +2480,26 @@ function renderHand(){
     });
 
   if(state.phase === PHASE.SWAP){
-    els.selectedCount.textContent = String(state.selectedForSwap.size);
-    const p = state.players[state.currentTurnIndex];
+    els.selectedCount.textContent = actionAllowed ? String(state.selectedForSwap.size) : "0";
     // visibility and label are managed centrally in render(); here only ensure the button isn't disabled incorrectly
-    if(p && !p.hasSwapped){
+    if(actionAllowed && selfPlayer && !selfPlayer.hasSwapped){
       els.confirmSwapBtn.disabled = false; // allow 0-card keep
     }
   }
   if(state.phase === PHASE.TRICK){
-    els.selectedCount.textContent = String(state.selectedCardIds.size);
-    els.confirmPlayBtn.style.display = "inline-block";
+    els.selectedCount.textContent = actionAllowed ? String(state.selectedCardIds.size) : "0";
+    if(actionAllowed){
+      els.confirmPlayBtn.style.display = "inline-block";
+    }
   }
 
   // update auto-pass visual in hand header
   if(els.autoPassViz){
+    if(isMulti){
+      els.autoPassViz.style.display = 'none';
+      if(els.passBtn) els.passBtn.style.display = 'none';
+      return;
+    }
     if(state.autoPassCountdown && state.phase === PHASE.SWAP){
       els.autoPassViz.style.display = 'flex';
       els.autoPassRing.textContent = String(state.autoPassCountdown);
@@ -1903,6 +2540,7 @@ function renderMeta(){
 
 function renderStatus(){
   let msg = "—";
+  const isMulti = isMultiplayer();
   const winnerBanner = document.getElementById('winnerBanner');
   const winnerDetail = document.getElementById('winnerDetail');
   if(winnerBanner){
@@ -1930,7 +2568,7 @@ function renderStatus(){
       els.statusText.textContent = msg;
       return;
     }
-    if(state.phase === PHASE.LOBBY) msg = "Enter names and start the game.";
+    if(state.phase === PHASE.LOBBY) msg = isMulti ? "Sign in and join a room to start." : "Enter names and start the game.";
     if(state.phase === PHASE.SWAP) msg = `Swap turn: ${state.players[state.currentTurnIndex].name}`;
     if(state.phase === PHASE.TRICK) {
       const lead = state.currentTrick.leadSuit ? ` | Lead: ${SUIT_ICON[state.currentTrick.leadSuit]}` : "";
@@ -1952,7 +2590,7 @@ function renderStatus(){
   if(state.phase === PHASE.LOBBY){
     icon.textContent = '♠';
     title.textContent = 'Waiting to start';
-    detail.textContent = 'Enter 2–6 player names and start the game.';
+    detail.textContent = isMulti ? 'Sign in and join a room to start.' : 'Enter 2–6 player names and start the game.';
   }
 
   if(state.phase === PHASE.SWAP){
@@ -1989,6 +2627,10 @@ function renderStatus(){
 function render(){
   renderHeaderPills();
   renderMeta();
+  const isMulti = isMultiplayer();
+  const isSelfTurn = !isMulti || state.selfIndex === state.currentTurnIndex;
+  const isHost = !isMulti || (state.selfUid && state.hostUid && state.selfUid === state.hostUid);
+  const isSelfDealer = !isMulti || (state.selfIndex !== null && state.selfIndex === state.dealerIndex);
 
   // apply collapsed classes & update collapse button icons
   if(els.gamePanel) els.gamePanel.classList.toggle('collapsed', !!state.collapsed.game);
@@ -2016,18 +2658,21 @@ function render(){
   if(state.phase === PHASE.LOBBY){
     els.lobbyArea.style.display = "flex";
     els.controlsArea.style.display = "none";
+    if(els.startGameBtn){
+      els.startGameBtn.disabled = isMulti ? (!isHost || state.players.length < 2) : false;
+    }
   } else {
     els.lobbyArea.style.display = "none";
     els.controlsArea.style.display = "flex";
     renderScoreboard();
     // disable deal button while a hand is in progress
-    els.startHandBtn.disabled = (state.phase !== PHASE.HAND_END) || (state.players.length < 2);
+    els.startHandBtn.disabled = (state.phase !== PHASE.HAND_END) || (state.players.length < 2) || !isSelfDealer;
     // hide Deal Hands unless it's time to deal
-    if(els.startHandBtn){ els.startHandBtn.style.display = (state.phase === PHASE.HAND_END && state.players.length >= 2) ? 'inline-block' : 'none'; }
+    if(els.startHandBtn){ els.startHandBtn.style.display = (state.phase === PHASE.HAND_END && state.players.length >= 2 && isSelfDealer) ? 'inline-block' : 'none'; }
   }
 
   // settings: lock after lobby, but allow peek by expanding
-  const settingsLocked = state.phase !== PHASE.LOBBY;
+  const settingsLocked = state.phase !== PHASE.LOBBY || (isMulti && !isHost);
   if(els.settingsCard){
     els.settingsCard.classList.toggle('collapsed', !!state.settingsCollapsed);
   }
@@ -2046,11 +2691,13 @@ function render(){
   // Confirm-swap button: disable once the current player has already confirmed swap (or if not in SWAP)
   if(els.confirmSwapBtn){
     const cur = state.players[state.currentTurnIndex];
-    els.confirmSwapBtn.disabled = !(state.phase === PHASE.SWAP && cur && !cur.folded && !cur.hasSwapped && !state.dealing);
+    const canSwap = !!(state.phase === PHASE.SWAP && cur && !cur.folded && !cur.hasSwapped && !state.dealing);
+    const showSwap = canSwap && (!isMulti || isSelfTurn);
+    els.confirmSwapBtn.disabled = !showSwap;
     // hide confirm swap unless actually in swap and current player can swap
-    els.confirmSwapBtn.style.display = (state.phase === PHASE.SWAP && cur && !cur.folded && !cur.hasSwapped && !state.dealing) ? 'inline-block' : 'none';
+    els.confirmSwapBtn.style.display = showSwap ? 'inline-block' : 'none';
     // update label based on number of selected cards when visible
-    if(state.phase === PHASE.SWAP && cur && !cur.folded && !cur.hasSwapped && !state.dealing){
+    if(showSwap){
       // simple confirm button — always use 'Confirm'
       els.confirmSwapBtn.textContent = 'Confirm';
     }
@@ -2060,8 +2707,9 @@ function render(){
   if(els.foldBtn){
     const cur = state.players[state.currentTurnIndex];
     const canFold = !!(state.phase === PHASE.SWAP && cur && !cur.folded && state.currentTurnIndex !== state.dealerIndex);
-    els.foldBtn.style.display = canFold ? 'inline-block' : 'none';
-    els.foldBtn.disabled = !canFold || !!(cur && cur.hasSwapped);
+    const showFold = canFold && (!isMulti || isSelfTurn);
+    els.foldBtn.style.display = showFold ? 'inline-block' : 'none';
+    els.foldBtn.disabled = !showFold || !!(cur && cur.hasSwapped);
   }
 
   // Pass device button removed; auto-pass handles progression.
@@ -2076,6 +2724,10 @@ function render(){
 
 els.startGameBtn.addEventListener("click", ()=>{
   setError(null);
+  if(isMultiplayer()){
+    startMultiplayerGame();
+    return;
+  }
   const names = els.namesInput.value
     .split("\n")
     .map(s=>s.trim())
@@ -2124,7 +2776,13 @@ if(els.passBtn){
 
 // Pass button removed — auto-pass handles swap progression.
 
-els.resetBtn.addEventListener("click", ()=> resetAll());
+els.resetBtn.addEventListener("click", ()=>{
+  if(isMultiplayer()){
+    resetRoomState();
+    return;
+  }
+  resetAll();
+});
 
 els.revealBtn.addEventListener("click", ()=>{
   // if there's a pending reveal for a locked player, animate their initial cards
@@ -2200,7 +2858,79 @@ if(els.hyperrealisticInput){
   });
 }
 
+if(els.modeHotseatBtn){
+  els.modeHotseatBtn.addEventListener("click", ()=> setMode(MODE.HOTSEAT));
+}
+if(els.modeMultiBtn){
+  els.modeMultiBtn.addEventListener("click", ()=> setMode(MODE.MULTI));
+}
+if(els.roomCodeInput){
+  els.roomCodeInput.addEventListener("input", ()=>{
+    els.roomCodeInput.value = normalizeRoomCode(els.roomCodeInput.value);
+  });
+  els.roomCodeInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){
+      e.preventDefault();
+      joinRoom();
+    }
+  });
+}
+if(els.createRoomBtn){
+  els.createRoomBtn.addEventListener("click", ()=> createRoom());
+}
+if(els.joinRoomBtn){
+  els.joinRoomBtn.addEventListener("click", ()=> joinRoom());
+}
+if(els.signInBtn){
+  els.signInBtn.addEventListener("click", async ()=>{
+    if(!firebaseAuth || !googleProvider){
+      setError("Firebase not configured.");
+      return;
+    }
+    try{
+      await signInWithPopup(firebaseAuth, googleProvider);
+    } catch (err){
+      if(err && err.code === "auth/popup-blocked"){
+        await signInWithRedirect(firebaseAuth, googleProvider);
+        return;
+      }
+      console.error("Sign-in failed:", err);
+      setError("Sign-in failed.");
+    }
+  });
+}
+if(els.signOutBtn){
+  els.signOutBtn.addEventListener("click", async ()=>{
+    if(!firebaseAuth) return;
+    try{
+      await signOut(firebaseAuth);
+    } finally {
+      leaveRoom();
+      updateAuthUI();
+    }
+  });
+}
+
+if(firebaseAuth){
+  onAuthStateChanged(firebaseAuth, async (user)=>{
+    state.isSignedIn = !!user;
+    state.selfUid = user ? user.uid : null;
+    state.selfName = user ? (user.displayName || (user.email ? user.email.split("@")[0] : "Player")) : null;
+    updateAuthUI();
+    if(!user){
+      leaveRoom();
+      return;
+    }
+    if(state.mode === MODE.MULTI){
+      await maybeAutoJoinRoom();
+    }
+  });
+}
+
 resetAll();
+updateModeUI();
+updateAuthUI();
+updateRoomStatus();
 </script>
 </body>
 </html>
