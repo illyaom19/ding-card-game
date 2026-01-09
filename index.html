@@ -10,6 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="DING Online" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="icon.svg" type="image/svg+xml" />
   <style>
     :root{
       --bg:#0b1020; --panel:#121a33; --panel2:#0f1730; --text:#e9eeff;
@@ -1744,6 +1745,20 @@ function setPwaPromptStatus(msg){
   els.pwaPromptStatus.textContent = msg;
   els.pwaPromptStatus.style.display = "block";
 }
+function notifyPushSetupIssue(msg){
+  if(!msg){
+    setPwaPromptStatus("");
+    return;
+  }
+  setPwaPromptStatus(msg);
+  const promptOpen = !!(els.pwaPrompt && els.pwaPrompt.style.display === "flex");
+  if(promptOpen) return;
+  if(isMultiplayer() && els.roomStatus && els.roomStatus.offsetParent !== null){
+    flashRoomStatus(msg);
+    return;
+  }
+  setError(msg);
+}
 function showPwaPrompt(){
   if(!els.pwaPrompt) return;
   els.pwaPrompt.style.display = "flex";
@@ -1764,6 +1779,7 @@ async function registerServiceWorker(){
     return reg;
   } catch (err){
     console.error("Service worker registration failed:", err);
+    notifyPushSetupIssue("Service worker registration failed.");
     return null;
   }
 }
@@ -1779,31 +1795,32 @@ async function savePushToken(token){
     }, { merge: true });
   } catch (err){
     console.error("Failed to save push token:", err);
+    notifyPushSetupIssue("Failed to save notification settings.");
   }
 }
 async function enableTurnNotifications(fromUser){
   if(!state.isSignedIn || !state.selfUid){
-    setPwaPromptStatus("Sign in to enable notifications.");
+    notifyPushSetupIssue("Sign in to enable notifications.");
     return false;
   }
   if(!supportsPush()){
-    setPwaPromptStatus("Notifications are not supported on this device.");
+    notifyPushSetupIssue("Notifications are not supported on this device.");
     return false;
   }
   if(!firebaseMessaging || !firebaseDb){
-    setPwaPromptStatus("Firebase messaging not configured.");
+    notifyPushSetupIssue("Firebase messaging not configured.");
     return false;
   }
   if(!firebaseVapidKey){
-    setPwaPromptStatus("Missing VAPID key for push.");
+    notifyPushSetupIssue("Missing VAPID key for push.");
     return false;
   }
   if(isIos() && !isStandalone()){
-    setPwaPromptStatus("App must be installed to enable notifications.");
+    notifyPushSetupIssue("App must be installed to enable notifications.");
     return false;
   }
   if(Notification.permission === "denied"){
-    setPwaPromptStatus("Notifications are blocked in settings.");
+    notifyPushSetupIssue("Notifications are blocked in settings.");
     return false;
   }
   if(Notification.permission === "default"){
@@ -1811,18 +1828,18 @@ async function enableTurnNotifications(fromUser){
     try{
       const permission = await Notification.requestPermission();
       if(permission !== "granted"){
-        setPwaPromptStatus("Notifications not enabled.");
+        notifyPushSetupIssue("Notifications not enabled.");
         return false;
       }
     } catch (err){
       console.error("Notification permission error:", err);
-      setPwaPromptStatus("Notifications not enabled.");
+      notifyPushSetupIssue("Notifications not enabled.");
       return false;
     }
   }
   const reg = await registerServiceWorker();
   if(!reg){
-    setPwaPromptStatus("Service worker unavailable.");
+    notifyPushSetupIssue("Service worker unavailable.");
     return false;
   }
   try{
@@ -1831,7 +1848,7 @@ async function enableTurnNotifications(fromUser){
       serviceWorkerRegistration: reg,
     });
     if(!token){
-      setPwaPromptStatus("No push token available yet.");
+      notifyPushSetupIssue("No push token available yet.");
       return false;
     }
     await savePushToken(token);
@@ -1840,9 +1857,9 @@ async function enableTurnNotifications(fromUser){
   } catch (err){
     console.error("Failed to get push token:", err);
     if(isIos() && !isStandalone()){
-      setPwaPromptStatus("App must be installed to enable notifications.");
+      notifyPushSetupIssue("App must be installed to enable notifications.");
     } else {
-      setPwaPromptStatus("Failed to enable notifications.");
+      notifyPushSetupIssue("Failed to enable notifications.");
     }
     return false;
   }
