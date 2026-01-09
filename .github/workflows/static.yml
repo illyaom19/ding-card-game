@@ -18,8 +18,9 @@ jobs:
       - name: Write firebase-config.js
         run: |
           cat > firebase-config.js <<'EOF'
-          window.FIREBASE_CONFIG = ${{ secrets.FIREBASE_CONFIG }};
-          window.FIREBASE_VAPID_KEY = "${{ secrets.FIREBASE_VAPID_KEY }}";
+          globalThis.FIREBASE_CONFIG = ${{ secrets.FIREBASE_CONFIG }};
+          globalThis.FIREBASE_VAPID_KEY = "${{ secrets.FIREBASE_VAPID_KEY }}";
+          globalThis.APP_COMMIT = "${{ github.sha }}";
           EOF
 
       - uses: actions/configure-pages@v5

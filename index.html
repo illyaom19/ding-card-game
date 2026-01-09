@@ -795,11 +795,25 @@
       gap:8px;
       flex-wrap:wrap;
       min-width:0;
+      flex: 1 1 auto;
     }
-    .roomActions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .roomBadges{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-left:auto;
+    }
+    .roomActions{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-left:auto;
+      justify-content:flex-end;
+    }
     .roomTitle{ font-weight:800; letter-spacing:.6px; }
     .roomCount{ font-size:12px; color:var(--muted); }
-    .roomBadges{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
     .pwaPrompt{
       position: fixed;
       inset: 0;
@@ -890,7 +904,7 @@
       <div style="width:34px;height:34px;border-radius:12px;background:rgba(124,92,255,.25);border:1px solid rgba(124,92,255,.5);display:flex;align-items:center;justify-content:center;font-weight:900;">♤</div>
       <div>
         <div style="font-weight:900;font-size:16px;">DING Online</div>
-        <div class="small">Good luck!</div>
+        <div class="small"></div>
       </div>
     </div>
     <div class="row2">
@@ -950,9 +964,10 @@
           <div class="menuWrap" id="roomMenuWrap">
             <button class="btn" id="roomMenuBtn" aria-expanded="false">Settings ▾</button>
             <div class="menu" id="roomMenu" role="menu">
-              <button class="menuItem danger" id="menuResetBtn" type="button">Reset</button>
-              <button class="menuItem" id="menuBackLobbyBtn" type="button">Back to lobby</button>
-              <button class="menuItem danger" id="menuLeaveRoomBtn" type="button">Leave room</button>
+              <button class="menuItem danger" id="menuResetBtn" type="button">Reset game</button>
+              <button class="menuItem" id="menuBackLobbyBtn" type="button">Back to menu</button>
+              <button class="menuItem danger" id="menuLeaveRoomBtn" type="button">Permanently leave room</button>
+              <button class="menuItem" id="menuEnableNotificationsBtn" type="button">Enable notifications</button>
             </div>
           </div>
         </div>
@@ -1071,15 +1086,6 @@
                 <input id="hyperrealisticInput" type="checkbox" />
                 OFF
               </label>
-            </div>
-            <div class="settingRow">
-              <div>
-                <div class="settingLabel">Notifications</div>
-                <div class="settingMeta">Tap to enable turn alerts</div>
-              </div>
-              <div class="settingControls">
-                <button class="btn" id="enableNotificationsBtn" type="button">Enable notifications</button>
-              </div>
             </div>
           </div>
         </div>
@@ -1203,6 +1209,7 @@ const MODE = {
 };
 
 const firebaseConfig = globalThis.FIREBASE_CONFIG || null;
+const appCommit = globalThis.APP_COMMIT || "";
 const firebaseVapidKey = globalThis.FIREBASE_VAPID_KEY || "";
 const firebaseApp = firebaseConfig ? initializeApp(firebaseConfig) : null;
 const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
@@ -1327,7 +1334,11 @@ const state = {
     decks: 1,
     hyperrealistic: false,
   },
-  settingsCollapsed: false,
+  settingsCollapsed: true,
+  appCommit,
+  remoteCommit: "",
+  hasSavedAppCommit: false,
+  unsubAppMeta: null,
   discardPile: [],
   playedCards: [],
   logEntries: [],
@@ -1362,6 +1373,7 @@ const els = {
   menuResetBtn: document.getElementById("menuResetBtn"),
   menuBackLobbyBtn: document.getElementById("menuBackLobbyBtn"),
   menuLeaveRoomBtn: document.getElementById("menuLeaveRoomBtn"),
+  menuEnableNotificationsBtn: document.getElementById("menuEnableNotificationsBtn"),
   modeHotseatBtn: document.getElementById("modeHotseatBtn"),
   modeMultiBtn: document.getElementById("modeMultiBtn"),
   modeHint: document.getElementById("modeHint"),
@@ -1432,7 +1444,6 @@ const els = {
   settingsCaret: document.getElementById("settingsCaret"),
   settingsBody: document.getElementById("settingsBody"),
   settingsLockPill: document.getElementById("settingsLockPill"),
-  enableNotificationsBtn: document.getElementById("enableNotificationsBtn"),
   startingScoreInput: document.getElementById("startingScoreInput"),
   startingScoreValue: document.getElementById("startingScoreValue"),
   foldThresholdInput: document.getElementById("foldThresholdInput"),
@@ -1566,6 +1577,7 @@ function isMultiplayer(){ return state.mode === MODE.MULTI; }
 function hasFirebase(){ return !!(firebaseApp && firebaseAuth && firebaseDb); }
 function roomRef(roomId){ return doc(firebaseDb, ROOM_COLLECTION, roomId); }
 function userRef(uid){ return doc(firebaseDb, USER_COLLECTION, uid); }
+function appMetaRef(){ return doc(firebaseDb, "meta", "app"); }
 function handRef(roomId, uid){ return doc(firebaseDb, ROOM_COLLECTION, roomId, "hands", uid); }
 function logCollectionRef(roomId){ return collection(firebaseDb, ROOM_COLLECTION, roomId, LOG_COLLECTION); }
 function flashRoomStatus(msg){
@@ -1814,6 +1826,33 @@ function notifyPushSetupIssue(msg){
   }
   setError(msg);
 }
+async function ensureAppCommitSaved(){
+  if(!firebaseDb || !state.isSignedIn) return;
+  if(!state.appCommit) return;
+  if(state.hasSavedAppCommit) return;
+  state.hasSavedAppCommit = true;
+  try{
+    await setDoc(appMetaRef(), { commit: state.appCommit, updatedAt: serverTimestamp() }, { merge: true });
+  } catch (err){
+    console.error("Failed to save app commit:", err);
+  }
+}
+function startAppCommitListener(){
+  if(!firebaseDb || !state.isSignedIn) return;
+  if(!state.appCommit) return;
+  if(state.unsubAppMeta) return;
+  state.unsubAppMeta = onSnapshot(appMetaRef(), (snap)=>{
+    if(!snap.exists()) return;
+    const data = snap.data() || {};
+    const remoteCommit = (typeof data.commit === "string") ? data.commit : "";
+    state.remoteCommit = remoteCommit;
+    if(remoteCommit && state.appCommit && remoteCommit !== state.appCommit){
+      location.reload();
+    }
+  }, (err)=>{
+    console.error("App commit listener failed:", err);
+  });
+}
 function showPwaPrompt(){
   if(!els.pwaPrompt) return;
   els.pwaPrompt.style.display = "flex";
@@ -1922,6 +1961,14 @@ async function enableTurnNotifications(fromUser){
     }
     await savePushToken(token);
     setPwaPromptStatus("Turn alerts enabled.");
+    if(els.pwaPrompt && els.pwaPrompt.style.display === "flex"){
+      hidePwaPrompt();
+      state.pwaPromptDismissed = true;
+      if(firebaseDb && state.selfUid){
+        setDoc(userRef(state.selfUid), { pwaPromptDismissed: true }, { merge: true })
+          .catch((err)=> console.error("Failed to save PWA prompt dismissal:", err));
+      }
+    }
     return true;
   } catch (err){
     console.error("Failed to get push token:", err);
@@ -2164,8 +2211,10 @@ function updateRoomMenuUI(){
   if(els.menuResetBtn) els.menuResetBtn.style.display = isHost ? "block" : "none";
   if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.style.display = isMulti ? "block" : "none";
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.style.display = isMulti ? "block" : "none";
+  if(els.menuEnableNotificationsBtn) els.menuEnableNotificationsBtn.style.display = isMulti ? "block" : "none";
   if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.disabled = !inRoom;
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.disabled = !inRoom;
+  if(els.menuEnableNotificationsBtn) els.menuEnableNotificationsBtn.disabled = !state.isSignedIn;
 }
 
 function updateRoomLobbyUI(){
@@ -2295,6 +2344,8 @@ function renderRoomList(){
     titleWrap.appendChild(count);
     meta.appendChild(titleWrap);
 
+    const actions = document.createElement("div");
+    actions.className = "roomActions";
     const badges = document.createElement("div");
     badges.className = "roomBadges";
     if(room.isHost){
@@ -2309,10 +2360,7 @@ function renderRoomList(){
       turn.textContent = "Your turn";
       badges.appendChild(turn);
     }
-    if(badges.childNodes.length) meta.appendChild(badges);
-
-    const actions = document.createElement("div");
-    actions.className = "roomActions";
+    if(badges.childNodes.length) actions.appendChild(badges);
     const enterBtn = document.createElement("button");
     enterBtn.className = "btn";
     const isCurrent = state.roomId === room.roomId;
@@ -2794,11 +2842,11 @@ async function ensureRoomNicknameApplied(){
 async function saveNickname(){
   if(!els.nicknameInput) return;
   if(!state.isSignedIn){
-    setNicknameStatus("Sign in to set a per-room nickname.");
+    setNicknameStatus("");
     return;
   }
   if(!state.roomId){
-    setNicknameStatus("Join a room to set a per-room nickname.");
+    setNicknameStatus("");
     return;
   }
   if(!state.profileLoaded){
@@ -2806,7 +2854,7 @@ async function saveNickname(){
   }
   const nickname = normalizeNickname(els.nicknameInput.value);
   if(!nickname){
-    setNicknameStatus("Enter a nickname.");
+    setNicknameStatus("");
     return;
   }
   state.roomNicknames = { ...(state.roomNicknames || {}), [state.roomId]: nickname };
@@ -2827,12 +2875,12 @@ async function saveNickname(){
 async function saveRoomName(){
   if(!els.roomNameInput) return;
   if(!state.isSignedIn){
-    setRoomNameStatus("Sign in to set a room name.");
+    setRoomNameStatus("");
     return;
   }
   const name = normalizeRoomName(els.roomNameInput.value);
   if(!name){
-    setRoomNameStatus("Enter a room name.");
+    setRoomNameStatus("");
     return;
   }
   state.roomNameDraft = name;
@@ -2843,18 +2891,18 @@ async function saveRoomName(){
   }
   const isHost = state.selfUid && state.hostUid && state.selfUid === state.hostUid;
   if(!isHost){
-    setRoomNameStatus("Only the host can rename this room.");
+    flashRoomNameStatus("Only the host can rename this room.");
     return;
   }
   if(!firebaseDb){
-    setRoomNameStatus("Firebase config missing.");
+    flashRoomNameStatus("Firebase config missing.");
     return;
   }
   try{
     await updateDoc(roomRef(state.roomId), { roomName: name });
   } catch (err){
     console.error("Failed to save room name:", err);
-    setRoomNameStatus("Room name save failed.");
+    flashRoomNameStatus("Room name save failed.");
     return;
   }
   state.roomName = name;
@@ -3131,7 +3179,7 @@ function resetAll(){
   state.discardPile = [];
   state.playedCards = [];
   state.collapsed = { game:false, table:false, hand:false };
-  state.settingsCollapsed = false;
+  state.settingsCollapsed = true;
   clampSettings();
   syncSettingsUI();
   setLock(false, null);
@@ -4642,8 +4690,8 @@ if(els.hyperrealisticInput){
     render();
   });
 }
-if(els.enableNotificationsBtn){
-  els.enableNotificationsBtn.addEventListener("click", ()=>{
+if(els.menuEnableNotificationsBtn){
+  els.menuEnableNotificationsBtn.addEventListener("click", ()=>{
     state.pwaPromptDismissed = false;
     if(isStandalone()){
       if(Notification.permission === "default"){
@@ -4770,6 +4818,9 @@ if(firebaseAuth){
     state.pwaPromptDismissed = false;
     state.pushToken = null;
     state.swRegistration = null;
+    state.hasSavedAppCommit = false;
+    state.remoteCommit = "";
+    if(state.unsubAppMeta){ state.unsubAppMeta(); state.unsubAppMeta = null; }
     state.roomIds = [];
     state.roomList = {};
     clearRoomListSubscriptions();
@@ -4784,6 +4835,8 @@ if(firebaseAuth){
     initMessagingListeners();
     maybeRestorePushNotifications();
     maybePromptNotificationPermissionOnPwa();
+    await ensureAppCommitSaved();
+    startAppCommitListener();
     if(state.mode === MODE.MULTI){
       await maybeAutoJoinRoom();
     }

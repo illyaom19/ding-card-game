@@ -8,3 +8,4 @@ globalThis.FIREBASE_CONFIG = {
   measurementId: "YOUR_MEASUREMENT_ID"
 };
 globalThis.FIREBASE_VAPID_KEY = "YOUR_VAPID_KEY";
+globalThis.APP_COMMIT = "dev";
