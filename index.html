@@ -194,10 +194,10 @@
       display:flex; flex-direction:column; gap:10px; align-items:stretch;
     }
     .trickInfoRow{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:center;
     }
     .trickPlayRow{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:stretch;
+      display:flex; gap:10px; flex-wrap:wrap; align-items:stretch; justify-content:center;
     }
     .trickCard{
       min-width: 200px;
@@ -269,6 +269,7 @@
     .cardBtn .top,.cardBtn .bot{font-weight:900; font-size:14px}
     .cardBtn .mid{font-size:20px; text-align:center}
     .row2{display:flex; gap:10px; flex-wrap:wrap;}
+    #tablePanel .row2{ justify-content:center; }
     .menuWrap{ position:relative; }
     .menu{
       position:absolute;
@@ -304,6 +305,7 @@
       display:flex;
       gap:10px;
       align-items:center;
+      justify-content:center;
       flex-wrap:nowrap;
       overflow-x:auto;
       max-width:100%;
@@ -3905,21 +3907,22 @@ function animateTrickWinner(summary){
   const tableCenterY = tableRect.top + (tableRect.height / 2);
   const summaryCenterX = summaryRect.left + (summaryRect.width / 2);
   const summaryCenterY = summaryRect.top + (summaryRect.height / 2);
-  const scale = Math.max(tableRect.width / summaryRect.width, tableRect.height / summaryRect.height);
+  const fullScale = Math.max(tableRect.width / summaryRect.width, tableRect.height / summaryRect.height);
+  const scale = Math.max(1, fullScale * 0.5);
   const tx = tableCenterX - summaryCenterX;
   const ty = tableCenterY - summaryCenterY;
 
   summary.classList.add("trickWinnerHero");
   summary.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
 
-  setTimeout(()=>{
+  requestAnimationFrame(()=>{
     summary.classList.add("trickWinnerReturn");
     summary.style.transform = "translate(0px, 0px) scale(1)";
     setTimeout(()=>{
       summary.classList.remove("trickWinnerHero", "trickWinnerReturn");
       summary.style.transform = "";
     }, 700);
-  }, 1000);
+  });
 }
 
 function renderTrickArea(){
