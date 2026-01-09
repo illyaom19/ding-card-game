@@ -547,6 +547,14 @@
     .mpRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .mpCode{ min-width:120px; text-transform:uppercase; letter-spacing:.8px; }
     .mpStatus{ font-size:12px; color:var(--muted); }
+    .lobbyList{ display:flex; flex-direction:column; gap:6px; }
+    .lobbyPlayer{
+      padding:8px 10px;
+      border:1px solid var(--stroke);
+      border-radius:12px;
+      background: rgba(0,0,0,.18);
+      font-size:13px;
+    }
     /* winner banner */
     #winnerBanner{
       border:1px solid rgba(255,230,140,.12);
@@ -622,13 +630,15 @@
           <button class="btn danger" id="resetBtn">Reset</button>
         </div>
       </div>
-      <div class="bd stack">
-        <div id="lobbyArea" class="stack">
-          <div class="small">Enter 2–6 player names (one per line). Then start.</div>
-          <textarea id="namesInput" class="input" rows="6" placeholder="Illya&#10;Player 2&#10;Player 3"></textarea>
-          <div class="modeCard" id="modeCard">
-            <div class="small" style="margin-bottom:8px;">Game mode</div>
-            <div class="modeRow">
+        <div class="bd stack">
+          <div id="lobbyArea" class="stack">
+            <div id="lobbyHotseatIntro" class="small">Enter 2-6 player names (one per line). Then start.</div>
+            <textarea id="namesInput" class="input" rows="6" placeholder="Illya&#10;Player 2&#10;Player 3"></textarea>
+            <div id="lobbyMultiIntro" class="small" style="display:none;">Who's currently in the lobby (2-6 needed to start).</div>
+            <div id="lobbyPlayers" class="lobbyList" style="display:none;"></div>
+            <div class="modeCard" id="modeCard">
+              <div class="small" style="margin-bottom:8px;">Game mode</div>
+              <div class="modeRow">
               <button class="modeBtn active" id="modeHotseatBtn">Hotseat</button>
               <button class="modeBtn" id="modeMultiBtn">Multiplayer</button>
             </div>
@@ -641,11 +651,12 @@
               <button class="btn danger" id="signOutBtn" style="display:none;">Sign out</button>
               <div class="mpStatus" id="authStatus">Not signed in.</div>
             </div>
-            <div class="mpRow" style="margin-bottom:8px;">
-              <input class="input mpCode" id="roomCodeInput" placeholder="ROOM CODE" />
-              <button class="btn primary" id="createRoomBtn">Create Room</button>
-              <button class="btn" id="joinRoomBtn">Join Room</button>
-            </div>
+              <div class="mpRow" style="margin-bottom:8px;">
+                <input class="input mpCode" id="roomCodeInput" placeholder="ROOM CODE" />
+                <button class="btn primary" id="createRoomBtn">Create Room</button>
+                <button class="btn" id="joinRoomBtn">Join Room</button>
+                <button class="btn" id="shareRoomBtn">Copy/Share</button>
+              </div>
             <div class="mpStatus" id="roomStatus">No room joined.</div>
           </div>
           <button class="btn primary" id="startGameBtn">Start Game</button>
@@ -947,7 +958,11 @@ const els = {
   roomCodeInput: document.getElementById("roomCodeInput"),
   createRoomBtn: document.getElementById("createRoomBtn"),
   joinRoomBtn: document.getElementById("joinRoomBtn"),
+  shareRoomBtn: document.getElementById("shareRoomBtn"),
   roomStatus: document.getElementById("roomStatus"),
+  lobbyHotseatIntro: document.getElementById("lobbyHotseatIntro"),
+  lobbyMultiIntro: document.getElementById("lobbyMultiIntro"),
+  lobbyPlayers: document.getElementById("lobbyPlayers"),
 
   scoreboard: document.getElementById("scoreboard"),
   statusText: document.getElementById("statusText"),
@@ -1111,6 +1126,75 @@ function hasFirebase(){ return !!(firebaseApp && firebaseAuth && firebaseDb); }
 function roomRef(roomId){ return doc(firebaseDb, ROOM_COLLECTION, roomId); }
 function userRef(uid){ return doc(firebaseDb, USER_COLLECTION, uid); }
 function handRef(roomId, uid){ return doc(firebaseDb, ROOM_COLLECTION, roomId, "hands", uid); }
+function flashRoomStatus(msg){
+  if(!els.roomStatus) return;
+  const prev = els.roomStatus.textContent;
+  els.roomStatus.textContent = msg;
+  setTimeout(()=>{ updateRoomStatus(); }, 2000);
+}
+function roomShareLink(code){
+  const roomCode = normalizeRoomCode(code || state.roomId || "");
+  if(!roomCode) return "";
+  return `${location.origin}${location.pathname}#${roomCode}`;
+}
+async function shareRoomCode(){
+  const roomCode = normalizeRoomCode(state.roomId || (els.roomCodeInput ? els.roomCodeInput.value : ""));
+  if(!roomCode){
+    setError("Create or join a room first.");
+    return;
+  }
+  const link = roomShareLink(roomCode);
+  try{
+    if(navigator.share){
+      await navigator.share({
+        title: "Ding lobby",
+        text: `Join my Ding room: ${roomCode}`,
+        url: link,
+      });
+      return;
+    }
+  } catch (err){
+    // fall back to clipboard
+  }
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(link);
+      flashRoomStatus("Room link copied.");
+      return;
+    }
+  } catch (err){
+    // fall back to input selection
+  }
+  if(els.roomCodeInput){
+    els.roomCodeInput.value = roomCode;
+    els.roomCodeInput.focus();
+    els.roomCodeInput.select();
+    document.execCommand("copy");
+    flashRoomStatus("Room code copied.");
+  }
+}
+
+function renderLobbyPlayers(){
+  if(!els.lobbyPlayers) return;
+  els.lobbyPlayers.innerHTML = "";
+  if(state.mode !== MODE.MULTI){
+    return;
+  }
+  const players = state.players || [];
+  if(!players.length){
+    const empty = document.createElement("div");
+    empty.className = "small";
+    empty.textContent = "No one yet. Share the room code to invite players.";
+    els.lobbyPlayers.appendChild(empty);
+    return;
+  }
+  players.forEach((p)=>{
+    const row = document.createElement("div");
+    row.className = "lobbyPlayer";
+    row.textContent = p.name || "Player";
+    els.lobbyPlayers.appendChild(row);
+  });
+}
 
 function normalizeRoomCode(code){
   return (code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
@@ -1142,7 +1226,13 @@ function updateModeUI(){
   if(els.modeHotseatBtn) els.modeHotseatBtn.classList.toggle("active", !isMulti);
   if(els.modeMultiBtn) els.modeMultiBtn.classList.toggle("active", isMulti);
   if(els.mpCard) els.mpCard.style.display = isMulti ? "block" : "none";
-  if(els.namesInput) els.namesInput.disabled = isMulti;
+  if(els.namesInput){
+    els.namesInput.disabled = isMulti;
+    els.namesInput.style.display = isMulti ? "none" : "block";
+  }
+  if(els.lobbyHotseatIntro) els.lobbyHotseatIntro.style.display = isMulti ? "none" : "block";
+  if(els.lobbyMultiIntro) els.lobbyMultiIntro.style.display = isMulti ? "block" : "none";
+  if(els.lobbyPlayers) els.lobbyPlayers.style.display = isMulti ? "flex" : "none";
   if(els.modeHint){
     if(!hasFirebase()){
       els.modeHint.textContent = "Firebase config missing. Multiplayer disabled.";
@@ -1153,6 +1243,7 @@ function updateModeUI(){
     }
   }
   if(els.modeMultiBtn) els.modeMultiBtn.disabled = !hasFirebase();
+  renderLobbyPlayers();
 }
 
 function setMode(mode){
@@ -1187,16 +1278,20 @@ function updateAuthUI(){
   }
   if(els.signInBtn) els.signInBtn.style.display = state.isSignedIn ? "none" : "inline-block";
   if(els.signOutBtn) els.signOutBtn.style.display = state.isSignedIn ? "inline-block" : "none";
+  if(els.shareRoomBtn) els.shareRoomBtn.disabled = !state.roomId;
 }
 
 function updateRoomStatus(){
   if(!els.roomStatus) return;
   if(!state.roomId){
     els.roomStatus.textContent = "No room joined.";
+    if(els.shareRoomBtn) els.shareRoomBtn.disabled = true;
     return;
   }
   const role = (state.selfUid && state.hostUid && state.selfUid === state.hostUid) ? "host" : "guest";
   els.roomStatus.textContent = `Room ${state.roomId} (${role}).`;
+  if(els.roomCodeInput) els.roomCodeInput.value = state.roomId;
+  if(els.shareRoomBtn) els.shareRoomBtn.disabled = false;
 }
 
 function leaveRoom(){
@@ -1215,7 +1310,11 @@ function serializeRoomState(){
     uid: p.uid ?? null,
     name: p.name,
     tricksWonThisHand: p.tricksWonThisHand || 0,
-    wonTricks: p.wonTricks || [],
+    wonTricks: Array.isArray(p.wonTricks)
+      ? p.wonTricks.map((trick)=>({
+          plays: Array.isArray(trick) ? trick : (trick && Array.isArray(trick.plays) ? trick.plays : []),
+        }))
+      : [],
     score: typeof p.score === "number" ? p.score : state.settings.startingScore,
     dingCount: p.dingCount || 0,
     hasSwapped: !!p.hasSwapped,
@@ -1251,7 +1350,28 @@ function applyRoomState(data){
   try{
     state.mode = MODE.MULTI;
     state.phase = data.phase ?? state.phase;
-    state.players = Array.isArray(data.players) ? data.players : state.players;
+    state.players = Array.isArray(data.players)
+      ? data.players.map((p, idx)=>{
+          const rawWonTricks = Array.isArray(p.wonTricks) ? p.wonTricks : [];
+          const wonTricks = rawWonTricks.map((trick)=>{
+            if(Array.isArray(trick)) return trick;
+            if(trick && Array.isArray(trick.plays)) return trick.plays;
+            return [];
+          });
+          return {
+            id: p.id ?? `p${idx}`,
+            uid: p.uid ?? null,
+            name: p.name ?? "Player",
+            hand: [],
+            tricksWonThisHand: p.tricksWonThisHand || 0,
+            wonTricks,
+            score: typeof p.score === "number" ? p.score : state.settings.startingScore,
+            dingCount: p.dingCount || 0,
+            hasSwapped: !!p.hasSwapped,
+            folded: !!p.folded,
+          };
+        })
+      : state.players;
     state.dealerIndex = data.dealerIndex ?? state.dealerIndex;
     state.leaderIndex = data.leaderIndex ?? state.leaderIndex;
     state.currentTurnIndex = data.currentTurnIndex ?? state.currentTurnIndex;
@@ -1281,6 +1401,7 @@ function applyRoomState(data){
   syncSettingsUI();
   updateModeUI();
   updateRoomStatus();
+  renderLobbyPlayers();
   render();
 }
 
@@ -2661,6 +2782,7 @@ function render(){
     if(els.startGameBtn){
       els.startGameBtn.disabled = isMulti ? (!isHost || state.players.length < 2) : false;
     }
+    renderLobbyPlayers();
   } else {
     els.lobbyArea.style.display = "none";
     els.controlsArea.style.display = "flex";
@@ -2880,6 +3002,9 @@ if(els.createRoomBtn){
 }
 if(els.joinRoomBtn){
   els.joinRoomBtn.addEventListener("click", ()=> joinRoom());
+}
+if(els.shareRoomBtn){
+  els.shareRoomBtn.addEventListener("click", ()=> shareRoomCode());
 }
 if(els.signInBtn){
   els.signInBtn.addEventListener("click", async ()=>{
