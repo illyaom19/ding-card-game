@@ -912,9 +912,9 @@
 </header>
 <div id="pwaPrompt" class="pwaPrompt" role="dialog" aria-live="polite" aria-hidden="true">
   <div class="pwaCard">
-    <div class="pwaTitle">Install DING Online for turn alerts</div>
-    <div class="small">Add this game to your Home Screen so iPhone can send you turn notifications and open faster.</div>
-    <div class="pwaSteps">
+    <div class="pwaTitle" id="pwaPromptTitle">Install DING Online for turn alerts</div>
+    <div class="small" id="pwaPromptBody">Add this game to your Home Screen so iPhone can send you turn notifications and open faster.</div>
+    <div class="pwaSteps" id="pwaPromptSteps">
       <div class="pwaStep"><span class="pwaStepNum">1</span>Tap the Share button in Safari.</div>
       <div class="pwaStep"><span class="pwaStepNum">2</span>Select "Add to Home Screen".</div>
       <div class="pwaStep"><span class="pwaStepNum">3</span>Open the new app icon to enable alerts.</div>
@@ -1333,6 +1333,9 @@ const els = {
   leadPillWrap: document.getElementById("leadPillWrap"),
   headerGreeting: document.getElementById("headerGreeting"),
   pwaPrompt: document.getElementById("pwaPrompt"),
+  pwaPromptTitle: document.getElementById("pwaPromptTitle"),
+  pwaPromptBody: document.getElementById("pwaPromptBody"),
+  pwaPromptSteps: document.getElementById("pwaPromptSteps"),
   pwaPromptStatus: document.getElementById("pwaPromptStatus"),
   pwaEnableBtn: document.getElementById("pwaEnableBtn"),
   pwaDismissBtn: document.getElementById("pwaDismissBtn"),
@@ -1745,6 +1748,46 @@ function setPwaPromptStatus(msg){
   els.pwaPromptStatus.textContent = msg;
   els.pwaPromptStatus.style.display = "block";
 }
+function setPwaPromptContent({ title, body, steps, buttonLabel }){
+  if(els.pwaPromptTitle) els.pwaPromptTitle.textContent = title || "";
+  if(els.pwaPromptBody) els.pwaPromptBody.textContent = body || "";
+  if(els.pwaPromptSteps){
+    if(Array.isArray(steps) && steps.length){
+      els.pwaPromptSteps.innerHTML = steps.map((step, idx)=>(
+        `<div class="pwaStep"><span class="pwaStepNum">${idx + 1}</span>${step}</div>`
+      )).join("");
+      els.pwaPromptSteps.style.display = "flex";
+    } else {
+      els.pwaPromptSteps.innerHTML = "";
+      els.pwaPromptSteps.style.display = "none";
+    }
+  }
+  if(els.pwaEnableBtn && buttonLabel) els.pwaEnableBtn.textContent = buttonLabel;
+}
+function showPwaInstallPrompt(){
+  setPwaPromptContent({
+    title: "Install DING Online for turn alerts",
+    body: "Add this game to your Home Screen so iPhone can send you turn notifications and open faster.",
+    steps: [
+      "Tap the Share button in Safari.",
+      "Select \"Add to Home Screen\".",
+      "Open the new app icon to enable alerts.",
+    ],
+    buttonLabel: "Enable turn alerts",
+  });
+  setPwaPromptStatus("");
+  showPwaPrompt();
+}
+function showPwaEnablePrompt(){
+  setPwaPromptContent({
+    title: "Enable turn alerts",
+    body: "Allow notifications so you get pinged when it is your turn.",
+    steps: [],
+    buttonLabel: "Enable notifications",
+  });
+  setPwaPromptStatus("");
+  showPwaPrompt();
+}
 function notifyPushSetupIssue(msg){
   if(!msg){
     setPwaPromptStatus("");
@@ -1873,7 +1916,7 @@ function handleFirstMultiplayerMove(){
       .catch((err)=> console.error("Failed to save first move flag:", err));
   }
   if(isIos() && !isStandalone()){
-    if(!state.pwaPromptDismissed) showPwaPrompt();
+    if(!state.pwaPromptDismissed) showPwaInstallPrompt();
     return;
   }
   enableTurnNotifications(true);
@@ -1915,6 +1958,10 @@ function maybePromptNotificationPermissionOnPwa(){
   const firstLaunch = isFirstPwaLaunch();
   if(!firstLaunch && Notification.permission !== "default") return;
   if(firstLaunch) markPwaLaunched();
+  if(Notification.permission === "default"){
+    showPwaEnablePrompt();
+    return;
+  }
   enableTurnNotifications(true);
 }
 function setRoomNameStatus(msg){
