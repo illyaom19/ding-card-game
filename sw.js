@@ -5,6 +5,18 @@ importScripts("https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js
 importScripts("https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging-compat.js");
 importScripts("./firebase-config.js");
 
+self.addEventListener("install", ()=>{
+  self.skipWaiting();
+});
+self.addEventListener("activate", (event)=>{
+  event.waitUntil(self.clients.claim());
+});
+self.addEventListener("message", (event)=>{
+  if(event.data && event.data.type === "SKIP_WAITING"){
+    self.skipWaiting();
+  }
+});
+
 if(self.FIREBASE_CONFIG && self.firebase){
   firebase.initializeApp(self.FIREBASE_CONFIG);
   const messaging = firebase.messaging();

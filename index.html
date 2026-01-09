@@ -301,6 +301,11 @@
     .menuItem:hover{ background: rgba(255,255,255,.06); }
     .menuItem.danger{ color:#ff9cb1; }
     .menuItem:disabled{ opacity:.45; cursor:not-allowed; }
+    .menuDivider{
+      height:1px;
+      margin:4px 6px;
+      background: rgba(255,255,255,.12);
+    }
     .headerTapZone{
       position:absolute;
       top:8px;
@@ -842,14 +847,22 @@
       align-items:center;
       gap:6px;
       flex-wrap:wrap;
-      margin-left:auto;
+      justify-content:flex-end;
+      min-width:0;
     }
     .roomActions{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-left:auto;
+      justify-content:flex-end;
+    }
+    .roomButtons{
       display:flex;
       gap:8px;
       align-items:center;
       flex-wrap:wrap;
-      margin-left:auto;
       justify-content:flex-end;
     }
     .roomTitle{ font-weight:800; letter-spacing:.6px; }
@@ -998,17 +1011,18 @@
   <div class="grid">
     <section id="gamePanel" class="panel">
       <div id="gameHeader" class="hd">
-        <div style="font-weight:900;"><span class="caret" id="gameCaret">▾</span>Game Lobby</div>
+        <div id="gameTitle" style="font-weight:900;"><span class="caret" id="gameCaret">▾</span>Game Lobby</div>
         <div class="row2">
           <div id="gameSummary" class="small mono" style="margin-right:8px;">—</div>
           <button class="btn collapseBtn" id="collapseGameBtn">▾</button>
           <div class="menuWrap" id="roomMenuWrap">
             <button class="btn" id="roomMenuBtn" aria-expanded="false">Settings ▾</button>
             <div class="menu" id="roomMenu" role="menu">
-              <button class="menuItem danger" id="menuResetBtn" type="button">Reset game</button>
               <button class="menuItem" id="menuBackLobbyBtn" type="button">Back to menu</button>
-              <button class="menuItem danger" id="menuLeaveRoomBtn" type="button">Permanently leave room</button>
               <button class="menuItem" id="menuEnableNotificationsBtn" type="button">Enable notifications</button>
+              <div class="menuDivider" id="menuDivider" role="separator"></div>
+              <button class="menuItem danger" id="menuResetBtn" type="button">Reset game</button>
+              <button class="menuItem danger" id="menuLeaveRoomBtn" type="button">Permanently leave room</button>
             </div>
           </div>
         </div>
@@ -1329,6 +1343,8 @@ const state = {
   pwaPromptDismissed: false,
   pushToken: null,
   swRegistration: null,
+  swUpdateListenerReady: false,
+  swReloading: false,
   hostUid: null,
   selfUid: null,
   selfName: null,
@@ -1402,6 +1418,7 @@ const els = {
   leadPillWrap: document.getElementById("leadPillWrap"),
   headerGreeting: document.getElementById("headerGreeting"),
   headerTapZone: document.getElementById("headerTapZone"),
+  gameTitle: document.getElementById("gameTitle"),
   pwaPrompt: document.getElementById("pwaPrompt"),
   pwaPromptTitle: document.getElementById("pwaPromptTitle"),
   pwaPromptBody: document.getElementById("pwaPromptBody"),
@@ -1425,6 +1442,7 @@ const els = {
   menuBackLobbyBtn: document.getElementById("menuBackLobbyBtn"),
   menuLeaveRoomBtn: document.getElementById("menuLeaveRoomBtn"),
   menuEnableNotificationsBtn: document.getElementById("menuEnableNotificationsBtn"),
+  menuDivider: document.getElementById("menuDivider"),
   modeHotseatBtn: document.getElementById("modeHotseatBtn"),
   modeMultiBtn: document.getElementById("modeMultiBtn"),
   modeHint: document.getElementById("modeHint"),
@@ -1636,7 +1654,7 @@ function formatCommitHash(commit){
 function updateCommitHashUI(){
   if(!els.commitHash) return;
   const label = formatCommitHash(state.appCommit);
-  els.commitHash.textContent = `Commit: ${label}`;
+  els.commitHash.textContent = `${label}`;
 }
 function renderDebugLog(){
   if(!els.debugLog) return;
@@ -1816,7 +1834,7 @@ function updateNicknameUI(){
   els.saveNicknameBtn.disabled = !inRoom;
   if(!inRoom){
     els.nicknameInput.value = "";
-    setNicknameStatus("Join a room to set a per-room nickname.");
+    setNicknameStatus("Join a room to set a nickname for this room.");
     return;
   }
   const saved = getRoomNickname(state.roomId);
@@ -1832,6 +1850,23 @@ function updateNicknameUI(){
     if(currentName) els.nicknameInput.value = currentName;
   }
   setNicknameStatus("");
+}
+function updateGameTitle(){
+  if(!els.gameTitle) return;
+  const inRoom = isMultiplayer() && !!state.roomId;
+  const title = inRoom ? getRoomDisplayName(state.roomName) : "Game Lobby";
+  let textNode = null;
+  for(const node of els.gameTitle.childNodes){
+    if(node.nodeType === Node.TEXT_NODE){
+      textNode = node;
+      break;
+    }
+  }
+  if(textNode){
+    textNode.textContent = title;
+  } else {
+    els.gameTitle.appendChild(document.createTextNode(title));
+  }
 }
 function isIos(){
   const ua = navigator.userAgent || "";
@@ -1960,8 +1995,36 @@ function hidePwaPrompt(){
   els.pwaPrompt.setAttribute("aria-hidden", "true");
   setPwaPromptStatus("");
 }
+function setupServiceWorkerUpdates(reg){
+  if(!reg || state.swUpdateListenerReady) return;
+  state.swUpdateListenerReady = true;
+  const reloadOnce = ()=>{
+    if(state.swReloading) return;
+    state.swReloading = true;
+    location.reload();
+  };
+  if(navigator.serviceWorker){
+    navigator.serviceWorker.addEventListener("controllerchange", reloadOnce);
+  }
+  if(reg.waiting){
+    try{ reg.waiting.postMessage({ type: "SKIP_WAITING" }); } catch (err){}
+  }
+  reg.addEventListener("updatefound", ()=>{
+    const newWorker = reg.installing;
+    if(!newWorker) return;
+    newWorker.addEventListener("statechange", ()=>{
+      if(newWorker.state === "installed" && navigator.serviceWorker.controller){
+        try{ newWorker.postMessage({ type: "SKIP_WAITING" }); } catch (err){}
+      }
+    });
+  });
+}
 async function registerServiceWorker(){
-  if(state.swRegistration) return state.swRegistration;
+  if(state.swRegistration){
+    setupServiceWorkerUpdates(state.swRegistration);
+    try{ await state.swRegistration.update(); } catch (err){}
+    return state.swRegistration;
+  }
   if(!("serviceWorker" in navigator)){
     notifyPushSetupIssue("Service workers are not supported here.");
     return null;
@@ -1974,12 +2037,16 @@ async function registerServiceWorker(){
     const existing = await navigator.serviceWorker.getRegistration();
     if(existing){
       state.swRegistration = existing;
+      setupServiceWorkerUpdates(existing);
+      try{ await existing.update(); } catch (err){}
       return existing;
     }
   } catch (err){}
   try{
     const reg = await navigator.serviceWorker.register("./sw.js");
     state.swRegistration = reg;
+    setupServiceWorkerUpdates(reg);
+    try{ await reg.update(); } catch (err){}
     return reg;
   } catch (err){
     console.error("Service worker registration failed:", err);
@@ -2221,6 +2288,7 @@ function updateModeUI(){
   updateRoomNameUI();
   updateRoomMenuUI();
   updateRoomLobbyUI();
+  updateGameTitle();
 }
 
 function setMode(mode){
@@ -2286,6 +2354,7 @@ function updateRoomStatus(){
       updateRoomNameUI();
       updateRoomMenuUI();
       updateRoomLobbyUI();
+      updateGameTitle();
       return;
     }
     const role = (state.selfUid && state.hostUid && state.selfUid === state.hostUid) ? "host" : "guest";
@@ -2297,6 +2366,7 @@ function updateRoomStatus(){
   updateRoomNameUI();
   updateRoomMenuUI();
   updateRoomLobbyUI();
+  updateGameTitle();
 }
 
 function updateRoomMenuUI(){
@@ -2308,6 +2378,7 @@ function updateRoomMenuUI(){
   if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.style.display = isMulti ? "block" : "none";
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.style.display = isMulti ? "block" : "none";
   if(els.menuEnableNotificationsBtn) els.menuEnableNotificationsBtn.style.display = isMulti ? "block" : "none";
+  if(els.menuDivider) els.menuDivider.style.display = isMulti ? "block" : "none";
   if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.disabled = !inRoom;
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.disabled = !inRoom;
   if(els.menuEnableNotificationsBtn) els.menuEnableNotificationsBtn.disabled = !state.isSignedIn;
@@ -2457,6 +2528,8 @@ function renderRoomList(){
       badges.appendChild(turn);
     }
     if(badges.childNodes.length) actions.appendChild(badges);
+    const buttons = document.createElement("div");
+    buttons.className = "roomButtons";
     const enterBtn = document.createElement("button");
     enterBtn.className = "btn";
     const isCurrent = state.roomId === room.roomId;
@@ -2467,8 +2540,9 @@ function renderRoomList(){
     leaveBtn.className = "btn danger";
     leaveBtn.textContent = "Leave";
     leaveBtn.addEventListener("click", ()=> leaveRoomPermanently(room.roomId));
-    actions.appendChild(enterBtn);
-    actions.appendChild(leaveBtn);
+    buttons.appendChild(enterBtn);
+    buttons.appendChild(leaveBtn);
+    actions.appendChild(buttons);
 
     card.appendChild(meta);
     card.appendChild(actions);
@@ -2501,6 +2575,9 @@ async function leaveRoomPermanently(roomId){
   }
   if(!hasFirebase()){
     setError("Firebase config missing.");
+    return;
+  }
+  if(!confirm("Permanently leave this room?")){
     return;
   }
   try{
@@ -3007,6 +3084,7 @@ async function saveRoomName(){
   }
   if(els.roomNameInput) els.roomNameInput.value = name;
   updateRoomLobbyUI();
+  updateGameTitle();
   renderRoomList();
   updateRoomNameUI();
   flashRoomNameStatus("Room name saved.");
@@ -3175,6 +3253,9 @@ async function resetRoomState(){
   }
   if(state.selfUid !== state.hostUid){
     setError("Only the host can reset the room.");
+    return;
+  }
+  if(!confirm("Reset the game for everyone?")){
     return;
   }
   const players = state.players.map(p => buildPlayer(p.uid, p.name));
@@ -4973,3 +5054,5 @@ initMessagingListeners();
 </script>
 </body>
 </html>
+
+
