@@ -1827,14 +1827,29 @@ function hidePwaPrompt(){
 }
 async function registerServiceWorker(){
   if(state.swRegistration) return state.swRegistration;
-  if(!("serviceWorker" in navigator)) return null;
+  if(!("serviceWorker" in navigator)){
+    notifyPushSetupIssue("Service workers are not supported here.");
+    return null;
+  }
+  if(!window.isSecureContext){
+    notifyPushSetupIssue("Service workers require HTTPS.");
+    return null;
+  }
+  try{
+    const existing = await navigator.serviceWorker.getRegistration();
+    if(existing){
+      state.swRegistration = existing;
+      return existing;
+    }
+  } catch (err){}
   try{
     const reg = await navigator.serviceWorker.register("./sw.js");
     state.swRegistration = reg;
     return reg;
   } catch (err){
     console.error("Service worker registration failed:", err);
-    notifyPushSetupIssue("Service worker registration failed.");
+    const detail = (err && err.message) ? err.message : "Unknown error";
+    notifyPushSetupIssue(`Service worker registration failed: ${detail}`);
     return null;
   }
 }
@@ -4629,6 +4644,7 @@ if(els.hyperrealisticInput){
 }
 if(els.enableNotificationsBtn){
   els.enableNotificationsBtn.addEventListener("click", ()=>{
+    state.pwaPromptDismissed = false;
     if(isStandalone()){
       if(Notification.permission === "default"){
         showPwaEnablePrompt();
