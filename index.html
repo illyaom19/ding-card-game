@@ -257,6 +257,37 @@
     .cardBtn .top,.cardBtn .bot{font-weight:900; font-size:14px}
     .cardBtn .mid{font-size:20px; text-align:center}
     .row2{display:flex; gap:10px; flex-wrap:wrap;}
+    .menuWrap{ position:relative; }
+    .menu{
+      position:absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 180px;
+      background: rgba(12,16,26,.96);
+      border:1px solid var(--stroke);
+      border-radius: 12px;
+      box-shadow: 0 16px 40px rgba(0,0,0,.45);
+      display:none;
+      flex-direction:column;
+      padding:6px;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+    }
+    .menu.open{ display:flex; }
+    .menuItem{
+      width:100%;
+      text-align:left;
+      background: transparent;
+      border:none;
+      color: var(--text);
+      padding:8px 10px;
+      border-radius: 10px;
+      font-size:13px;
+      cursor:pointer;
+    }
+    .menuItem:hover{ background: rgba(255,255,255,.06); }
+    .menuItem.danger{ color:#ff9cb1; }
+    .menuItem:disabled{ opacity:.45; cursor:not-allowed; }
     .tableChips{
       display:flex;
       gap:10px;
@@ -720,6 +751,38 @@
       justify-content:space-between;
       gap:8px;
     }
+    .roomListSection{ display:flex; flex-direction:column; gap:6px; }
+    .roomList{ display:flex; flex-direction:column; gap:8px; }
+    .roomCard{
+      border:1px solid var(--stroke);
+      border-radius:12px;
+      background: rgba(0,0,0,.18);
+      padding:10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .roomMeta{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      min-width:0;
+    }
+    .roomActions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .roomTitle{ font-weight:800; letter-spacing:.6px; }
+    .roomCount{ font-size:12px; color:var(--muted); }
+    .roomBadges{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .roomTurnBadge{
+      padding:4px 8px;
+      border-radius:999px;
+      background: rgba(255,92,122,.18);
+      border:1px solid rgba(255,92,122,.45);
+      color:#ffd6de;
+      font-size:11px;
+      font-weight:700;
+    }
     /* winner banner */
     #winnerBanner{
       border:1px solid rgba(255,230,140,.12);
@@ -795,7 +858,14 @@
         <div class="row2">
           <div id="gameSummary" class="small mono" style="margin-right:8px;">—</div>
           <button class="btn collapseBtn" id="collapseGameBtn">▾</button>
-          <button class="btn danger" id="resetBtn">Reset</button>
+          <div class="menuWrap" id="roomMenuWrap">
+            <button class="btn" id="roomMenuBtn" aria-expanded="false">Settings ▾</button>
+            <div class="menu" id="roomMenu" role="menu">
+              <button class="menuItem danger" id="menuResetBtn" type="button">Reset</button>
+              <button class="menuItem" id="menuBackLobbyBtn" type="button">Back to lobby</button>
+              <button class="menuItem danger" id="menuLeaveRoomBtn" type="button">Leave room</button>
+            </div>
+          </div>
         </div>
       </div>
         <div class="bd stack">
@@ -831,6 +901,11 @@
                 <button class="btn" id="shareRoomBtn">Copy/Share</button>
               </div>
             <div class="mpStatus" id="roomStatus">No room joined.</div>
+          </div>
+          <div id="roomListSection" class="roomListSection" style="display:none;">
+            <div class="small" style="margin-bottom:6px;">Your rooms</div>
+            <div id="roomList" class="roomList"></div>
+            <div id="roomListEmpty" class="small" style="display:none;">No rooms yet.</div>
           </div>
           <button class="btn primary" id="startGameBtn">Start Game</button>
         </div>
@@ -992,7 +1067,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, serverTimestamp, writeBatch, addDoc, query, orderBy, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, writeBatch, addDoc, query, orderBy, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 /** =========================
  *  Ding Prototype (Hotseat)
  *  =========================
@@ -1089,6 +1164,9 @@ const state = {
   selfNickname: null,
   roomNicknames: {},
   lastRoomId: null,
+  roomIds: [],
+  roomList: {},
+  unsubRoomList: [],
   profileLoaded: false,
   selfIndex: null,
   selfHand: [],
@@ -1149,7 +1227,12 @@ const els = {
   namesInput: document.getElementById("namesInput"),
   startGameBtn: document.getElementById("startGameBtn"),
   startHandBtn: document.getElementById("startHandBtn"),
-  resetBtn: document.getElementById("resetBtn"),
+  roomMenuWrap: document.getElementById("roomMenuWrap"),
+  roomMenuBtn: document.getElementById("roomMenuBtn"),
+  roomMenu: document.getElementById("roomMenu"),
+  menuResetBtn: document.getElementById("menuResetBtn"),
+  menuBackLobbyBtn: document.getElementById("menuBackLobbyBtn"),
+  menuLeaveRoomBtn: document.getElementById("menuLeaveRoomBtn"),
   modeHotseatBtn: document.getElementById("modeHotseatBtn"),
   modeMultiBtn: document.getElementById("modeMultiBtn"),
   modeHint: document.getElementById("modeHint"),
@@ -1169,6 +1252,9 @@ const els = {
   lobbyHotseatIntro: document.getElementById("lobbyHotseatIntro"),
   lobbyMultiIntro: document.getElementById("lobbyMultiIntro"),
   lobbyPlayers: document.getElementById("lobbyPlayers"),
+  roomListSection: document.getElementById("roomListSection"),
+  roomList: document.getElementById("roomList"),
+  roomListEmpty: document.getElementById("roomListEmpty"),
   logCard: document.getElementById("logCard"),
   logHeader: document.getElementById("logHeader"),
   logCaret: document.getElementById("logCaret"),
@@ -1526,6 +1612,8 @@ function updateModeUI(){
   if(els.modeMultiBtn) els.modeMultiBtn.disabled = !hasFirebase();
   renderLobbyPlayers();
   renderRoomLog();
+  renderRoomList();
+  updateRoomMenuUI();
 }
 
 function setMode(mode){
@@ -1575,6 +1663,8 @@ function updateAuthUI(){
     }
   }
   updateNicknameUI();
+  updateRoomMenuUI();
+  renderRoomList();
 }
 
 function updateRoomStatus(){
@@ -1583,6 +1673,7 @@ function updateRoomStatus(){
       els.roomStatus.textContent = "";
       if(els.shareRoomBtn) els.shareRoomBtn.disabled = true;
       updateNicknameUI();
+      updateRoomMenuUI();
       return;
     }
     const role = (state.selfUid && state.hostUid && state.selfUid === state.hostUid) ? "host" : "guest";
@@ -1591,6 +1682,251 @@ function updateRoomStatus(){
   if(els.roomCodeInput && state.roomId) els.roomCodeInput.value = state.roomId;
   if(els.shareRoomBtn) els.shareRoomBtn.disabled = !state.roomId;
   updateNicknameUI();
+  updateRoomMenuUI();
+}
+
+function updateRoomMenuUI(){
+  if(!els.roomMenuWrap || !els.roomMenuBtn || !els.roomMenu) return;
+  const isMulti = isMultiplayer();
+  const inRoom = !!state.roomId;
+  const isHost = !isMulti || (state.selfUid && state.hostUid && state.selfUid === state.hostUid);
+  if(els.menuResetBtn) els.menuResetBtn.style.display = isHost ? "block" : "none";
+  if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.style.display = isMulti ? "block" : "none";
+  if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.style.display = isMulti ? "block" : "none";
+  if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.disabled = !inRoom;
+  if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.disabled = !inRoom;
+}
+
+function closeRoomMenu(){
+  if(!els.roomMenu || !els.roomMenuBtn) return;
+  els.roomMenu.classList.remove("open");
+  els.roomMenuBtn.setAttribute("aria-expanded", "false");
+}
+
+function toggleRoomMenu(){
+  if(!els.roomMenu || !els.roomMenuBtn) return;
+  const open = els.roomMenu.classList.contains("open");
+  if(open){
+    closeRoomMenu();
+  } else {
+    els.roomMenu.classList.add("open");
+    els.roomMenuBtn.setAttribute("aria-expanded", "true");
+  }
+}
+
+function clearRoomListSubscriptions(){
+  if(Array.isArray(state.unsubRoomList)){
+    state.unsubRoomList.forEach(unsub => {
+      try{ if(typeof unsub === "function") unsub(); } catch (err){}
+    });
+  }
+  state.unsubRoomList = [];
+}
+
+function setRoomIds(ids){
+  const unique = Array.from(new Set((ids || []).map(normalizeRoomCode).filter(Boolean)));
+  state.roomIds = unique;
+  subscribeToRoomList();
+}
+
+function subscribeToRoomList(){
+  clearRoomListSubscriptions();
+  state.roomList = {};
+  if(!state.isSignedIn || !firebaseDb || !state.roomIds.length){
+    renderRoomList();
+    return;
+  }
+  state.roomIds.forEach((roomId)=>{
+    const ref = roomRef(roomId);
+    const unsub = onSnapshot(ref, (snap)=>{
+      if(!snap.exists()){
+        delete state.roomList[roomId];
+        renderRoomList();
+        return;
+      }
+      const data = snap.data() || {};
+      const players = Array.isArray(data.players) ? data.players : [];
+      const playerCount = players.length;
+      const selfIndex = players.findIndex(p => p.uid === state.selfUid);
+      const phase = data.phase || "";
+      const isYourTurn = selfIndex >= 0
+        && data.currentTurnIndex === selfIndex
+        && (phase === PHASE.SWAP || phase === PHASE.TRICK);
+      state.roomList[roomId] = {
+        roomId,
+        playerCount,
+        hostUid: data.hostUid || null,
+        isHost: !!(data.hostUid && data.hostUid === state.selfUid),
+        isYourTurn,
+      };
+      renderRoomList();
+    }, (err)=>{
+      console.error("Room list sync failed:", err);
+    });
+    state.unsubRoomList.push(unsub);
+  });
+  renderRoomList();
+}
+
+function renderRoomList(){
+  if(!els.roomListSection || !els.roomList) return;
+  if(!state.isSignedIn || state.mode !== MODE.MULTI){
+    els.roomListSection.style.display = "none";
+    return;
+  }
+  els.roomListSection.style.display = "flex";
+  els.roomList.innerHTML = "";
+  const ids = state.roomIds || [];
+  if(!ids.length){
+    if(els.roomListEmpty) els.roomListEmpty.style.display = "block";
+    return;
+  }
+  if(els.roomListEmpty) els.roomListEmpty.style.display = "none";
+  const entries = ids.map((roomId)=> state.roomList[roomId] || { roomId, playerCount: null, isHost:false, isYourTurn:false });
+  entries.sort((a,b)=> a.roomId.localeCompare(b.roomId));
+  entries.forEach((room)=>{
+    const card = document.createElement("div");
+    card.className = "roomCard";
+
+    const meta = document.createElement("div");
+    meta.className = "roomMeta";
+    const titleWrap = document.createElement("div");
+    titleWrap.style.display = "flex";
+    titleWrap.style.flexDirection = "column";
+    titleWrap.style.minWidth = "0";
+    const title = document.createElement("div");
+    title.className = "roomTitle";
+    title.textContent = room.roomId;
+    const count = document.createElement("div");
+    count.className = "roomCount";
+    const countText = (typeof room.playerCount === "number") ? `${room.playerCount}/${MAX_PLAYERS}` : `-/${MAX_PLAYERS}`;
+    count.textContent = countText;
+    titleWrap.appendChild(title);
+    titleWrap.appendChild(count);
+    meta.appendChild(titleWrap);
+
+    const badges = document.createElement("div");
+    badges.className = "roomBadges";
+    if(room.isHost){
+      const host = document.createElement("span");
+      host.className = "hostBadge";
+      host.textContent = "Host";
+      badges.appendChild(host);
+    }
+    if(room.isYourTurn){
+      const turn = document.createElement("span");
+      turn.className = "roomTurnBadge";
+      turn.textContent = "Your turn";
+      badges.appendChild(turn);
+    }
+    if(badges.childNodes.length) meta.appendChild(badges);
+
+    const actions = document.createElement("div");
+    actions.className = "roomActions";
+    const enterBtn = document.createElement("button");
+    enterBtn.className = "btn";
+    const isCurrent = state.roomId === room.roomId;
+    enterBtn.textContent = isCurrent ? "In room" : "Enter";
+    enterBtn.disabled = isCurrent;
+    enterBtn.addEventListener("click", ()=> joinRoom(room.roomId));
+    const leaveBtn = document.createElement("button");
+    leaveBtn.className = "btn danger";
+    leaveBtn.textContent = "Leave";
+    leaveBtn.addEventListener("click", ()=> leaveRoomPermanently(room.roomId));
+    actions.appendChild(enterBtn);
+    actions.appendChild(leaveBtn);
+
+    card.appendChild(meta);
+    card.appendChild(actions);
+    els.roomList.appendChild(card);
+  });
+}
+
+async function addRoomToProfile(roomId){
+  const code = normalizeRoomCode(roomId || "");
+  if(!code || !state.selfUid || !firebaseDb) return;
+  const nextIds = Array.from(new Set([...(state.roomIds || []), code]));
+  setRoomIds(nextIds);
+  try{
+    await setDoc(userRef(state.selfUid), { rooms: arrayUnion(code), lastRoomId: code }, { merge: true });
+    state.lastRoomId = code;
+  } catch (err){
+    console.error("Failed to save room membership:", err);
+  }
+}
+
+async function leaveRoomPermanently(roomId){
+  const code = normalizeRoomCode(roomId || state.roomId || "");
+  if(!code){
+    setError("Join a room first.");
+    return;
+  }
+  if(!state.isSignedIn || !state.selfUid){
+    setError("Sign in first.");
+    return;
+  }
+  if(!hasFirebase()){
+    setError("Firebase config missing.");
+    return;
+  }
+  try{
+    const snap = await getDoc(roomRef(code));
+    if(snap.exists()){
+      const data = snap.data() || {};
+      const players = Array.isArray(data.players) ? data.players : [];
+      const leavingIdx = players.findIndex(p => p.uid === state.selfUid);
+      let updatedPlayers = players;
+      if(leavingIdx >= 0){
+        updatedPlayers = players.filter((_, i)=> i !== leavingIdx);
+      }
+      const payload = { players: updatedPlayers };
+      if(data.hostUid && data.hostUid === state.selfUid){
+        const nextHost = updatedPlayers.find(p => p.uid)?.uid || null;
+        payload.hostUid = nextHost;
+      }
+      if(leavingIdx >= 0){
+        const adjustIndex = (value)=>{
+          if(typeof value !== "number") return value;
+          if(value > leavingIdx) return value - 1;
+          if(value === leavingIdx){
+            return updatedPlayers.length ? Math.min(value, updatedPlayers.length - 1) : 0;
+          }
+          return value;
+        };
+        if(typeof data.dealerIndex === "number") payload.dealerIndex = adjustIndex(data.dealerIndex);
+        if(typeof data.leaderIndex === "number") payload.leaderIndex = adjustIndex(data.leaderIndex);
+        if(typeof data.currentTurnIndex === "number") payload.currentTurnIndex = adjustIndex(data.currentTurnIndex);
+      }
+      await updateDoc(roomRef(code), payload);
+      try{ await deleteDoc(handRef(code, state.selfUid)); } catch (err){}
+    }
+    const userPayload = { rooms: arrayRemove(code) };
+    if(state.lastRoomId === code){
+      userPayload.lastRoomId = null;
+      state.lastRoomId = null;
+    }
+    await setDoc(userRef(state.selfUid), userPayload, { merge: true });
+  } catch (err){
+    console.error("Failed to leave room:", err);
+    setError("Failed to leave room.");
+    return;
+  }
+  state.roomIds = (state.roomIds || []).filter(id => id !== code);
+  delete state.roomList[code];
+  subscribeToRoomList();
+  renderRoomList();
+  if(state.roomId === code){
+    leaveRoom();
+    location.hash = "";
+  }
+  updateRoomMenuUI();
+}
+
+function backToLobby(){
+  if(!state.roomId) return;
+  leaveRoom();
+  location.hash = "";
+  updateRoomMenuUI();
 }
 
 function leaveRoom(){
@@ -1605,6 +1941,9 @@ function leaveRoom(){
   state.players = [];
   state.logEntries = [];
   updateRoomStatus();
+  closeRoomMenu();
+  resetAll();
+  renderRoomList();
 }
 
 function serializePlayersForRoom(){
@@ -1903,6 +2242,7 @@ function scrollLogToBottom(){
 async function loadUserProfile(){
   state.roomNicknames = {};
   state.lastRoomId = null;
+  state.roomIds = [];
   state.profileLoaded = true;
   if(!state.selfUid || !firebaseDb) return;
   try{
@@ -1913,10 +2253,18 @@ async function loadUserProfile(){
       if(data.roomNicknames && typeof data.roomNicknames === "object"){
         state.roomNicknames = { ...data.roomNicknames };
       }
+      if(Array.isArray(data.rooms)){
+        setRoomIds(data.rooms);
+      } else if(state.lastRoomId){
+        setRoomIds([state.lastRoomId]);
+      } else {
+        setRoomIds([]);
+      }
     }
   } catch (err){
     console.error("Failed to load user profile:", err);
   }
+  if(!state.roomIds.length) setRoomIds([]);
   updateNicknameUI();
   ensureRoomNicknameApplied().catch((err)=> console.error("Failed to apply nickname:", err));
 }
@@ -1986,8 +2334,10 @@ async function maybeAutoJoinRoom(){
   if(!state.profileLoaded){
     await loadUserProfile();
   }
-  if(state.lastRoomId){
-    await joinRoom(state.lastRoomId);
+  if(state.roomIds && state.roomIds.length > 1) return;
+  const preferred = state.lastRoomId || (state.roomIds && state.roomIds.length === 1 ? state.roomIds[0] : null);
+  if(preferred){
+    await joinRoom(preferred);
   }
 }
 
@@ -2030,8 +2380,7 @@ async function createRoom(){
     playedCards: [],
   };
   await setDoc(roomRef(roomId), roomState);
-  await setDoc(userRef(state.selfUid), { lastRoomId: roomId }, { merge: true });
-  state.lastRoomId = roomId;
+  await addRoomToProfile(roomId);
   if(els.roomCodeInput) els.roomCodeInput.value = roomId;
   location.hash = roomId;
   subscribeToRoom(roomId);
@@ -2067,8 +2416,7 @@ async function joinRoom(roomId){
     players.push(buildPlayer(state.selfUid, getSelfRoomName(code)));
     await updateDoc(roomRef(code), { players });
   }
-  await setDoc(userRef(state.selfUid), { lastRoomId: code }, { merge: true });
-  state.lastRoomId = code;
+  await addRoomToProfile(code);
   if(els.roomCodeInput) els.roomCodeInput.value = code;
   location.hash = code;
   subscribeToRoom(code);
@@ -3064,7 +3412,7 @@ function renderTrickArea(){
   if(state.lastCompletedTrick && state.lastTrickWinnerIndex !== null){
     summary = document.createElement("div");
     summary.className = "pill trick-winner";
-    const winner = state.players[state.lastTrickWinnerIndex]?.name ?? "—";
+    const winner = state.players[state.lastTrickWinnerIndex]?.name ?? "-";
     // find the winning play so we can show the winning card visually
     const winningPlay = state.lastCompletedTrick.find(p => p.playerIndex === state.lastTrickWinnerIndex);
     const cardText = winningPlay ? `${RANK_LABEL[winningPlay.card.rank] ?? winningPlay.card.rank}${SUIT_ICON[winningPlay.card.suit]}` : '';
@@ -3609,12 +3957,41 @@ if(els.passBtn){
 
 // Pass button removed — auto-pass handles swap progression.
 
-els.resetBtn.addEventListener("click", ()=>{
-  if(isMultiplayer()){
-    resetRoomState();
-    return;
-  }
-  resetAll();
+if(els.roomMenuBtn){
+  els.roomMenuBtn.addEventListener("click", (e)=>{
+    e.preventDefault();
+    toggleRoomMenu();
+  });
+}
+if(els.menuResetBtn){
+  els.menuResetBtn.addEventListener("click", ()=>{
+    closeRoomMenu();
+    if(isMultiplayer()){
+      resetRoomState();
+      return;
+    }
+    resetAll();
+  });
+}
+if(els.menuBackLobbyBtn){
+  els.menuBackLobbyBtn.addEventListener("click", ()=>{
+    closeRoomMenu();
+    backToLobby();
+  });
+}
+if(els.menuLeaveRoomBtn){
+  els.menuLeaveRoomBtn.addEventListener("click", ()=>{
+    closeRoomMenu();
+    leaveRoomPermanently(state.roomId);
+  });
+}
+document.addEventListener("click", (e)=>{
+  if(!els.roomMenuWrap || !els.roomMenu) return;
+  if(els.roomMenuWrap.contains(e.target)) return;
+  closeRoomMenu();
+});
+document.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape") closeRoomMenu();
 });
 
 els.revealBtn.addEventListener("click", ()=>{
@@ -3785,6 +4162,9 @@ if(firebaseAuth){
     state.selfNickname = null;
     state.roomNicknames = {};
     state.lastRoomId = null;
+    state.roomIds = [];
+    state.roomList = {};
+    clearRoomListSubscriptions();
     state.profileLoaded = false;
     updateAuthUI();
     if(!user){
