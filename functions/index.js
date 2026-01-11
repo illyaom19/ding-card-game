@@ -27,7 +27,7 @@ exports.notifyTurn = onDocumentUpdated("rooms/{roomId}", async (event) => {
       roomId: event.params.roomId,
       roomName,
       title: "DING Online",
-      body: "It's your turn...",
+      body: `It's your turn in ${roomName}.`,
       turnKey,
     },
   };
