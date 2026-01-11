@@ -1780,6 +1780,18 @@ function clampSettings(){
   if(s.decks > 2) s.decks = 2;
 }
 
+let settingsSyncTimer = null;
+function scheduleSettingsSync(){
+  if(!isMultiplayer() || !state.roomId) return;
+  if(state.selfUid !== state.hostUid) return;
+  if(state.phase !== PHASE.LOBBY) return;
+  if(settingsSyncTimer) clearTimeout(settingsSyncTimer);
+  settingsSyncTimer = setTimeout(()=>{
+    settingsSyncTimer = null;
+    syncRoomState("settings");
+  }, 200);
+}
+
 function foldCurrentPlayer(){
   if(state.phase !== PHASE.SWAP) return;
   const isMulti = isMultiplayer();
@@ -1871,6 +1883,10 @@ function appMetaRef(){ return doc(firebaseDb, "meta", "app"); }
 function ensureConnectedForAction(options = {}){
   const { requireHand = false } = options;
   if(!isMultiplayer()) return true;
+  if(!state.isSignedIn){
+    setError("Sign in first.");
+    return false;
+  }
   if(state.connectionStatus !== "connected"){
     setConnectionStatus("reconnecting", "Reconnecting to the database.");
     setError("Reconnecting...");
@@ -2267,7 +2283,7 @@ function setConnectionStatus(status, detail = ""){
 }
 function renderConnectionOverlay(){
   if(!els.reconnectOverlay) return;
-  const show = isMultiplayer() && state.connectionStatus !== "connected" && !state.offlineFallbackEnabled;
+  const show = isMultiplayer() && state.isSignedIn && state.connectionStatus !== "connected" && !state.offlineFallbackEnabled;
   els.reconnectOverlay.style.display = show ? "flex" : "none";
   if(els.reconnectStatus){
     els.reconnectStatus.textContent = state.connectionStatusDetail || "Trying to restore database access.";
@@ -2285,7 +2301,7 @@ function ensureReconnectLoop(){
   }, 15000);
 }
 function startConnectivityMonitor(){
-  if(!firebaseDb) return;
+  if(!firebaseDb || !state.isSignedIn) return;
   if(state.unsubConnectivity){ state.unsubConnectivity(); state.unsubConnectivity = null; }
   setConnectionStatus("reconnecting", "Connecting to the database.");
   state.unsubConnectivity = onSnapshot(appMetaRef(), { includeMetadataChanges: true }, (snap)=>{
@@ -5537,6 +5553,7 @@ if(els.startingScoreInput){
       state.settings.foldThreshold = state.settings.startingScore;
     }
     syncSettingsUI();
+    scheduleSettingsSync();
   });
 }
 if(els.foldThresholdInput){
@@ -5544,6 +5561,7 @@ if(els.foldThresholdInput){
     state.settings.foldThreshold = Number(els.foldThresholdInput.value);
     clampSettings();
     syncSettingsUI();
+    scheduleSettingsSync();
   });
 }
 if(els.deckCountInput){
@@ -5551,6 +5569,7 @@ if(els.deckCountInput){
     state.settings.decks = Number(els.deckCountInput.value);
     clampSettings();
     syncSettingsUI();
+    scheduleSettingsSync();
   });
 }
 const nativeConsole = {
@@ -5569,6 +5588,7 @@ if(els.hyperrealisticInput){
     state.settings.hyperrealistic = !!els.hyperrealisticInput.checked;
     syncSettingsUI();
     render();
+    scheduleSettingsSync();
   });
 }
 if(els.menuEnableNotificationsBtn){
@@ -5689,11 +5709,13 @@ if(els.offlineModeBtn){
 }
 window.addEventListener("online", ()=>{
   if(!hasFirebase()) return;
+  if(!state.isSignedIn) return;
   setConnectionStatus("reconnecting", "Reconnecting to the database.");
   if(state.isSignedIn) startConnectivityMonitor();
 });
 window.addEventListener("offline", ()=>{
   if(!hasFirebase()) return;
+  if(!state.isSignedIn) return;
   setConnectionStatus("reconnecting", "Offline. Waiting to reconnect.");
 });
 document.addEventListener("visibilitychange", ()=>{
