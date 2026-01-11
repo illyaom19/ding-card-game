@@ -4,6 +4,35 @@
     },
     "hosting": {
         "public": "public",
-        "site": "dingonline"
+        "site": "dingonline",
+        "headers": [
+            {
+                "source": "/index.html",
+                "headers": [
+                    { "key": "Cache-Control", "value": "no-store" }
+                ]
+            },
+            {
+                "source": "/firebase-config.js",
+                "headers": [
+                    { "key": "Cache-Control", "value": "no-store" }
+                ]
+            },
+            {
+                "source": "/sw.js",
+                "headers": [
+                    { "key": "Cache-Control", "value": "no-store" }
+                ]
+            },
+            {
+                "source": "/icon.svg",
+                "headers": [
+                    {
+                        "key": "Cache-Control",
+                        "value": "no-store"
+                    }
+                ]
+            }
+        ]
     }
 }

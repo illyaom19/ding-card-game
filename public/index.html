@@ -1319,7 +1319,7 @@
             <div class="mpStatus mpHint" id="roomNameStatus" style="display:none;"></div>
             <div class="mpDivider" id="roomNameDivider"></div>
               <div class="mpRow" style="margin-bottom:8px;">
-                <input class="input mpCode" id="roomCodeInput" placeholder="ROOM CODE" />
+                <input class="input mpCode" id="roomCodeInput" placeholder="ROOM CODE" style="display:none;" />
                 <button class="btn primary" id="createRoomBtn">Create Room</button>
                 <button class="btn" id="joinRoomBtn">Join Room</button>
                 <button class="btn" id="shareRoomBtn">Copy/Share</button>
@@ -1610,6 +1610,8 @@ const state = {
   roomId: null,
   roomName: null,
   roomNameDraft: "",
+  roomCreatedBySelf: false,
+  joinRoomActive: false,
   hasMadeFirstMove: false,
   pwaPromptDismissed: false,
   pushToken: null,
@@ -2661,6 +2663,9 @@ function flashRoomNameStatus(msg){
 }
 function updateRoomNameUI(){
   if(!els.roomNameRow || !els.roomNameInput || !els.saveRoomNameBtn) return;
+  if(state.roomCreatedBySelf && state.phase !== PHASE.LOBBY){
+    state.roomCreatedBySelf = false;
+  }
   if(!state.isSignedIn){
     els.roomNameRow.style.display = "none";
     if(els.roomNameDivider) els.roomNameDivider.style.display = "none";
@@ -2668,8 +2673,9 @@ function updateRoomNameUI(){
     return;
   }
   const inRoom = !!state.roomId;
-  const isHost = inRoom && state.selfUid && state.hostUid && state.selfUid === state.hostUid;
-  if(inRoom && !isHost){
+  const isHost = inRoom && state.selfUid && (state.hostUid ? state.selfUid === state.hostUid : state.roomCreatedBySelf);
+  const canEdit = inRoom && isHost && state.roomCreatedBySelf && state.phase === PHASE.LOBBY;
+  if(!canEdit){
     els.roomNameRow.style.display = "none";
     if(els.roomNameDivider) els.roomNameDivider.style.display = "none";
     setRoomNameStatus("");
@@ -2679,19 +2685,37 @@ function updateRoomNameUI(){
   if(els.roomNameDivider) els.roomNameDivider.style.display = "block";
   els.roomNameInput.disabled = false;
   els.saveRoomNameBtn.disabled = false;
-  if(inRoom){
-    const current = getRoomDisplayName(state.roomName);
-    if(document.activeElement !== els.roomNameInput){
-      els.roomNameInput.value = current;
-    }
-    setRoomNameStatus("");
-    return;
-  }
-  const draft = getRoomDisplayName(state.roomNameDraft || getDefaultRoomName());
+  const current = getRoomDisplayName(state.roomName);
   if(document.activeElement !== els.roomNameInput){
-    els.roomNameInput.value = draft;
+    els.roomNameInput.value = current;
   }
   setRoomNameStatus("");
+}
+function resetJoinRoomState({ clearInput = false } = {}){
+  state.joinRoomActive = false;
+  if(clearInput && els.roomCodeInput) els.roomCodeInput.value = "";
+  updateRoomJoinUI();
+}
+function updateRoomJoinUI(){
+  if(!els.roomCodeInput || !els.joinRoomBtn) return;
+  const isMulti = isMultiplayer();
+  const inRoom = !!state.roomId;
+  if(inRoom && state.joinRoomActive){
+    state.joinRoomActive = false;
+  }
+  const showInput = isMulti && state.isSignedIn && (state.joinRoomActive || (state.roomCreatedBySelf && inRoom));
+  els.roomCodeInput.style.display = showInput ? "block" : "none";
+  if(showInput && inRoom && state.roomId && document.activeElement !== els.roomCodeInput){
+    els.roomCodeInput.value = state.roomId;
+  }
+  if(state.joinRoomActive){
+    els.joinRoomBtn.textContent = "Confirm join";
+    els.joinRoomBtn.classList.add("good");
+  } else {
+    els.joinRoomBtn.textContent = "Join Room";
+    els.joinRoomBtn.classList.remove("good");
+  }
+  els.joinRoomBtn.disabled = !state.isSignedIn || inRoom;
 }
 function buildPlayer(uid, name, seed=null){
   return {
@@ -2732,6 +2756,7 @@ function updateModeUI(){
   renderRoomLog();
   renderRoomList();
   updateRoomNameUI();
+  updateRoomJoinUI();
   updateRoomMenuUI();
   updateRoomLobbyUI();
   updateGameTitle();
@@ -2817,6 +2842,7 @@ function updateAuthUI(){
   }
   updateNicknameUI();
   updateRoomNameUI();
+  updateRoomJoinUI();
   updateRoomMenuUI();
   renderRoomList();
   updateRoomLobbyUI();
@@ -2830,6 +2856,7 @@ function updateRoomStatus(){
       if(els.shareRoomBtn) els.shareRoomBtn.disabled = true;
       updateNicknameUI();
       updateRoomNameUI();
+      updateRoomJoinUI();
       updateRoomMenuUI();
       updateRoomLobbyUI();
       updateGameTitle();
@@ -2842,6 +2869,7 @@ function updateRoomStatus(){
   if(els.shareRoomBtn) els.shareRoomBtn.disabled = !state.roomId;
   updateNicknameUI();
   updateRoomNameUI();
+  updateRoomJoinUI();
   updateRoomMenuUI();
   updateRoomLobbyUI();
   updateGameTitle();
@@ -3208,6 +3236,9 @@ function applyRoomState(data){
   try{
     state.mode = MODE.MULTI;
     state.phase = data.phase ?? state.phase;
+    if(state.roomCreatedBySelf && prevPhase === PHASE.LOBBY && state.phase !== PHASE.LOBBY){
+      state.roomCreatedBySelf = false;
+    }
     state.players = Array.isArray(data.players)
       ? data.players.map((p, idx)=>{
           const rawWonTricks = Array.isArray(p.wonTricks) ? p.wonTricks : [];
@@ -3916,6 +3947,7 @@ async function maybeAutoJoinRoom(){
 }
 
 async function createRoom(){
+  resetJoinRoomState({ clearInput: true });
   if(!state.isSignedIn){ setError("Sign in first."); return; }
   if(!hasFirebase()){ setError("Firebase config missing."); return; }
   state.handId = 0;
@@ -3959,12 +3991,15 @@ async function createRoom(){
   };
   await setDoc(roomRef(roomId), roomState);
   state.roomName = roomName;
+  state.roomCreatedBySelf = true;
   await addRoomToProfile(roomId);
   if(els.roomCodeInput) els.roomCodeInput.value = roomId;
   location.hash = roomId;
   subscribeToRoom(roomId);
   subscribeToHand();
   subscribeToLog();
+  updateRoomJoinUI();
+  updateRoomNameUI();
 }
 
 async function joinRoom(roomId){
@@ -3982,6 +4017,7 @@ async function joinRoom(roomId){
   }
   const data = snap.data();
   state.roomName = getRoomDisplayName(data.roomName);
+  state.roomCreatedBySelf = false;
   const players = Array.isArray(data.players) ? data.players.slice() : [];
   const existingIdx = players.findIndex(p => p.uid === state.selfUid);
   if(existingIdx === -1){
@@ -4002,6 +4038,7 @@ async function joinRoom(roomId){
   subscribeToRoom(code);
   subscribeToHand();
   subscribeToLog();
+  resetJoinRoomState();
 }
 
 async function startMultiplayerGame(){
@@ -4222,6 +4259,8 @@ function resetAll(){
   state.lastPhase = PHASE.LOBBY;
   state.players = [];
   state.selfHand = [];
+  state.joinRoomActive = false;
+  state.roomCreatedBySelf = false;
   state.roomSynced = false;
   state.handSynced = false;
   state.roomResyncing = false;
@@ -5509,6 +5548,7 @@ function renderStatus(){
 function render(){
   if(state.phase !== PHASE.LOBBY && state.lastPhase === PHASE.LOBBY){
     state.settingsCollapsed = true;
+    state.roomCreatedBySelf = false;
   }
   renderHeaderPills();
   renderMeta();
@@ -5886,7 +5926,7 @@ if(els.roomCodeInput){
   els.roomCodeInput.addEventListener("keydown", (e)=>{
     if(e.key === "Enter"){
       e.preventDefault();
-      joinRoom();
+      if(state.joinRoomActive) joinRoom();
     }
   });
 }
@@ -5894,7 +5934,18 @@ if(els.createRoomBtn){
   els.createRoomBtn.addEventListener("click", ()=> createRoom());
 }
 if(els.joinRoomBtn){
-  els.joinRoomBtn.addEventListener("click", ()=> joinRoom());
+  els.joinRoomBtn.addEventListener("click", ()=>{
+    if(state.joinRoomActive){
+      joinRoom();
+      return;
+    }
+    state.joinRoomActive = true;
+    updateRoomJoinUI();
+    if(els.roomCodeInput){
+      els.roomCodeInput.value = "";
+      els.roomCodeInput.focus();
+    }
+  });
 }
 if(els.shareRoomBtn){
   els.shareRoomBtn.addEventListener("click", ()=> shareRoomCode());
