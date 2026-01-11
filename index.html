@@ -528,7 +528,17 @@
     /* scoreboard highlights */
     .playerRow.activeTurn{ border-color: rgba(124,92,255,.45); box-shadow: 0 12px 30px rgba(124,92,255,.06); }
     .dealerBadge{ padding:4px 8px; border-radius:8px; background: rgba(255,215,130,.06); color:#ffdca8; font-size:12px; border:1px solid rgba(255,215,130,.06); margin-left:6px; }
-    .hostBadge{ padding:4px 8px; border-radius:8px; background: rgba(62,226,138,.12); color:#d6ffe6; font-size:12px; border:1px solid rgba(62,226,138,.28); margin-left:6px; }
+    .hostBadge{
+      padding:4px 8px;
+      border-radius:8px;
+      background: rgba(180,190,205,.22);
+      color:#e3e7ef;
+      font-size:12px;
+      border:1px solid rgba(180,190,205,.45);
+      margin-left:6px;
+      font-weight:700;
+    }
+    .roomBadgeRow .hostBadge{ margin-left:0; }
     .turnDot{ color: var(--good); font-size:14px; margin-right:4px; font-weight:900; }
     /* raise the top-most mini-card more so it doesn't cover lower card text */
     .wonTrick .miniCard:last-child{ transform: translateY(-28px); z-index:2; box-shadow: 0 14px 24px rgba(0,0,0,.4); }
@@ -1007,6 +1017,12 @@
       justify-content:space-between;
       gap:10px;
     }
+    .roomBadgeRow{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+    }
     .roomMeta{
       display:flex;
       align-items:center;
@@ -1037,6 +1053,20 @@
       align-items:center;
       flex-wrap:wrap;
       justify-content:flex-end;
+    }
+    .roomEnterBtn:not(:disabled){
+      background: linear-gradient(180deg, #23b45d, #14904a);
+      border-color: rgba(26,160,79,.65);
+      color: #eafff0;
+      box-shadow: 0 12px 26px rgba(26,160,79,.24);
+    }
+    .roomEnterBtn:not(:disabled):hover{
+      transform: translateY(-1px);
+      box-shadow: 0 16px 32px rgba(26,160,79,.3);
+    }
+    .roomEnterBtn:not(:disabled):active{
+      transform: translateY(0);
+      box-shadow: 0 10px 22px rgba(26,160,79,.24);
     }
     .roomTitle{ font-weight:800; letter-spacing:.6px; }
     .roomCount{ font-size:12px; color:var(--muted); }
@@ -1080,9 +1110,9 @@
     .roomTurnBadge{
       padding:4px 8px;
       border-radius:999px;
-      background: rgba(255,92,122,.18);
-      border:1px solid rgba(255,92,122,.45);
-      color:#ffd6de;
+      background: rgba(255,235,140,.35);
+      border:1px solid rgba(255,215,120,.6);
+      color:#6b4b00;
       font-size:11px;
       font-weight:700;
     }
@@ -2913,6 +2943,8 @@ function renderRoomList(){
     titleWrap.style.display = "flex";
     titleWrap.style.flexDirection = "column";
     titleWrap.style.minWidth = "0";
+    const badgeRow = document.createElement("div");
+    badgeRow.className = "roomBadgeRow";
     const title = document.createElement("div");
     title.className = "roomTitle";
     title.textContent = room.roomName || "Player's Lobby";
@@ -2920,31 +2952,29 @@ function renderRoomList(){
     count.className = "roomCount";
     const countText = (typeof room.playerCount === "number") ? `${room.playerCount}/${MAX_PLAYERS}` : `-/${MAX_PLAYERS}`;
     count.textContent = `${room.roomId} · ${countText}`;
+    if(room.isHost){
+      const host = document.createElement("span");
+      host.className = "hostBadge";
+      host.textContent = "Host";
+      badgeRow.appendChild(host);
+    }
+    if(room.isYourTurn){
+      const turn = document.createElement("span");
+      turn.className = "roomTurnBadge";
+      turn.textContent = "Your turn";
+      badgeRow.appendChild(turn);
+    }
+    if(badgeRow.childNodes.length) titleWrap.appendChild(badgeRow);
     titleWrap.appendChild(title);
     titleWrap.appendChild(count);
     meta.appendChild(titleWrap);
 
     const actions = document.createElement("div");
     actions.className = "roomActions";
-    const badges = document.createElement("div");
-    badges.className = "roomBadges";
-    if(room.isHost){
-      const host = document.createElement("span");
-      host.className = "hostBadge";
-      host.textContent = "Host";
-      badges.appendChild(host);
-    }
-    if(room.isYourTurn){
-      const turn = document.createElement("span");
-      turn.className = "roomTurnBadge";
-      turn.textContent = "Your turn";
-      badges.appendChild(turn);
-    }
-    if(badges.childNodes.length) actions.appendChild(badges);
     const buttons = document.createElement("div");
     buttons.className = "roomButtons";
     const enterBtn = document.createElement("button");
-    enterBtn.className = "btn";
+    enterBtn.className = "btn roomEnterBtn";
     const isCurrent = state.roomId === room.roomId;
     enterBtn.textContent = isCurrent ? "In room" : "Enter";
     enterBtn.disabled = isCurrent;
