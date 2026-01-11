@@ -2687,7 +2687,8 @@ function updateAuthUI(){
       els.headerGreeting.textContent = "";
       els.headerGreeting.appendChild(document.createTextNode(`Hi ${state.selfName} - welcome back!`));
       if(hasFirebase()){
-        els.headerGreeting.appendChild(document.createTextNode(" Connection status: "));
+        els.headerGreeting.appendChild(document.createElement("br"));
+        els.headerGreeting.appendChild(document.createTextNode("Connection status: "));
         appendConnectionStatus(els.headerGreeting);
       }
       els.headerGreeting.style.display = "block";
@@ -2695,7 +2696,8 @@ function updateAuthUI(){
       els.headerGreeting.textContent = "";
       els.headerGreeting.appendChild(document.createTextNode("Hi there - welcome back!"));
       if(hasFirebase()){
-        els.headerGreeting.appendChild(document.createTextNode(" Connection status: "));
+        els.headerGreeting.appendChild(document.createElement("br"));
+        els.headerGreeting.appendChild(document.createTextNode("Connection status: "));
         appendConnectionStatus(els.headerGreeting);
       }
       els.headerGreeting.style.display = "block";
