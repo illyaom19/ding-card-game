@@ -44,8 +44,8 @@
     header .row{display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
     .title{display:flex; gap:10px; align-items:center;}
     .logoBtn{
-      width:44px;
-      height:44px;
+      width:clamp(52px, 12vw, 72px);
+      height:clamp(52px, 12vw, 72px);
       border-radius:14px;
       background: rgba(124,92,255,.25);
       border:0.5px solid rgba(124,92,255,.5);
@@ -53,12 +53,17 @@
       align-items:center;
       justify-content:center;
       padding:0;
+      overflow:visible;
       cursor:pointer;
       transition: background .12s ease, transform .12s ease;
     }
     .logoBtn:hover{ background: rgba(124,92,255,.32); transform: translateY(-1px); }
     .logoBtn:active{ transform: translateY(0); }
-    .logoBtn img{ width:26px; height:26px; display:block; }
+    .logoBtn img{
+      width:clamp(70px, 16vw, 96px);
+      height:clamp(70px, 16vw, 96px);
+      display:block;
+    }
     .pill{
       border:1px solid var(--stroke);
       background: rgba(255,255,255,.06);
