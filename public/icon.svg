@@ -2,9 +2,9 @@
   <defs>
     <!-- Background -->
     <radialGradient id="bgRad" cx="35%" cy="28%" r="85%">
-      <stop offset="0" stop-color="#0f2552"/>
-      <stop offset="0.6" stop-color="#08142f"/>
-      <stop offset="1" stop-color="#060b1b"/>
+      <stop offset="0" stop-color="#2a1c55"/>
+      <stop offset="0.55" stop-color="#0b1020"/>
+      <stop offset="1" stop-color="#0b1f19"/>
     </radialGradient>
 
     <!-- Icon rim -->
@@ -19,6 +19,12 @@
       <stop offset="0" stop-color="#8c5cff"/>
       <stop offset="0.45" stop-color="#4f7bff"/>
       <stop offset="1" stop-color="#33e6b3"/>
+    </linearGradient>
+
+    <linearGradient id="dingStroke" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffe9a8"/>
+      <stop offset="0.5" stop-color="#f2c15c"/>
+      <stop offset="1" stop-color="#ffd77a"/>
     </linearGradient>
 
     <!-- Gloss highlight -->
@@ -113,14 +119,42 @@
       </feMerge>
     </filter>
 
+    <filter id="goldGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="0 0 0 0 1
+                0 0 0 0 0.78
+                0 0 0 0 0.2
+                0 0 0 .85 0" result="g"/>
+      <feMerge>
+        <feMergeNode in="g"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="dotGlowPurple" x="-120%" y="-120%" width="340%" height="340%">
+      <feGaussianBlur stdDeviation="11" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="0 0 0 0 0.65
+                0 0 0 0 0.25
+                0 0 0 0 1
+                0 0 0 .70 0" result="g"/>
+      <feMerge>
+        <feMergeNode in="g"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
     <!-- Suit symbols -->
     <path id="heart" d="M12,21 C4,15 2,10 5,7 C7,5 10,6 12,8 C14,6 17,5 19,7 C22,10 20,15 12,21 Z"/>
     <path id="spade" d="M12,2 C6,7 3,10 3,14 C3,18 6,20 9,19 C10.5,18.5 11.5,17.5 12,16.5 C12.5,17.5 13.5,18.5 15,19 C18,20 21,18 21,14 C21,10 18,7 12,2 Z
                         M10,19 C10,22 8,23 8,23 L16,23 C16,23 14,22 14,19 Z"/>
-    <path id="club" d="M12,8 C13.8,5.2 18,5.5 19.5,8.3 C21.1,11.2 19.1,14.6 15.9,14.6 C16.8,16.8 15.4,19 12.9,19.1
-                       L12.9,19.1 C12.6,19.1 12.3,19.1 12,19.1 C11.7,19.1 11.4,19.1 11.1,19.1
-                       C8.6,19 7.2,16.8 8.1,14.6 C4.9,14.6 2.9,11.2 4.5,8.3 C6,5.5 10.2,5.2 12,8 Z
-                       M10,19 C10,22 8,23 8,23 L16,23 C16,23 14,22 14,19 Z"/>
+    <g id="club">
+      <circle cx="12" cy="6" r="5"/>
+      <circle cx="7" cy="13" r="5"/>
+      <circle cx="17" cy="13" r="5"/>
+      <path d="M10,16 C10,20 8,22 8,22 L16,22 C16,22 14,20 14,16 Z"/>
+    </g>
     <path id="diamond" d="M12,2 L22,12 L12,22 L2,12 Z"/>
 
     <!-- Clip for glossy text highlight -->
@@ -146,6 +180,12 @@
     <circle cx="740" cy="270" r="2.5" fill="#a7ffdf"/>
     <circle cx="680" cy="760" r="3" fill="#ffd77a"/>
     <circle cx="270" cy="760" r="2.5" fill="#ff9bd2"/>
+    <circle cx="360" cy="230" r="2.5" fill="#a7ffdf"/>
+    <circle cx="820" cy="320" r="2.8" fill="#7fd3ff"/>
+    <circle cx="590" cy="240" r="2.2" fill="#ff9bd2"/>
+    <circle cx="430" cy="805" r="2.6" fill="#ffd77a"/>
+    <circle cx="770" cy="805" r="2.4" fill="#a7ffdf"/>
+    <circle cx="210" cy="330" r="2.2" fill="#ffd77a"/>
   </g>
 
   <!-- Cards behind the title -->
@@ -179,35 +219,24 @@
     </g>
   </g>
 
-  <!-- Poker chip + coins (simple) -->
+  <!-- Suit quartet -->
   <g filter="url(#drop)" opacity="0.98">
-    <!-- Chip -->
-    <g transform="translate(0,0) rotate(-10 330 735)">
-      <circle cx="330" cy="735" r="86" fill="url(#chipRing)"/>
-      <circle cx="330" cy="735" r="70" fill="#0b1230"/>
-      <circle cx="330" cy="735" r="58" fill="url(#chipRad)"/>
-      <!-- notches -->
-      <g fill="rgba(255,255,255,0.9)">
-        <rect x="322" y="645" width="16" height="28" rx="6"/>
-        <rect x="322" y="797" width="16" height="28" rx="6"/>
-        <rect x="240" y="727" width="28" height="16" rx="6"/>
-        <rect x="392" y="727" width="28" height="16" rx="6"/>
-      </g>
-    </g>
-
-    <!-- Coins -->
-    <g opacity="0.9">
-      <g transform="translate(0,0) rotate(18 735 760)">
-        <ellipse cx="735" cy="760" rx="62" ry="40" fill="#ffcf5a"/>
-        <ellipse cx="735" cy="752" rx="58" ry="36" fill="#ffd97c"/>
-        <ellipse cx="735" cy="748" rx="46" ry="26" fill="#ffe9b0" opacity="0.65"/>
-      </g>
-      <g transform="translate(0,0) rotate(-12 800 720)">
-        <ellipse cx="800" cy="720" rx="44" ry="28" fill="#ffcf5a"/>
-        <ellipse cx="800" cy="715" rx="40" ry="24" fill="#ffd97c"/>
-      </g>
+    <g transform="translate(0,0) rotate(-6 512 830)">
+      <g transform="translate(260 788) scale(4.6)" fill="#ff3b6b"><use href="#heart"/></g>
+      <g transform="translate(400 760) scale(4.6)" fill="#1b2340"><use href="#spade"/></g>
+      <g transform="translate(540 788) scale(4.6)" fill="#33e6b3"><use href="#club"/></g>
+      <g transform="translate(680 760) scale(4.6)" fill="#ffd26a"><use href="#diamond"/></g>
     </g>
   </g>
+
+  <!-- Golden outline glow -->
+  <text x="512" y="628" text-anchor="middle"
+        font-family="Inter, SF Pro Display, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-weight="900" font-size="290" letter-spacing="10"
+        fill="none" stroke="url(#dingStroke)" stroke-width="36" paint-order="stroke fill"
+        filter="url(#goldGlow)" opacity="0.9">
+    DING
+  </text>
 
   <!-- Stylized DING (outline + fill + gloss) -->
   <g filter="url(#textShadow)">
@@ -215,7 +244,7 @@
     <text x="512" y="628" text-anchor="middle"
           font-family="Inter, SF Pro Display, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
           font-weight="900" font-size="290" letter-spacing="10"
-          fill="#050814" stroke="#0a0f24" stroke-width="26" paint-order="stroke fill">
+          fill="url(#dingFill)" stroke="url(#dingStroke)" stroke-width="26" paint-order="stroke fill">
       DING
     </text>
 
@@ -227,6 +256,13 @@
           filter="url(#softGlow)">
       DING
     </text>
+
+    <text x="512" y="740" text-anchor="middle"
+          font-family="Inter, SF Pro Display, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+          font-weight="800" font-size="56" letter-spacing="8"
+          fill="rgba(255,255,255,0.9)">
+      Online
+    </text>
   </g>
 
   <!-- Gloss band clipped to the text -->
@@ -235,13 +271,7 @@
           fill="url(#gloss)"/>
   </g>
 
-  <!-- Small suit accents near the word (card-game cue without clutter) -->
-  <g opacity="0.95" filter="url(#softGlow)">
-    <g transform="translate(240 430) scale(3.0)" fill="#ff3b6b"><use href="#heart"/></g>
-    <g transform="translate(785 438) scale(3.0)" fill="#33e6b3"><use href="#club"/></g>
-    <g transform="translate(520 690) scale(2.9)" fill="#ffd26a"><use href="#diamond"/></g>
-  </g>
-
-  <!-- Green dot signature -->
+  <!-- Signature dots -->
+  <circle cx="204" cy="392" r="34" fill="#8c5cff" filter="url(#dotGlowPurple)"/>
   <circle cx="820" cy="392" r="34" fill="#2ef3a3" filter="url(#dotGlow)"/>
 </svg>
