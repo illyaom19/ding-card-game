@@ -1659,6 +1659,8 @@ const state = {
   roomCreatedBySelf: false,
   joinRoomActive: false,
   playerMenuTarget: null,
+  playRequestPending: false,
+  playRequestTimer: null,
   hasMadeFirstMove: false,
   pwaPromptDismissed: false,
   pushToken: null,
@@ -2217,7 +2219,9 @@ function getRoomDisplayName(name){
 function getNameInitial(name){
   const clean = (name || "").trim();
   if(!clean) return "?";
-  return clean[0].toUpperCase();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if(parts.length <= 1) return clean[0].toUpperCase();
+  return parts.map(part => part[0]).join("").toUpperCase();
 }
 function getDefaultRoomName(){
   const raw = (state.selfName || "").trim();
@@ -4497,6 +4501,8 @@ function resetAll(){
   state.selfHand = [];
   state.joinRoomActive = false;
   state.roomCreatedBySelf = false;
+  state.playRequestPending = false;
+  if(state.playRequestTimer){ clearTimeout(state.playRequestTimer); state.playRequestTimer = null; }
   closePlayerMenu();
   state.roomSynced = false;
   state.handSynced = false;
@@ -5018,6 +5024,7 @@ function playableCardIdsForCurrentPlayer(){
 function playSelectedCard(){
   setError(null);
   if(state.phase !== PHASE.TRICK) return;
+  if(state.playRequestPending) return;
   const isMulti = isMultiplayer();
   if(isMulti && !ensureConnectedForAction({ requireHand: true })) return;
   if(isMulti && state.selfIndex !== state.currentTurnIndex){
@@ -5052,11 +5059,20 @@ function playSelectedCard(){
       return;
     }
   }
+  state.playRequestPending = true;
+  if(state.playRequestTimer){ clearTimeout(state.playRequestTimer); }
+  state.playRequestTimer = setTimeout(()=>{
+    state.playRequestPending = false;
+    state.playRequestTimer = null;
+    render();
+  }, 6000);
   if(isMulti) handleFirstMultiplayerMove();
   // animate play: clone the card DOM and fly it to the trick area, then commit the play
   const node = els.handArea.querySelector(`[data-card-id="${card.id}"]`);
   const syncIfMulti = ()=>{ if(isMulti) syncRoomState("play"); };
   const commitPlay = ()=>{
+    state.playRequestPending = false;
+    if(state.playRequestTimer){ clearTimeout(state.playRequestTimer); state.playRequestTimer = null; }
     // commit play
     if(isMulti){
       state.selfHand = state.selfHand.filter(c => c.id !== card.id);
@@ -5642,6 +5658,7 @@ function renderHand(){
     if(actionAllowed){
       els.confirmPlayBtn.style.display = "inline-block";
     }
+    els.confirmPlayBtn.disabled = !actionAllowed || state.playRequestPending;
   }
 
   // update auto-pass visual in hand header
