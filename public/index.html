@@ -308,6 +308,15 @@
       backdrop-filter: blur(10px);
     }
     .menu.open{ display:flex; }
+    .playerMenu{
+      position: fixed;
+      top: auto;
+      left: 0;
+      right: auto;
+      display: none;
+      z-index: 120;
+    }
+    .playerMenu.open{ display:flex; }
     .menuItem{
       width:100%;
       text-align:left;
@@ -1165,6 +1174,7 @@
       flex-direction:column;
       gap:6px;
     }
+    .lobbyChatSlot{ margin-top:6px; }
     .roomLobbyTitle{ font-weight:800; }
     /* winner banner */
     #winnerBanner{
@@ -1329,6 +1339,7 @@
               <div class="roomLobbyTitle" id="roomLobbyTitle">Room</div>
               <div class="small" id="roomLobbySub">—</div>
               <div id="lobbyPlayers" class="lobbyList"></div>
+              <div class="lobbyChatSlot" id="lobbyChatSlot"></div>
             </div>
           </div>
           <div id="roomListSection" class="roomListSection" style="display:none;">
@@ -1445,7 +1456,7 @@
           </div>
         </div>
       </div>
-      <div class="bd tableArea">
+      <div class="bd tableArea" id="tableArea">
         <div class="trickArea" id="trickArea"></div>
 
         <div id="handPanel" class="panel" style="border-radius:18px;">
@@ -1491,6 +1502,11 @@
     </section>
   </div>
 </main>
+
+<div class="menu playerMenu" id="playerMenu" role="menu">
+  <button class="menuItem" id="playerMenuKickBtn" type="button">Kick</button>
+  <button class="menuItem" id="playerMenuMakeHostBtn" type="button">Make host</button>
+</div>
 
 <div class="lock" id="lock">
   <div class="box">
@@ -1612,6 +1628,7 @@ const state = {
   roomNameDraft: "",
   roomCreatedBySelf: false,
   joinRoomActive: false,
+  playerMenuTarget: null,
   hasMadeFirstMove: false,
   pwaPromptDismissed: false,
   pushToken: null,
@@ -1766,6 +1783,8 @@ const els = {
   roomListSection: document.getElementById("roomListSection"),
   roomList: document.getElementById("roomList"),
   roomListEmpty: document.getElementById("roomListEmpty"),
+  lobbyChatSlot: document.getElementById("lobbyChatSlot"),
+  tableArea: document.getElementById("tableArea"),
   logCard: document.getElementById("logCard"),
   logHeader: document.getElementById("logHeader"),
   logCaret: document.getElementById("logCaret"),
@@ -1776,6 +1795,9 @@ const els = {
   chatHint: document.getElementById("chatHint"),
   chatInput: document.getElementById("chatInput"),
   chatSendBtn: document.getElementById("chatSendBtn"),
+  playerMenu: document.getElementById("playerMenu"),
+  playerMenuKickBtn: document.getElementById("playerMenuKickBtn"),
+  playerMenuMakeHostBtn: document.getElementById("playerMenuMakeHostBtn"),
   reconnectOverlay: document.getElementById("reconnectOverlay"),
   reconnectStatus: document.getElementById("reconnectStatus"),
   offlineModeBtn: document.getElementById("offlineModeBtn"),
@@ -2136,6 +2158,10 @@ function renderLobbyPlayers(){
   players.forEach((p)=>{
     const row = document.createElement("div");
     row.className = "lobbyPlayer";
+    row.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      maybeOpenPlayerMenu(p, row);
+    });
     const name = document.createElement("span");
     name.textContent = p.name || "Player";
     row.appendChild(name);
@@ -2717,6 +2743,139 @@ function updateRoomJoinUI(){
   }
   els.joinRoomBtn.disabled = !state.isSignedIn || inRoom;
 }
+function updateChatPlacement(){
+  if(!els.chatBlock) return;
+  const inLobby = isMultiplayer() && state.isSignedIn && state.roomId && state.phase === PHASE.LOBBY;
+  if(inLobby && els.lobbyChatSlot){
+    if(els.chatBlock.parentElement !== els.lobbyChatSlot){
+      els.lobbyChatSlot.appendChild(els.chatBlock);
+    }
+    return;
+  }
+  if(els.tableArea && els.chatBlock.parentElement !== els.tableArea){
+    els.tableArea.appendChild(els.chatBlock);
+  }
+}
+function canManagePlayers(){
+  return !!(isMultiplayer() && state.roomId && state.isSignedIn && state.selfUid && state.hostUid && state.selfUid === state.hostUid);
+}
+function closePlayerMenu(){
+  if(!els.playerMenu) return;
+  els.playerMenu.classList.remove("open");
+  els.playerMenu.style.left = "";
+  els.playerMenu.style.top = "";
+  state.playerMenuTarget = null;
+}
+function openPlayerMenu(target, anchor){
+  if(!els.playerMenu || !target || !anchor) return;
+  state.playerMenuTarget = target;
+  const isSelf = target.uid && target.uid === state.selfUid;
+  const isTargetHost = target.uid && target.uid === state.hostUid;
+  if(els.playerMenuKickBtn) els.playerMenuKickBtn.disabled = isSelf || isTargetHost;
+  if(els.playerMenuMakeHostBtn) els.playerMenuMakeHostBtn.disabled = isSelf || isTargetHost;
+  els.playerMenu.classList.add("open");
+  const rect = anchor.getBoundingClientRect();
+  const menuRect = els.playerMenu.getBoundingClientRect();
+  let left = rect.left;
+  let top = rect.bottom + 6;
+  if(left + menuRect.width > window.innerWidth - 8){
+    left = window.innerWidth - menuRect.width - 8;
+  }
+  if(top + menuRect.height > window.innerHeight - 8){
+    top = rect.top - menuRect.height - 6;
+  }
+  left = Math.max(8, left);
+  top = Math.max(8, top);
+  els.playerMenu.style.left = `${left}px`;
+  els.playerMenu.style.top = `${top}px`;
+}
+function maybeOpenPlayerMenu(target, anchor){
+  if(!canManagePlayers()) return;
+  if(!target || !target.uid || target.uid === state.selfUid) return;
+  if(els.playerMenu && state.playerMenuTarget && state.playerMenuTarget.uid === target.uid && els.playerMenu.classList.contains("open")){
+    closePlayerMenu();
+    return;
+  }
+  openPlayerMenu({ uid: target.uid, name: target.name || "Player" }, anchor);
+}
+function handleKickedFromRoom(roomName){
+  const name = getRoomDisplayName(roomName);
+  const msg = `You have been kicked from ${name}.`;
+  leaveRoom();
+  location.hash = "";
+  setError(msg);
+  flashRoomStatus(msg);
+}
+async function kickPlayerFromRoom(target){
+  if(!canManagePlayers()) return;
+  if(!target || !target.uid || target.uid === state.selfUid || target.uid === state.hostUid) return;
+  if(!ensureConnectedForAction()) return;
+  closePlayerMenu();
+  try{
+    const snap = await getDoc(roomRef(state.roomId));
+    if(!snap.exists()) return;
+    const data = snap.data() || {};
+    const players = Array.isArray(data.players) ? data.players : [];
+    const leavingIdx = players.findIndex(p => p.uid === target.uid);
+    if(leavingIdx < 0) return;
+    const leavingName = players[leavingIdx]?.name || target.name || "Player";
+    const updatedPlayers = players.filter((_, i)=> i !== leavingIdx);
+    const payload = { players: updatedPlayers };
+    if(data.hostUid && data.hostUid === target.uid){
+      const nextHost = updatedPlayers.find(p => p.uid)?.uid || null;
+      payload.hostUid = nextHost;
+    }
+    if(leavingIdx >= 0){
+      const adjustIndex = (value)=>{
+        if(typeof value !== "number") return value;
+        if(value > leavingIdx) return value - 1;
+        if(value === leavingIdx){
+          return updatedPlayers.length ? Math.min(value, updatedPlayers.length - 1) : 0;
+        }
+        return value;
+      };
+      if(typeof data.dealerIndex === "number") payload.dealerIndex = adjustIndex(data.dealerIndex);
+      if(typeof data.leaderIndex === "number") payload.leaderIndex = adjustIndex(data.leaderIndex);
+      if(typeof data.currentTurnIndex === "number") payload.currentTurnIndex = adjustIndex(data.currentTurnIndex);
+    }
+    await updateDoc(roomRef(state.roomId), payload);
+    try{ await deleteDoc(handRef(state.roomId, target.uid)); } catch (err){}
+    await logRoomEventForRoom(state.roomId, {
+      type: "chat",
+      message: `${leavingName} has been kicked.`,
+      playerName: "System",
+      playerUid: state.selfUid || null,
+    });
+  } catch (err){
+    console.error("Failed to kick player:", err);
+    setError("Failed to kick player.");
+  }
+}
+async function makeHostForPlayer(target){
+  if(!canManagePlayers()) return;
+  if(!target || !target.uid || target.uid === state.selfUid || target.uid === state.hostUid) return;
+  if(!ensureConnectedForAction()) return;
+  closePlayerMenu();
+  try{
+    const snap = await getDoc(roomRef(state.roomId));
+    if(!snap.exists()) return;
+    const data = snap.data() || {};
+    const players = Array.isArray(data.players) ? data.players : [];
+    const found = players.find(p => p.uid === target.uid);
+    if(!found) return;
+    const targetName = found.name || target.name || "Player";
+    await updateDoc(roomRef(state.roomId), { hostUid: target.uid });
+    await logRoomEventForRoom(state.roomId, {
+      type: "chat",
+      message: `${targetName} has been made host.`,
+      playerName: "System",
+      playerUid: state.selfUid || null,
+    });
+  } catch (err){
+    console.error("Failed to make host:", err);
+    setError("Failed to make host.");
+  }
+}
 function buildPlayer(uid, name, seed=null){
   return {
     uid,
@@ -2757,6 +2916,7 @@ function updateModeUI(){
   renderRoomList();
   updateRoomNameUI();
   updateRoomJoinUI();
+  updateChatPlacement();
   updateRoomMenuUI();
   updateRoomLobbyUI();
   updateGameTitle();
@@ -2843,6 +3003,7 @@ function updateAuthUI(){
   updateNicknameUI();
   updateRoomNameUI();
   updateRoomJoinUI();
+  updateChatPlacement();
   updateRoomMenuUI();
   renderRoomList();
   updateRoomLobbyUI();
@@ -2857,6 +3018,7 @@ function updateRoomStatus(){
       updateNicknameUI();
       updateRoomNameUI();
       updateRoomJoinUI();
+      updateChatPlacement();
       updateRoomMenuUI();
       updateRoomLobbyUI();
       updateGameTitle();
@@ -2870,6 +3032,7 @@ function updateRoomStatus(){
   updateNicknameUI();
   updateRoomNameUI();
   updateRoomJoinUI();
+  updateChatPlacement();
   updateRoomMenuUI();
   updateRoomLobbyUI();
   updateGameTitle();
@@ -3232,6 +3395,8 @@ function applyRoomState(data){
   if(!data) return;
   const prevPhase = state.phase;
   const prevTurn = state.currentTurnIndex;
+  let kicked = false;
+  let kickedRoomName = "";
   state.isApplyingRemote = true;
   try{
     state.mode = MODE.MULTI;
@@ -3283,6 +3448,10 @@ function applyRoomState(data){
     state.playedCards = Array.isArray(data.playedCards) ? data.playedCards : [];
     state.hostUid = data.hostUid ?? state.hostUid;
     state.selfIndex = state.players.findIndex(p => p.uid === state.selfUid);
+    if(state.selfUid && state.roomId && state.selfIndex < 0){
+      kicked = true;
+      kickedRoomName = getRoomDisplayName(data.roomName);
+    }
     if(state.selfIndex < 0) state.selfHand = [];
     state.lockOn = false;
     state.pendingRevealForIndex = null;
@@ -3292,6 +3461,10 @@ function applyRoomState(data){
     }
   } finally {
     state.isApplyingRemote = false;
+  }
+  if(kicked){
+    handleKickedFromRoom(kickedRoomName);
+    return;
   }
   ackTurnNotificationIfNeeded();
   syncSettingsUI();
@@ -4261,6 +4434,7 @@ function resetAll(){
   state.selfHand = [];
   state.joinRoomActive = false;
   state.roomCreatedBySelf = false;
+  closePlayerMenu();
   state.roomSynced = false;
   state.handSynced = false;
   state.roomResyncing = false;
@@ -5062,6 +5236,10 @@ function renderScoreboard(){
   state.players.forEach((p, idx)=>{
     const row = document.createElement("div");
     row.className = "playerRow";
+    row.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      maybeOpenPlayerMenu(p, row);
+    });
     // highlight active turn
     if(idx === state.currentTurnIndex) row.classList.add('activeTurn');
     const left = document.createElement("div");
@@ -5664,6 +5842,7 @@ function render(){
   renderHand();
   renderStatus();
   renderRoomLog();
+  updateChatPlacement();
   renderConnectionOverlay();
   state.lastPhase = state.phase;
 
@@ -5950,6 +6129,19 @@ if(els.joinRoomBtn){
 if(els.shareRoomBtn){
   els.shareRoomBtn.addEventListener("click", ()=> shareRoomCode());
 }
+if(els.playerMenu){
+  els.playerMenu.addEventListener("click", (e)=> e.stopPropagation());
+}
+if(els.playerMenuKickBtn){
+  els.playerMenuKickBtn.addEventListener("click", ()=>{
+    if(state.playerMenuTarget) kickPlayerFromRoom(state.playerMenuTarget);
+  });
+}
+if(els.playerMenuMakeHostBtn){
+  els.playerMenuMakeHostBtn.addEventListener("click", ()=>{
+    if(state.playerMenuTarget) makeHostForPlayer(state.playerMenuTarget);
+  });
+}
 if(els.saveNicknameBtn){
   els.saveNicknameBtn.addEventListener("click", async ()=>{
     await saveNickname();
@@ -6032,6 +6224,11 @@ document.addEventListener("visibilitychange", ()=>{
     }
   }
 });
+document.addEventListener("click", ()=> closePlayerMenu());
+document.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape") closePlayerMenu();
+});
+window.addEventListener("resize", ()=> closePlayerMenu());
 if(els.signInBtn){
   els.signInBtn.addEventListener("click", async ()=>{
     if(!firebaseAuth || !googleProvider){
