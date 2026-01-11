@@ -288,6 +288,7 @@
       100%{ transform: translate3d(0,0,0) scale(1); opacity:1 }
     }
     .cardBtn .top,.cardBtn .bot{font-weight:900; font-size:14px}
+    .cardBtn .bot{ text-align:right; }
     .cardBtn .mid{font-size:20px; text-align:center}
     .row2{display:flex; gap:10px; flex-wrap:wrap;}
     #tablePanel .row2{ justify-content:center; }
@@ -1504,8 +1505,8 @@
 </main>
 
 <div class="menu playerMenu" id="playerMenu" role="menu">
-  <button class="menuItem" id="playerMenuKickBtn" type="button">Kick</button>
   <button class="menuItem" id="playerMenuMakeHostBtn" type="button">Make host</button>
+  <button class="menuItem danger" id="playerMenuKickBtn" type="button">Kick</button>
 </div>
 
 <div class="lock" id="lock">
