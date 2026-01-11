@@ -1216,7 +1216,7 @@
               <div class="mpStatus" id="authStatus">Not signed in.</div>
             </div>
             <div class="mpRow" id="nicknameRow" style="margin-bottom:8px; display:none;">
-              <input class="input" id="nicknameInput" placeholder="Nickname for this room" maxlength="18" />
+              <input class="input" id="nicknameInput" placeholder="Nickname in this room" maxlength="18" />
               <button class="btn" id="saveNicknameBtn">Save nickname</button>
             </div>
             <div class="mpStatus mpHint" id="nicknameStatus" style="display:none;"></div>
@@ -2081,7 +2081,7 @@ function updateNicknameUI(){
   els.saveNicknameBtn.disabled = !inRoom;
   if(!inRoom){
     els.nicknameInput.value = "";
-    setNicknameStatus("Join a room to set a nickname for this room.");
+    setNicknameStatus("");
     return;
   }
   const saved = getRoomNickname(state.roomId);
