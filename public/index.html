@@ -1024,11 +1024,41 @@
       display:none;
       align-items:center;
       justify-content:center;
-      background: rgba(6,9,18,.7);
-      backdrop-filter: blur(8px);
+      background: rgba(6,9,18,0);
+      backdrop-filter: blur(0px);
       z-index: 70;
+      opacity:0;
+      pointer-events:none;
+      overflow:hidden;
     }
-    .fullscreenPopup.show{ display:flex; }
+    .fullscreenPopup.show,
+    .fullscreenPopup.hiding{ display:flex; }
+    .fullscreenPopup.show{
+      pointer-events:auto;
+      animation: popupBackdropIn 0.4s ease-out forwards;
+    }
+    .fullscreenPopup.hiding{
+      pointer-events:none;
+      animation: popupBackdropOut 0.45s ease-in forwards;
+    }
+    .confetti{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity:0;
+      transition: opacity .2s ease;
+    }
+    .fullscreenPopup.confettiOn .confetti{ opacity:1; }
+    .confettiPiece{
+      position:absolute;
+      width:8px;
+      height:14px;
+      border-radius:2px;
+      background: var(--confetti-color, #fff);
+      opacity:.9;
+      transform: translate3d(0,-20%,0) rotate(0deg);
+      animation: confettiFall var(--confetti-duration, 3s) var(--confetti-delay, 0s) ease-in forwards;
+    }
     .popupCard{
       padding:28px 26px;
       border-radius:20px;
@@ -1036,8 +1066,16 @@
       background: rgba(12,18,40,.95);
       box-shadow: var(--shadow);
       text-align:center;
-      animation: popupIn 0.24s ease-out;
       min-width:220px;
+      opacity:0;
+      transform: scale(.95);
+      filter: blur(4px);
+    }
+    .fullscreenPopup.show .popupCard{
+      animation: popupCardIn 0.38s ease-out forwards;
+    }
+    .fullscreenPopup.hiding .popupCard{
+      animation: popupCardOut 0.36s ease-in forwards;
     }
     .popupCard.danger{
       border-color: rgba(255,92,122,.45);
@@ -1057,9 +1095,28 @@
       font-size:13px;
       color:var(--muted);
     }
-    @keyframes popupIn{
-      from{ transform: scale(.9); opacity:.6; }
-      to{ transform: scale(1); opacity:1; }
+    .popupCard.danger .popupSubtitle{ color:#ffd0d8; }
+    .popupCard.good .popupSubtitle{ color:#baf5d4; }
+    @keyframes popupBackdropIn{
+      from{ opacity:0; backdrop-filter: blur(0px); background: rgba(6,9,18,0); }
+      to{ opacity:1; backdrop-filter: blur(8px); background: rgba(6,9,18,.7); }
+    }
+    @keyframes popupBackdropOut{
+      from{ opacity:1; backdrop-filter: blur(8px); background: rgba(6,9,18,.7); }
+      to{ opacity:0; backdrop-filter: blur(0px); background: rgba(6,9,18,0); }
+    }
+    @keyframes popupCardIn{
+      from{ transform: scale(.92); opacity:0; filter: blur(8px); }
+      to{ transform: scale(1); opacity:1; filter: blur(0px); }
+    }
+    @keyframes popupCardOut{
+      from{ transform: scale(1); opacity:1; filter: blur(0px); }
+      to{ transform: scale(.96); opacity:0; filter: blur(8px); }
+    }
+    @keyframes confettiFall{
+      0%{ transform: translate3d(0,-20%,0) rotate(0deg); opacity:0; }
+      15%{ opacity:1; }
+      100%{ transform: translate3d(0,120vh,0) rotate(var(--confetti-rot, 360deg)); opacity:0; }
     }
     .lobbyList{ display:flex; flex-direction:column; gap:6px; }
     .lobbyPlayer{
@@ -1280,6 +1337,7 @@
   </div>
 </div>
 <div id="fullscreenPopup" class="fullscreenPopup" aria-live="assertive">
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
   <div class="popupCard" id="popupCard">
     <div class="popupTitle" id="popupTitle">YOU GOT DUNG</div>
     <div class="popupSubtitle" id="popupSubtitle"></div>
@@ -1746,6 +1804,9 @@ const state = {
   unsubConnectivity: null,
   reconnectTimer: null,
   popupTimer: null,
+  popupDismissTimer: null,
+  popupHideTimer: null,
+  popupDismissible: false,
   collapsed: { game:false, table:false, hand:false },
 };
 
@@ -1837,6 +1898,7 @@ const els = {
   popupCard: document.getElementById("popupCard"),
   popupTitle: document.getElementById("popupTitle"),
   popupSubtitle: document.getElementById("popupSubtitle"),
+  confetti: document.getElementById("confetti"),
 
   scoreboard: document.getElementById("scoreboard"),
   gameOverActions: document.getElementById("gameOverActions"),
@@ -2473,22 +2535,84 @@ function startConnectivityMonitor(){
   });
   ensureReconnectLoop();
 }
-function showFullscreenPopup({ title, subtitle = "", tone = "" }){
-  if(!els.fullscreenPopup || !els.popupTitle || !els.popupCard) return;
+const POPUP_MIN_MS = 3000;
+const POPUP_IN_MS = 380;
+const POPUP_OUT_MS = 450;
+
+function clearPopupTimers(){
   if(state.popupTimer){ clearTimeout(state.popupTimer); state.popupTimer = null; }
+  if(state.popupDismissTimer){ clearTimeout(state.popupDismissTimer); state.popupDismissTimer = null; }
+  if(state.popupHideTimer){ clearTimeout(state.popupHideTimer); state.popupHideTimer = null; }
+}
+function spawnConfetti(){
+  if(!els.confetti) return;
+  els.confetti.innerHTML = "";
+  const colors = ["#8f7cff", "#67e69f", "#ffdf8c", "#5cc8ff", "#ff7ca1"];
+  const count = 28;
+  for(let i = 0; i < count; i++){
+    const piece = document.createElement("span");
+    piece.className = "confettiPiece";
+    const size = 6 + Math.random() * 6;
+    piece.style.width = `${size}px`;
+    piece.style.height = `${Math.round(size * 1.6)}px`;
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.top = `${-20 - Math.random() * 20}%`;
+    piece.style.setProperty("--confetti-color", colors[i % colors.length]);
+    piece.style.setProperty("--confetti-duration", `${2.6 + Math.random() * 1.6}s`);
+    piece.style.setProperty("--confetti-delay", `${Math.random() * 0.25}s`);
+    piece.style.setProperty("--confetti-rot", `${180 + Math.random() * 360}deg`);
+    els.confetti.appendChild(piece);
+  }
+}
+function hideFullscreenPopup(){
+  if(!els.fullscreenPopup) return;
+  if(!els.fullscreenPopup.classList.contains("show")) return;
+  clearPopupTimers();
+  state.popupDismissible = false;
+  els.fullscreenPopup.classList.add("hiding");
+  els.fullscreenPopup.classList.remove("show");
+  state.popupHideTimer = setTimeout(()=>{
+    els.fullscreenPopup.classList.remove("hiding", "confettiOn");
+    if(els.confetti) els.confetti.innerHTML = "";
+  }, POPUP_OUT_MS);
+}
+function showFullscreenPopup({ title, subtitle = "", tone = "", confetti = false, minDuration = POPUP_MIN_MS }){
+  if(!els.fullscreenPopup || !els.popupTitle || !els.popupCard) return;
+  clearPopupTimers();
+  state.popupDismissible = false;
   els.popupTitle.textContent = title;
-  if(els.popupSubtitle) els.popupSubtitle.textContent = subtitle;
+  if(els.popupSubtitle){
+    els.popupSubtitle.textContent = subtitle;
+    els.popupSubtitle.style.display = subtitle ? "block" : "none";
+  }
   els.popupCard.classList.remove("danger", "good");
   if(tone) els.popupCard.classList.add(tone);
+  els.fullscreenPopup.classList.remove("show", "hiding", "confettiOn");
+  if(confetti){
+    els.fullscreenPopup.classList.add("confettiOn");
+    spawnConfetti();
+  } else if(els.confetti){
+    els.confetti.innerHTML = "";
+  }
+  void els.fullscreenPopup.offsetWidth;
   els.fullscreenPopup.classList.add("show");
+  state.popupDismissTimer = setTimeout(()=>{
+    state.popupDismissible = true;
+  }, POPUP_IN_MS);
   state.popupTimer = setTimeout(()=>{
-    els.fullscreenPopup.classList.remove("show");
-  }, 1400);
+    hideFullscreenPopup();
+  }, Math.max(minDuration, POPUP_MIN_MS));
 }
 function triggerPopupOnce(key, options){
   if(!key || state.lastPopupKey === key) return;
   state.lastPopupKey = key;
   showFullscreenPopup(options);
+}
+if(els.fullscreenPopup){
+  els.fullscreenPopup.addEventListener("click", ()=>{
+    if(!state.popupDismissible) return;
+    hideFullscreenPopup();
+  });
 }
 function showPwaPrompt(){
   if(!els.pwaPrompt) return;
@@ -5305,21 +5429,31 @@ function endHand(){
   if(isMultiplayer()) syncRoomState("end-hand");
 
   const selfIdx = isMultiplayer() ? state.selfIndex : null;
-  if(selfIdx !== null && dingedIndexes.includes(selfIdx)){
+  const selfDinged = selfIdx !== null && dingedIndexes.includes(selfIdx);
+  if(state.winnerIndex !== null){
+    const winnerName = state.players[state.winnerIndex]?.name ?? "Player";
+    const isSelfWinner = isMultiplayer() && selfIdx === state.winnerIndex;
+    if(isSelfWinner){
+      triggerPopupOnce(`win-${state.handId}-${state.winnerIndex}-self`, {
+        title: "YOU WON!",
+        subtitle: "",
+        tone: "good",
+        confetti: true,
+      });
+    } else if(selfIdx !== null){
+      const title = selfDinged ? "YOU JUST GOT DUNG!" : `${winnerName} WON`;
+      const subtitle = selfDinged ? `${winnerName} WON` : "";
+      triggerPopupOnce(`win-${state.handId}-${state.winnerIndex}-${selfIdx}-${selfDinged ? "dung" : "loss"}`, {
+        title,
+        subtitle,
+        tone: "danger",
+      });
+    }
+  } else if(selfDinged){
     triggerPopupOnce(`ding-${state.handId}-${selfIdx}`, {
       title: "YOU GOT DUNG",
       subtitle: "Reset to the starting score.",
       tone: "danger",
-    });
-  }
-  if(state.winnerIndex !== null){
-    const winnerName = state.players[state.winnerIndex]?.name ?? "Player";
-    const isSelfWinner = isMultiplayer() && selfIdx === state.winnerIndex;
-    const title = isSelfWinner ? "YOU WON" : `${winnerName} WON`;
-    triggerPopupOnce(`win-${state.handId}-${state.winnerIndex}`, {
-      title,
-      subtitle: isSelfWinner ? "Nice work." : "Game over.",
-      tone: "good",
     });
   }
 }
