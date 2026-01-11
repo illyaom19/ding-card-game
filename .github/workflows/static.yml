@@ -1,13 +1,8 @@
-name: Deploy DING Website
+name: Deploy DING to Firebase Hosting
 
 on:
   push:
     branches: [main]
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
 
 jobs:
   deploy:
@@ -17,14 +12,19 @@ jobs:
 
       - name: Write firebase-config.js
         run: |
-          cat > firebase-config.js <<'EOF'
+          cat > public/firebase-config.js <<'EOF'
           globalThis.FIREBASE_CONFIG = ${{ secrets.FIREBASE_CONFIG }};
           globalThis.FIREBASE_VAPID_KEY = "${{ secrets.FIREBASE_VAPID_KEY }}";
           globalThis.APP_COMMIT = "${{ github.sha }}";
           EOF
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/setup-node@v4
         with:
-          path: .
-      - uses: actions/deploy-pages@v4
+          node-version: "20"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
+
+      - name: Deploy to Firebase Hosting
+        run: npx firebase-tools deploy --only hosting --project "${{ secrets.FIREBASE_PROJECT_ID }}"

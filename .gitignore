@@ -4,3 +4,5 @@ firebase-config.js
 ding-d2ac2-firebase-adminsdk-fbsvc-561f6752ad.json
 node_modules
 functions/node_modules
+
+public/firebase-config.js
