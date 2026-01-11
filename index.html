@@ -1994,7 +1994,6 @@ function toggleDebugLog(){
 }
 function handRef(roomId, uid){ return doc(firebaseDb, ROOM_COLLECTION, roomId, "hands", uid); }
 function logCollectionRef(roomId){ return collection(firebaseDb, ROOM_COLLECTION, roomId, LOG_COLLECTION); }
-function logEntryRef(roomId, logId){ return doc(firebaseDb, ROOM_COLLECTION, roomId, LOG_COLLECTION, logId); }
 function flashRoomStatus(msg){
   if(!els.roomStatus) return;
   const prev = els.roomStatus.textContent;
@@ -3397,20 +3396,65 @@ async function toggleChatLike(entry){
     setError("Sign in first.");
     return;
   }
-  const likes = Array.isArray(entry.likes) ? entry.likes.filter(Boolean) : [];
-  const hasLiked = likes.includes(state.selfUid);
-  const nextLikes = hasLiked
-    ? likes.filter(uid => uid !== state.selfUid)
-    : [...likes, state.selfUid];
-  entry.likes = nextLikes;
-  renderRoomLog();
+  const likeIndex = buildChatLikeIndex(state.logEntries || []);
+  const likeMap = likeIndex.get(entry.id);
+  const selfInfo = likeMap ? likeMap.get(state.selfUid) : null;
+  const hasLiked = selfInfo ? selfInfo.liked === true : false;
+  const nextLiked = !hasLiked;
+  const name = state.players[state.selfIndex]?.name || state.selfName || "Player";
   try{
-    await updateDoc(logEntryRef(state.roomId, entry.id), {
-      likes: hasLiked ? arrayRemove(state.selfUid) : arrayUnion(state.selfUid),
+    await logRoomEvent({
+      type: "chat_like",
+      targetId: entry.id,
+      liked: nextLiked,
+      playerName: name,
+      playerUid: state.selfUid || null,
+      clientCreatedAt: Date.now(),
     });
   } catch (err){
     console.error("Failed to update chat like:", err);
   }
+}
+
+function buildChatLikeIndex(entries){
+  const getEntryTimestamp = (entry)=>{
+    if(entry && entry.createdAt && typeof entry.createdAt.toMillis === "function"){
+      return entry.createdAt.toMillis();
+    }
+    if(typeof entry.clientCreatedAt === "number"){
+      return entry.clientCreatedAt;
+    }
+    return 0;
+  };
+  const index = new Map();
+  for(const entry of entries){
+    if(entry.type !== "chat") continue;
+    if(!entry.id) continue;
+    if(!Array.isArray(entry.likes)) continue;
+    let map = index.get(entry.id);
+    if(!map){
+      map = new Map();
+      index.set(entry.id, map);
+    }
+    for(const uid of entry.likes){
+      if(uid && !map.has(uid)) map.set(uid, { liked: true, ts: 0 });
+    }
+  }
+  for(const entry of entries){
+    if(entry.type !== "chat_like") continue;
+    if(!entry.targetId || !entry.playerUid) continue;
+    const ts = getEntryTimestamp(entry);
+    let map = index.get(entry.targetId);
+    if(!map){
+      map = new Map();
+      index.set(entry.targetId, map);
+    }
+    const prev = map.get(entry.playerUid);
+    if(!prev || ts >= prev.ts){
+      map.set(entry.playerUid, { liked: entry.liked !== false, ts });
+    }
+  }
+  return index;
 }
 
 function renderRoomLog(){
@@ -3538,6 +3582,7 @@ function renderRoomLog(){
     });
   }
   if(els.chatBlock && els.chatList){
+    const likeIndex = buildChatLikeIndex(state.logEntries || []);
     const chatEntries = state.logEntries.filter(entry=> entry.type === "chat");
     if(els.chatHint){
       els.chatHint.textContent = chatEntries.length ? `${chatEntries.length} message${chatEntries.length === 1 ? "" : "s"}` : "No messages yet";
@@ -3556,10 +3601,16 @@ function renderRoomLog(){
       text.textContent = entry.message || "";
       const heart = document.createElement("div");
       heart.className = "chatHeart";
-      const rawLikes = Array.isArray(entry.likes) ? entry.likes.filter(Boolean) : [];
-      const uniqueLikes = Array.from(new Set(rawLikes));
-      const likeCount = uniqueLikes.length;
-      const likedBySelf = state.selfUid ? uniqueLikes.includes(state.selfUid) : false;
+      const likeMap = likeIndex.get(entry.id);
+      let likeCount = 0;
+      let likedBySelf = false;
+      if(likeMap){
+        for(const [uid, info] of likeMap.entries()){
+          if(!info.liked) continue;
+          likeCount += 1;
+          if(state.selfUid && uid === state.selfUid) likedBySelf = true;
+        }
+      }
       heart.classList.toggle("hidden", likeCount === 0);
       heart.classList.toggle("liked", likedBySelf);
       heart.innerHTML = `&#9829; ${likeCount}`;
