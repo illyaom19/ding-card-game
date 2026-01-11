@@ -136,10 +136,8 @@
   <!-- Base icon -->
   <g filter="url(#drop)">
     <rect x="110" y="110" width="804" height="804" rx="150" fill="url(#bgRad)"/>
-    <rect x="118" y="118" width="788" height="788" rx="145" fill="none" stroke="url(#rimGrad)" stroke-width="16"/>
     <rect x="155" y="155" width="714" height="714" rx="128"
-          fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="6"
-          filter="url(#innerShadow)"/>
+          fill="rgba(255,255,255,0.03)" filter="url(#innerShadow)"/>
   </g>
 
   <!-- Decorative sparkles -->
