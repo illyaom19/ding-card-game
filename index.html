@@ -818,7 +818,7 @@
       display:flex;
       flex-direction:column;
       gap:8px;
-      margin-bottom:10px;
+      margin:12px 0 0;
     }
     .chatHeader{
       display:flex;
@@ -869,7 +869,7 @@
       border:1px solid rgba(255,255,255,.1);
       background: rgba(255,255,255,.04);
       color:var(--text);
-      font-size:13px;
+      font-size:16px;
     }
     .chatComposer input::placeholder{ color:var(--muted); }
     .connectionStatus{
@@ -1191,6 +1191,7 @@
               <button class="menuItem" id="menuEnableNotificationsBtn" type="button">Enable notifications</button>
               <div class="menuDivider" id="menuDivider" role="separator"></div>
               <button class="menuItem danger" id="menuResetBtn" type="button">Reset game</button>
+              <button class="menuItem danger" id="menuResetHandBtn" type="button">Reset hand</button>
               <button class="menuItem danger" id="menuLeaveRoomBtn" type="button">Permanently leave room</button>
             </div>
           </div>
@@ -1327,8 +1328,6 @@
             <span id="statusText">—</span>
             <span class="mono" id="deckText"></span>
           </div>
-          <div id="errorBox" class="error" style="display:none;"></div>
-
           <div id="logCard" class="logCard collapsed">
             <div class="logHeader" id="logHeader" role="button" tabindex="0" aria-expanded="false">
               <span class="logCaret" id="logCaret">▾</span>
@@ -1336,20 +1335,10 @@
               <div class="small" id="logHint" style="margin-left:auto;color:var(--muted);">Collapsed</div>
             </div>
             <div class="logBody" id="logBody">
-              <div class="chatBlock" id="chatBlock">
-                <div class="chatHeader">
-                  <span>Room chat</span>
-                  <span class="small" id="chatHint">Multiplayer only</span>
-                </div>
-                <div class="chatList" id="chatList"></div>
-                <div class="chatComposer">
-                  <input id="chatInput" type="text" maxlength="240" placeholder="Send a message to the room..." />
-                  <button class="btn primary" id="chatSendBtn" type="button">Send</button>
-                </div>
-              </div>
               <div class="logList" id="logList"></div>
             </div>
           </div>
+          <div id="errorBox" class="error" style="display:none;"></div>
         </div>
       </section>
 
@@ -1393,6 +1382,18 @@
           <div class="bd">
             <div class="small" id="handHint">Start a hand to see cards.</div>
             <div class="hand" id="handArea"></div>
+          </div>
+        </div>
+
+        <div class="chatBlock" id="chatBlock">
+          <div class="chatHeader">
+            <span>Room chat</span>
+            <span class="small" id="chatHint">Multiplayer only</span>
+          </div>
+          <div class="chatList" id="chatList"></div>
+          <div class="chatComposer">
+            <input id="chatInput" type="text" maxlength="240" placeholder="Send a message to the room..." />
+            <button class="btn primary" id="chatSendBtn" type="button">Send</button>
           </div>
         </div>
 
@@ -1636,6 +1637,7 @@ const els = {
   roomMenuBtn: document.getElementById("roomMenuBtn"),
   roomMenu: document.getElementById("roomMenu"),
   menuResetBtn: document.getElementById("menuResetBtn"),
+  menuResetHandBtn: document.getElementById("menuResetHandBtn"),
   menuBackLobbyBtn: document.getElementById("menuBackLobbyBtn"),
   menuLeaveRoomBtn: document.getElementById("menuLeaveRoomBtn"),
   menuEnableNotificationsBtn: document.getElementById("menuEnableNotificationsBtn"),
@@ -2397,6 +2399,7 @@ async function savePushToken(token){
       pushEnabled: true,
       pushUpdatedAt: serverTimestamp(),
     }, { merge: true });
+    updateRoomMenuUI();
   } catch (err){
     console.error("Failed to save push token:", err);
     notifyPushSetupIssue("Failed to save notification settings.");
@@ -2738,19 +2741,27 @@ function updateRoomStatus(){
   updateGameTitle();
 }
 
+function areNotificationsEnabled(){
+  if(!supportsPush()) return false;
+  if(typeof Notification === "undefined") return false;
+  if(Notification.permission !== "granted") return false;
+  return !!state.pushToken;
+}
+
 function updateRoomMenuUI(){
   if(!els.roomMenuWrap || !els.roomMenuBtn || !els.roomMenu) return;
   const isMulti = isMultiplayer();
   const inRoom = !!state.roomId;
   const isHost = !isMulti || (state.selfUid && state.hostUid && state.selfUid === state.hostUid);
   if(els.menuResetBtn) els.menuResetBtn.style.display = isHost ? "block" : "none";
+  if(els.menuResetHandBtn) els.menuResetHandBtn.style.display = (isMulti && isHost) ? "block" : "none";
   if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.style.display = isMulti ? "block" : "none";
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.style.display = isMulti ? "block" : "none";
   if(els.menuEnableNotificationsBtn) els.menuEnableNotificationsBtn.style.display = isMulti ? "block" : "none";
   if(els.menuDivider) els.menuDivider.style.display = isMulti ? "block" : "none";
   if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.disabled = !inRoom;
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.disabled = !inRoom;
-  if(els.menuEnableNotificationsBtn) els.menuEnableNotificationsBtn.disabled = !state.isSignedIn;
+  if(els.menuEnableNotificationsBtn) els.menuEnableNotificationsBtn.disabled = !state.isSignedIn || areNotificationsEnabled();
 }
 
 function updateRoomLobbyUI(){
@@ -2955,6 +2966,7 @@ async function leaveRoomPermanently(roomId){
       const data = snap.data() || {};
       const players = Array.isArray(data.players) ? data.players : [];
       const leavingIdx = players.findIndex(p => p.uid === state.selfUid);
+      const leavingName = leavingIdx >= 0 ? (players[leavingIdx]?.name || "Player") : null;
       let updatedPlayers = players;
       if(leavingIdx >= 0){
         updatedPlayers = players.filter((_, i)=> i !== leavingIdx);
@@ -2979,6 +2991,14 @@ async function leaveRoomPermanently(roomId){
       }
       await updateDoc(roomRef(code), payload);
       try{ await deleteDoc(handRef(code, state.selfUid)); } catch (err){}
+      if(leavingName){
+        await logRoomEventForRoom(code, {
+          type: "chat",
+          message: "Player has permanently left the room.",
+          playerName: leavingName,
+          playerUid: state.selfUid || null,
+        });
+      }
     }
     const userPayload = { rooms: arrayRemove(code) };
     if(state.lastRoomId === code){
@@ -3301,16 +3321,20 @@ function subscribeToLog(){
   });
 }
 
-async function logRoomEvent(entry){
-  if(!isMultiplayer() || !state.roomId || !firebaseDb) return;
+async function logRoomEventForRoom(roomId, entry){
+  if(!roomId || !firebaseDb) return;
   try{
-    await addDoc(logCollectionRef(state.roomId), {
+    await addDoc(logCollectionRef(roomId), {
       ...entry,
       createdAt: serverTimestamp(),
     });
   } catch (err){
     console.error("Failed to write log entry:", err);
   }
+}
+async function logRoomEvent(entry){
+  if(!isMultiplayer() || !state.roomId) return;
+  await logRoomEventForRoom(state.roomId, entry);
 }
 async function sendChatMessage(){
   if(!isMultiplayer() || !state.roomId || !firebaseDb) return;
@@ -3518,6 +3542,7 @@ async function loadUserProfile(){
     console.error("Failed to load user profile:", err);
   }
   if(!state.roomIds.length) setRoomIds([]);
+  updateRoomMenuUI();
   updateNicknameUI();
   ensureRoomNicknameApplied().catch((err)=> console.error("Failed to apply nickname:", err));
 }
@@ -3793,6 +3818,13 @@ async function resetRoomState(){
   if(!confirm("Reset the game for everyone?")){
     return;
   }
+  const hostName = state.players[state.selfIndex]?.name || state.selfName || "Host";
+  await logRoomEvent({
+    type: "chat",
+    message: "Host has reset game.",
+    playerName: hostName,
+    playerUid: state.selfUid || null,
+  });
   const players = state.players.map(p => buildPlayer(p.uid, p.name));
   state.players = players;
   state.phase = PHASE.LOBBY;
@@ -3827,6 +3859,74 @@ async function resetRoomState(){
     });
   }
   syncRoomState("reset");
+}
+
+async function resetHandState(){
+  if(!state.roomId || !isMultiplayer()){
+    setError("Join a room first.");
+    return;
+  }
+  if(!ensureConnectedForAction()) return;
+  if(state.selfUid !== state.hostUid){
+    setError("Only the host can reset the hand.");
+    return;
+  }
+  if(!confirm("Reset the current hand for everyone?")){
+    return;
+  }
+  const hostName = state.players[state.selfIndex]?.name || state.selfName || "Host";
+  await logRoomEvent({
+    type: "chat",
+    message: "Host has reset hand.",
+    playerName: hostName,
+    playerUid: state.selfUid || null,
+  });
+  for(const p of state.players){
+    p.hand = [];
+    p.tricksWonThisHand = 0;
+    p.wonTricks = [];
+    p.hasSwapped = false;
+    p.folded = false;
+  }
+  state.phase = PHASE.HAND_END;
+  state.leaderIndex = state.dealerIndex;
+  state.currentTurnIndex = state.dealerIndex;
+  state.trickNumber = 0;
+  state.deck = [];
+  state.trumpCard = null;
+  state.trumpSuit = null;
+  state.currentTrick = { plays: [], leadSuit: null };
+  state.lastTrickWinnerIndex = null;
+  state.lastTrickWinnerKey = null;
+  state.lastCompletedTrick = null;
+  state.winnerIndex = null;
+  state.handEndedByFolds = false;
+  state.foldWinIndex = null;
+  state.discardPile = [];
+  state.playedCards = [];
+  state.selectedCardIds.clear();
+  state.selectedForSwap.clear();
+  state.incomingCardIds.clear();
+  state.playersPendingInitial.clear();
+  state.dealTimeouts.forEach(t => clearTimeout(t));
+  state.dealTimeouts = [];
+  if(state.autoPassTimer){ clearInterval(state.autoPassTimer); state.autoPassTimer = null; }
+  state.dealing = false;
+  state.lockOn = false;
+  state.pendingRevealForIndex = null;
+  state.selfHand = [];
+  if(firebaseDb && state.roomId){
+    const batch = writeBatch(firebaseDb);
+    for(const p of state.players){
+      if(p.uid){
+        batch.set(handRef(state.roomId, p.uid), { hand: [], updatedAt: serverTimestamp() }, { merge: true });
+      }
+    }
+    batch.commit().catch((err)=>{
+      console.error("Failed to reset hands:", err);
+    });
+  }
+  syncRoomState("reset-hand");
 }
 
 // Toggle to temporarily disable lock behavior while testing.
@@ -5343,6 +5443,12 @@ if(els.menuResetBtn){
     resetAll();
   });
 }
+if(els.menuResetHandBtn){
+  els.menuResetHandBtn.addEventListener("click", ()=>{
+    closeRoomMenu();
+    resetHandState();
+  });
+}
 if(els.menuBackLobbyBtn){
   els.menuBackLobbyBtn.addEventListener("click", ()=>{
     closeRoomMenu();
@@ -5467,6 +5573,7 @@ if(els.hyperrealisticInput){
 }
 if(els.menuEnableNotificationsBtn){
   els.menuEnableNotificationsBtn.addEventListener("click", ()=>{
+    if(areNotificationsEnabled()) return;
     state.pwaPromptDismissed = false;
     if(isStandalone()){
       if(Notification.permission === "default"){
