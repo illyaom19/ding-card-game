@@ -4439,6 +4439,10 @@ async function resetHandState(){
   state.playersPendingInitial.clear();
   state.dealTimeouts.forEach(t => clearTimeout(t));
   state.dealTimeouts = [];
+  state.lastPlayedCardId = null;
+  state.playRequestPending = false;
+  if(state.playRequestTimer){ clearTimeout(state.playRequestTimer); state.playRequestTimer = null; }
+  state.autoPassCountdown = null;
   if(state.autoPassTimer){ clearInterval(state.autoPassTimer); state.autoPassTimer = null; }
   state.dealing = false;
   state.lockOn = false;
@@ -4523,6 +4527,8 @@ function resetAll(){
   state.playersPendingInitial.clear();
   state.dealTimeouts.forEach(t => clearTimeout(t));
   state.dealTimeouts = [];
+  state.lastPlayedCardId = null;
+  state.autoPassCountdown = null;
   if(state.autoPassTimer){ clearInterval(state.autoPassTimer); state.autoPassTimer = null; }
   state.dealing = false;
   state.lastTrickWinnerIndex = null;
@@ -4582,6 +4588,10 @@ function startNewGame(){
   state.playersPendingInitial.clear();
   state.dealTimeouts.forEach(t => clearTimeout(t));
   state.dealTimeouts = [];
+  state.lastPlayedCardId = null;
+  state.playRequestPending = false;
+  if(state.playRequestTimer){ clearTimeout(state.playRequestTimer); state.playRequestTimer = null; }
+  state.autoPassCountdown = null;
   if(state.autoPassTimer){ clearInterval(state.autoPassTimer); state.autoPassTimer = null; }
   state.dealing = false;
   state.selfHand = [];
