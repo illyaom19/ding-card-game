@@ -2425,7 +2425,6 @@ async function registerServiceWorker(){
 }
 async function savePushToken(token){
   if(!token || !state.selfUid || !firebaseDb) return;
-  if(state.pushToken === token) return;
   state.pushToken = token;
   try{
     await setDoc(userRef(state.selfUid), {
@@ -5844,8 +5843,12 @@ window.addEventListener("offline", ()=>{
   setConnectionStatus("reconnecting", "Offline. Waiting to reconnect.");
 });
 document.addEventListener("visibilitychange", ()=>{
-  if(supportsPush() && document.visibilityState === "visible"){
-    registerServiceWorker();
+  if(document.visibilityState === "visible"){
+    if(state.isSignedIn){
+      maybeRestorePushNotifications();
+    } else if(supportsPush()){
+      registerServiceWorker();
+    }
   }
 });
 if(els.signInBtn){
