@@ -210,6 +210,108 @@
     .tableArea{
       display:flex; flex-direction:column; gap:12px;
       padding-bottom:16px;
+      position:relative;
+    }
+    .tableHint{
+      text-align:center;
+      font-size:13px;
+      color:var(--muted);
+      margin-top:-4px;
+    }
+    .swapSummary{
+      display:none;
+      flex-direction:column;
+      gap:8px;
+      padding:10px 12px;
+      border:1px solid var(--stroke);
+      border-radius:12px;
+      background: rgba(0,0,0,.18);
+    }
+    .swapSummary.show{ display:flex; }
+    .swapSummaryTitle{
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.6px;
+      font-weight:800;
+      color:var(--muted);
+    }
+    .swapSummaryList{
+      display:grid;
+      gap:6px;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+    .swapSummaryItem{
+      padding:6px 8px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04);
+      font-size:12px;
+      color:var(--text);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    .swapAnnouncement{
+      position:absolute;
+      left:50%;
+      top:10px;
+      transform: translateX(-50%);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:6px;
+      padding:10px 14px;
+      border:1px solid var(--stroke);
+      border-radius:14px;
+      background: rgba(8,12,24,.92);
+      box-shadow: var(--shadow);
+      opacity:0;
+      pointer-events:none;
+      z-index: 5;
+    }
+    .swapAnnouncement.show{
+      opacity:1;
+      animation: swapAnnounceIn .32s ease-out forwards;
+    }
+    .swapAnnouncement.exit{
+      animation: swapAnnounceOut .42s ease-in forwards;
+    }
+    .swapCardRow{
+      display:flex;
+      gap:6px;
+      align-items:center;
+      justify-content:center;
+      min-height:28px;
+    }
+    .swapGhostCard{
+      width:20px;
+      height:28px;
+      border-radius:4px;
+      border:1px solid rgba(255,255,255,.2);
+      background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.04));
+      box-shadow: 0 8px 16px rgba(0,0,0,.28);
+      opacity:.9;
+      animation: swapGhostFly .7s ease-out forwards;
+      transform: translate3d(0,0,0) rotate(0deg);
+    }
+    .swapAnnouncementText{
+      font-size:12px;
+      color:var(--text);
+      text-align:center;
+    }
+    @keyframes swapGhostFly{
+      0%{ transform: translate3d(0,0,0) rotate(0deg); opacity:0; }
+      30%{ opacity:.95; }
+      100%{ transform: translate3d(var(--ghost-x, 0px), var(--ghost-y, -120px), 0) rotate(var(--ghost-rot, 0deg)); opacity:0; }
+    }
+    @keyframes swapAnnounceIn{
+      from{ transform: translateX(-50%) translateY(8px); opacity:0; }
+      to{ transform: translateX(-50%) translateY(0); opacity:1; }
+    }
+    @keyframes swapAnnounceOut{
+      from{ transform: translateX(-50%) translateY(0); opacity:1; }
+      to{ transform: translateX(-50%) translateY(-12px); opacity:0; }
     }
     .trickArea{
       display:flex; flex-direction:column; gap:10px; align-items:stretch;
@@ -264,6 +366,11 @@
       user-select:none;
       backface-visibility: hidden;
       transform: translateZ(0);
+    }
+    .cardBtn.dealHidden{
+      opacity:0;
+      pointer-events:none;
+      transform: translateY(8px);
     }
     .cardBtn:hover{transform: translateY(-2px); border-color: rgba(124,92,255,.7)}
     .cardBtn.selected{
@@ -600,6 +707,20 @@
       transform-origin: center center;
       will-change: transform, opacity;
       backface-visibility: hidden;
+    }
+    .foldFly{
+      position:fixed;
+      z-index:9999;
+      pointer-events:none;
+      border-radius:10px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.45);
+      animation: foldFlyOut .6s cubic-bezier(.2,.9,.2,1) forwards;
+      transform-origin: center center;
+      will-change: transform, opacity;
+    }
+    @keyframes foldFlyOut{
+      from{ transform: translate3d(0,0,0) rotate(0deg); opacity:1; }
+      to{ transform: translate3d(var(--fold-x, 0px), var(--fold-y, 140px), 0) rotate(var(--fold-rot, 0deg)); opacity:0; }
     }
 
     /* incoming-card sparkle */
@@ -1536,6 +1657,15 @@
       </div>
       <div class="bd tableArea" id="tableArea">
         <div class="trickArea" id="trickArea"></div>
+        <div class="tableHint" id="tableHint" style="display:none;"></div>
+        <div class="swapSummary" id="swapSummary" style="display:none;">
+          <div class="swapSummaryTitle">Swaps:</div>
+          <div class="swapSummaryList" id="swapSummaryList"></div>
+        </div>
+        <div class="swapAnnouncement" id="swapAnnouncement" style="display:none;" aria-live="polite">
+          <div class="swapCardRow" id="swapAnnouncementCards"></div>
+          <div class="swapAnnouncementText" id="swapAnnouncementText"></div>
+        </div>
 
         <div id="handPanel" class="panel" style="border-radius:18px;">
           <div id="handHeader" class="hd">
@@ -1807,6 +1937,14 @@ const state = {
   popupDismissTimer: null,
   popupHideTimer: null,
   popupDismissible: false,
+  swapCounts: {},
+  swapNoticeHistory: new Set(),
+  swapAnnouncementTimer: null,
+  swapAnnouncementHideTimer: null,
+  incomingTimers: [],
+  dealStagingIds: null,
+  pendingDealAnimationForHand: null,
+  lastDealAnimationHandId: null,
   collapsed: { game:false, table:false, hand:false },
 };
 
@@ -1909,6 +2047,12 @@ const els = {
   errorBox: document.getElementById("errorBox"),
 
   trickArea: document.getElementById("trickArea"),
+  tableHint: document.getElementById("tableHint"),
+  swapSummary: document.getElementById("swapSummary"),
+  swapSummaryList: document.getElementById("swapSummaryList"),
+  swapAnnouncement: document.getElementById("swapAnnouncement"),
+  swapAnnouncementCards: document.getElementById("swapAnnouncementCards"),
+  swapAnnouncementText: document.getElementById("swapAnnouncementText"),
   handArea: document.getElementById("handArea"),
   handHint: document.getElementById("handHint"),
   autoPassViz: document.getElementById("autoPassViz"),
@@ -1990,6 +2134,31 @@ function clampSettings(){
   if(s.decks > 2) s.decks = 2;
 }
 
+function animateFoldOut(){
+  if(!els.handArea) return;
+  const nodes = Array.from(els.handArea.querySelectorAll(".cardBtn"));
+  if(!nodes.length) return;
+  nodes.forEach((node, idx)=>{
+    const rect = node.getBoundingClientRect();
+    const clone = node.cloneNode(true);
+    clone.classList.add("foldFly");
+    clone.style.left = rect.left + "px";
+    clone.style.top = rect.top + "px";
+    clone.style.width = rect.width + "px";
+    clone.style.height = rect.height + "px";
+    const spread = 120 + Math.random() * 140;
+    const x = (Math.random() * spread * 2) - spread;
+    const y = 120 + Math.random() * 180;
+    const rot = (Math.random() * 70) - 35;
+    clone.style.setProperty("--fold-x", `${x}px`);
+    clone.style.setProperty("--fold-y", `${y}px`);
+    clone.style.setProperty("--fold-rot", `${rot}deg`);
+    clone.style.animationDelay = `${idx * 40}ms`;
+    document.body.appendChild(clone);
+    setTimeout(()=> clone.remove(), 720);
+  });
+}
+
 let settingsSyncTimer = null;
 function scheduleSettingsSync(){
   if(!isMultiplayer() || !state.roomId) return;
@@ -2041,6 +2210,7 @@ function foldCurrentPlayer(){
     } else {
       state.discardPile.push(...hand);
     }
+    animateFoldOut();
     if(isMulti){
       state.selfHand = [];
       syncSelfHand();
@@ -3550,6 +3720,7 @@ function serializeRoomState(){
     settings: state.settings,
     discardPile: state.discardPile,
     playedCards: state.playedCards,
+    swapCounts: state.swapCounts,
     updatedAt: serverTimestamp(),
   };
 }
@@ -3558,6 +3729,9 @@ function applyRoomState(data){
   if(!data) return;
   const prevPhase = state.phase;
   const prevTurn = state.currentTurnIndex;
+  const prevHandId = state.handId;
+  const prevSwapCounts = state.swapCounts || {};
+  let handIdChanged = false;
   let kicked = false;
   let kickedRoomName = "";
   state.isApplyingRemote = true;
@@ -3609,6 +3783,16 @@ function applyRoomState(data){
     state.settings = { ...state.settings, ...(data.settings || {}) };
     state.discardPile = Array.isArray(data.discardPile) ? data.discardPile : [];
     state.playedCards = Array.isArray(data.playedCards) ? data.playedCards : [];
+    handIdChanged = (data.handId !== undefined && data.handId !== prevHandId);
+    if(handIdChanged){
+      state.swapNoticeHistory.clear();
+      state.swapCounts = {};
+      if(state.phase === PHASE.SWAP){
+        state.pendingDealAnimationForHand = state.handId;
+      }
+    }
+    const nextSwapCounts = (data.swapCounts && typeof data.swapCounts === "object") ? data.swapCounts : {};
+    state.swapCounts = { ...nextSwapCounts };
     state.hostUid = data.hostUid ?? state.hostUid;
     state.selfIndex = state.players.findIndex(p => p.uid === state.selfUid);
     if(state.selfUid && state.roomId && state.selfIndex < 0){
@@ -3624,6 +3808,22 @@ function applyRoomState(data){
     }
   } finally {
     state.isApplyingRemote = false;
+  }
+  if(state.phase === PHASE.SWAP || state.phase === PHASE.TRICK){
+    const compareSwapCounts = handIdChanged ? {} : prevSwapCounts;
+    for(let i = 0; i < state.players.length; i++){
+      const player = state.players[i];
+      const key = swapKeyForPlayer(player, i);
+      const prevCount = compareSwapCounts[key];
+      const nextCount = state.swapCounts[key];
+      if(typeof nextCount !== "number") continue;
+      if(prevCount === nextCount) continue;
+      const noticeKey = `${state.handId}-${key}`;
+      if(state.swapNoticeHistory.has(noticeKey)) continue;
+      state.swapNoticeHistory.add(noticeKey);
+      showSwapAnnouncement(player.name || "Player", nextCount);
+      break;
+    }
   }
   if(kicked){
     handleKickedFromRoom(kickedRoomName);
@@ -3651,9 +3851,112 @@ function trimSelectionsToHand(){
   }
 }
 
+function swapKeyForPlayer(player, idx){
+  if(player && player.uid) return player.uid;
+  if(player && player.id) return player.id;
+  return `p${idx}`;
+}
+function announceSwap(playerIndex, count){
+  const player = state.players[playerIndex];
+  if(!player) return;
+  const key = swapKeyForPlayer(player, playerIndex);
+  state.swapCounts[key] = count;
+  const noticeKey = `${state.handId}-${key}`;
+  if(state.swapNoticeHistory.has(noticeKey)) return;
+  state.swapNoticeHistory.add(noticeKey);
+  showSwapAnnouncement(player.name || "Player", count);
+}
+function clearIncomingTimers(){
+  if(!state.incomingTimers || !state.incomingTimers.length) return;
+  state.incomingTimers.forEach(t => clearTimeout(t));
+  state.incomingTimers = [];
+}
+function queueIncomingCards(cards, { stagger = 140, duration = 520, stage = false } = {}){
+  if(!Array.isArray(cards) || !cards.length) return;
+  clearIncomingTimers();
+  state.incomingCardIds.clear();
+  if(stage){
+    state.dealStagingIds = new Set();
+    state.lastDealAnimationHandId = state.handId;
+    render();
+  }
+  cards.forEach((card, idx)=>{
+    const startAt = idx * stagger;
+    const addTimer = setTimeout(()=>{
+      if(stage && state.dealStagingIds) state.dealStagingIds.add(card.id);
+      state.incomingCardIds.add(card.id);
+      render();
+    }, startAt);
+    const removeTimer = setTimeout(()=>{
+      state.incomingCardIds.delete(card.id);
+      render();
+    }, startAt + duration);
+    state.incomingTimers.push(addTimer, removeTimer);
+  });
+  const finalTimer = setTimeout(()=>{
+    if(stage){
+      state.dealStagingIds = null;
+      render();
+    }
+  }, cards.length * stagger + duration + 40);
+  state.incomingTimers.push(finalTimer);
+}
+function clearSwapAnnouncementTimers(){
+  if(state.swapAnnouncementTimer){ clearTimeout(state.swapAnnouncementTimer); state.swapAnnouncementTimer = null; }
+  if(state.swapAnnouncementHideTimer){ clearTimeout(state.swapAnnouncementHideTimer); state.swapAnnouncementHideTimer = null; }
+  if(els.swapAnnouncement){
+    els.swapAnnouncement.classList.remove("show", "exit");
+    els.swapAnnouncement.style.display = "none";
+  }
+}
+function showSwapAnnouncement(playerName, count){
+  if(!els.swapAnnouncement || !els.swapAnnouncementText || !els.swapAnnouncementCards) return;
+  clearSwapAnnouncementTimers();
+  const safeCount = Math.max(0, Number(count) || 0);
+  els.swapAnnouncementCards.innerHTML = "";
+  for(let i = 0; i < safeCount; i++){
+    const card = document.createElement("div");
+    card.className = "swapGhostCard";
+    const spread = 70 + Math.random() * 70;
+    const x = (Math.random() * spread * 2) - spread;
+    const y = -90 - Math.random() * 80;
+    const rot = (Math.random() * 60) - 30;
+    card.style.setProperty("--ghost-x", `${x}px`);
+    card.style.setProperty("--ghost-y", `${y}px`);
+    card.style.setProperty("--ghost-rot", `${rot}deg`);
+    card.style.animationDelay = `${i * 90}ms`;
+    els.swapAnnouncementCards.appendChild(card);
+  }
+  const label = safeCount
+    ? `${playerName} swapped ${safeCount} card${safeCount === 1 ? "" : "s"}`
+    : `${playerName} didn't swap any cards`;
+  els.swapAnnouncementText.textContent = label;
+  els.swapAnnouncement.style.display = "flex";
+  els.swapAnnouncement.classList.remove("exit");
+  els.swapAnnouncement.classList.add("show");
+  state.swapAnnouncementTimer = setTimeout(()=>{
+    els.swapAnnouncement.classList.add("exit");
+    state.swapAnnouncementHideTimer = setTimeout(()=>{
+      els.swapAnnouncement.classList.remove("show", "exit");
+      els.swapAnnouncement.style.display = "none";
+    }, 420);
+  }, 2400);
+}
+function dealerHasPlayedFirstCard(){
+  if(state.phase !== PHASE.TRICK) return false;
+  if(state.trickNumber > 1) return true;
+  return state.currentTrick.plays.some(p => p.playerIndex === state.dealerIndex);
+}
+
 function setSelfHandFromServer(nextHand){
   state.selfHand = Array.isArray(nextHand) ? nextHand : [];
   trimSelectionsToHand();
+  if(state.pendingDealAnimationForHand && state.handId === state.pendingDealAnimationForHand && state.selfHand.length){
+    state.pendingDealAnimationForHand = null;
+    if(state.lastDealAnimationHandId !== state.handId){
+      queueIncomingCards(state.selfHand, { stage: true });
+    }
+  }
 }
 
 async function refreshRoomFromServer(){
@@ -4499,6 +4802,13 @@ async function resetRoomState(){
   state.playedCards = [];
   state.selectedCardIds.clear();
   state.selectedForSwap.clear();
+  state.swapCounts = {};
+  state.swapNoticeHistory.clear();
+  state.pendingDealAnimationForHand = null;
+  state.lastDealAnimationHandId = null;
+  state.dealStagingIds = null;
+  clearIncomingTimers();
+  clearSwapAnnouncementTimers();
   state.selfHand = [];
   if(firebaseDb && state.roomId){
     const batch = writeBatch(firebaseDb);
@@ -4561,6 +4871,13 @@ async function resetHandState(){
   state.selectedForSwap.clear();
   state.incomingCardIds.clear();
   state.playersPendingInitial.clear();
+  clearIncomingTimers();
+  state.dealStagingIds = null;
+  state.pendingDealAnimationForHand = null;
+  state.lastDealAnimationHandId = null;
+  state.swapCounts = {};
+  state.swapNoticeHistory.clear();
+  clearSwapAnnouncementTimers();
   state.dealTimeouts.forEach(t => clearTimeout(t));
   state.dealTimeouts = [];
   state.lastPlayedCardId = null;
@@ -4710,6 +5027,13 @@ function startNewGame(){
   state.selectedForSwap.clear();
   state.incomingCardIds.clear();
   state.playersPendingInitial.clear();
+  clearIncomingTimers();
+  state.dealStagingIds = null;
+  state.pendingDealAnimationForHand = null;
+  state.lastDealAnimationHandId = null;
+  state.swapCounts = {};
+  state.swapNoticeHistory.clear();
+  clearSwapAnnouncementTimers();
   state.dealTimeouts.forEach(t => clearTimeout(t));
   state.dealTimeouts = [];
   state.lastPlayedCardId = null;
@@ -4797,6 +5121,13 @@ function dealHand(){
     }
     state.dealing = true;
     state.handId = (state.handId || 0) + 1;
+    state.swapCounts = {};
+    state.swapNoticeHistory.clear();
+    clearSwapAnnouncementTimers();
+    clearIncomingTimers();
+    state.dealStagingIds = null;
+    state.pendingDealAnimationForHand = null;
+    state.lastDealAnimationHandId = null;
 
     // reset hand-only fields
     const handsByUid = new Map();
@@ -4831,6 +5162,9 @@ function dealHand(){
     }
 
     state.selfHand = handsByUid.get(state.selfUid) || [];
+    if(state.selfHand.length){
+      queueIncomingCards(state.selfHand, { stage: true });
+    }
     if(firebaseDb && state.roomId){
       const batch = writeBatch(firebaseDb);
       for(const [uid, hand] of handsByUid.entries()){
@@ -4860,6 +5194,13 @@ function dealHand(){
   }
   state.dealing = true;
   state.handId = (state.handId || 0) + 1;
+  state.swapCounts = {};
+  state.swapNoticeHistory.clear();
+  clearSwapAnnouncementTimers();
+  clearIncomingTimers();
+  state.dealStagingIds = null;
+  state.pendingDealAnimationForHand = null;
+  state.lastDealAnimationHandId = null;
 
   // reset hand-only fields
   for(const p of state.players){
@@ -4901,7 +5242,7 @@ function dealHand(){
   state.selectedCardIds.clear();
   state.selectedForSwap.clear();
 
-  // Removing per-card fly-in animations: perform an immediate, non-animated deal.
+  // Deal is immediate, but the reveal animation will stagger cards into view.
   state.dealTimeouts.forEach(t=> clearTimeout(t));
   state.dealTimeouts = [];
   state.dealing = false;
@@ -4972,6 +5313,7 @@ function confirmSwap(){
   setError(null);
   if(state.phase !== PHASE.SWAP) return;
   const p = state.players[state.currentTurnIndex];
+  state.dealStagingIds = null;
 
   // prevent multiple swaps per hand
   if(p.hasSwapped){ setError("You have already swapped this hand."); return; }
@@ -4987,6 +5329,7 @@ function confirmSwap(){
     return;
   }
   if(state.dealing){ setError("Deal animation in progress."); return; }
+  announceSwap(state.currentTurnIndex, discards.length);
 
   // if nothing selected, interpret as a 0-card swap (allowed), but still mark as swapped
 
@@ -5091,6 +5434,7 @@ function confirmSwapMultiplayer(){
     setError("Not your turn.");
     return;
   }
+  state.dealStagingIds = null;
   const p = state.players[state.selfIndex];
   if(!p){
     setError("Player not found.");
@@ -5113,8 +5457,29 @@ function confirmSwapMultiplayer(){
     setError("Deal in progress.");
     return;
   }
+  announceSwap(state.selfIndex, discards.length);
+
+  if(discards.length){
+    discards.forEach((id, idx)=>{
+      const node = els.handArea.querySelector(`[data-card-id="${id}"]`);
+      if(!node) return;
+      const rect = node.getBoundingClientRect();
+      const clone = node.cloneNode(true);
+      clone.classList.add("fly-out");
+      clone.style.position = "fixed";
+      clone.style.left = rect.left + "px";
+      clone.style.top = rect.top + "px";
+      clone.style.width = rect.width + "px";
+      clone.style.height = rect.height + "px";
+      clone.style.margin = "0";
+      clone.style.zIndex = 9999;
+      document.body.appendChild(clone);
+      setTimeout(()=> clone.remove(), 420 + (idx * 60));
+    });
+  }
 
   const workingHand = (state.selfHand || []).slice();
+  const newCards = [];
   for(const id of discards){
     const curIdx = workingHand.findIndex(c => c.id === id);
     if(curIdx === -1) continue;
@@ -5125,11 +5490,16 @@ function confirmSwapMultiplayer(){
       const card = state.deck.pop();
       const insertIdx = Math.min(curIdx, workingHand.length);
       workingHand.splice(insertIdx, 0, card);
+      newCards.push(card);
     }
   }
 
   state.selfHand = workingHand;
   syncSelfHand();
+  render();
+  if(newCards.length){
+    queueIncomingCards(newCards, { stagger: 160, duration: 520 });
+  }
   p.hasSwapped = true;
   state.selectedForSwap.clear();
   if(state.autoPassTimer){ clearInterval(state.autoPassTimer); state.autoPassTimer = null; }
@@ -5666,6 +6036,47 @@ function renderTrickArea(){
     }
   }
 }
+function renderTableHint(){
+  if(!els.tableHint) return;
+  const isMulti = isMultiplayer();
+  const isSelfTurn = !isMulti || state.selfIndex === state.currentTurnIndex;
+  const currentName = state.players[state.currentTurnIndex]?.name ?? "Player";
+  let text = "";
+  if(state.phase === PHASE.SWAP && !isSelfTurn){
+    text = `Waiting for ${currentName} to swap.`;
+  } else if(state.phase === PHASE.TRICK && !isSelfTurn){
+    text = `Waiting for ${currentName} to play.`;
+  }
+  els.tableHint.textContent = text;
+  els.tableHint.style.display = text ? "block" : "none";
+}
+function renderSwapSummary(){
+  if(!els.swapSummary || !els.swapSummaryList) return;
+  const show = (state.phase === PHASE.SWAP) || (state.phase === PHASE.TRICK && !dealerHasPlayedFirstCard());
+  if(!show){
+    els.swapSummary.style.display = "none";
+    els.swapSummaryList.innerHTML = "";
+    return;
+  }
+  els.swapSummaryList.innerHTML = "";
+  state.players.forEach((player, idx)=>{
+    const key = swapKeyForPlayer(player, idx);
+    const hasCount = typeof state.swapCounts[key] === "number";
+    if(!player.hasSwapped && !hasCount) return;
+    const count = hasCount ? state.swapCounts[key] : 0;
+    const item = document.createElement("div");
+    item.className = "swapSummaryItem";
+    item.innerHTML = `<span>${player.name}</span><span class="mono">${count}</span>`;
+    els.swapSummaryList.appendChild(item);
+  });
+  if(!els.swapSummaryList.childNodes.length){
+    const empty = document.createElement("div");
+    empty.className = "small";
+    empty.textContent = "No swaps yet.";
+    els.swapSummaryList.appendChild(empty);
+  }
+  els.swapSummary.style.display = "flex";
+}
 function renderHand(){
   els.handArea.innerHTML = "";
   els.selectedCount.textContent = "0";
@@ -5699,15 +6110,14 @@ function renderHand(){
     return;
   }
 
-  const currentName = state.players[state.currentTurnIndex]?.name ?? "Player";
   if(state.phase === PHASE.SWAP){
     els.handHint.textContent = isSelfTurn
-      ? "Select 0–3 cards to discard, then confirm."
-      : `Waiting for ${currentName} to swap.`;
+      ? "Select 0-3 cards to discard, then confirm."
+      : "Not your turn.";
   } else if(state.phase === PHASE.TRICK){
     els.handHint.textContent = isSelfTurn
       ? "Select 1 card to play, then confirm."
-      : `Waiting for ${currentName} to play.`;
+      : "Not your turn.";
   } else {
     els.handHint.textContent = "Hand ended - deal next hand.";
   }
@@ -5727,6 +6137,9 @@ function renderHand(){
       // animate incoming cards
       if(state.incomingCardIds.has(card.id)){
         btn.classList.add('fly-in');
+      }
+      if(state.dealStagingIds && !state.dealStagingIds.has(card.id)){
+        btn.classList.add('dealHidden');
       }
 
       const top = `${RANK_LABEL[card.rank] ?? card.rank}${SUIT_ICON[card.suit]}`;
@@ -5918,7 +6331,7 @@ function renderStatus(){
     icon.textContent = '🔁';
     title.textContent = `Swap — ${name}`;
     detail.textContent = `${name} may discard 0–3 cards, then draw.`;
-    playerBadge.style.display = 'inline-flex'; playerBadge.textContent = name;
+    playerBadge.style.display = 'inline-flex'; playerBadge.textContent = `${name}'s turn`;
     if(state.autoPassCountdown && state.autoPassCountdown > 0){ detail.textContent += ` — Auto-pass in ${state.autoPassCountdown}s`; }
   }
 
@@ -5928,7 +6341,7 @@ function renderStatus(){
     const lead = state.currentTrick.leadSuit ? `${SUIT_ICON[state.currentTrick.leadSuit]}` : '—';
     title.textContent = `Play — ${name}`;
     detail.textContent = `Lead: ${lead} · Select 1 card to play.`;
-    playerBadge.style.display = 'inline-flex'; playerBadge.textContent = name;
+    playerBadge.style.display = 'inline-flex'; playerBadge.textContent = `${name}'s turn`;
   }
 
   if(state.phase === PHASE.HAND_END){
@@ -6067,6 +6480,8 @@ function render(){
   // Pass device button removed; auto-pass handles progression.
 
   renderTrickArea();
+  renderTableHint();
+  renderSwapSummary();
   renderHand();
   renderStatus();
   renderRoomLog();
@@ -6193,18 +6608,11 @@ els.revealBtn.addEventListener("click", ()=>{
     const idx = state.pendingRevealForIndex;
     // only perform initial fly-in if this player hasn't had their initial reveal yet
     if(state.playersPendingInitial.has(idx)){
-      // mark incoming for this player's current hand
-      state.players[idx].hand.forEach(c => state.incomingCardIds.add(c.id));
       // remove pending flag
       state.playersPendingInitial.delete(idx);
       // unlock so they can interact
       setLock(false, null);
-      render();
-      // clear incoming flags after animation duration
-      setTimeout(()=>{
-        state.players[idx].hand.forEach(c => state.incomingCardIds.delete(c.id));
-        render();
-      }, 650);
+      queueIncomingCards(state.players[idx].hand, { stage: true });
       return;
     }
   }
@@ -6543,3 +6951,8 @@ initMessagingListeners();
 </script>
 </body>
 </html>
+
+
+
+
+
