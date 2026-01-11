@@ -44,11 +44,11 @@
     header .row{display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
     .title{display:flex; gap:10px; align-items:center;}
     .logoBtn{
-      width:34px;
-      height:34px;
-      border-radius:12px;
+      width:44px;
+      height:44px;
+      border-radius:14px;
       background: rgba(124,92,255,.25);
-      border:1px solid rgba(124,92,255,.5);
+      border:0.5px solid rgba(124,92,255,.5);
       display:flex;
       align-items:center;
       justify-content:center;
@@ -58,7 +58,7 @@
     }
     .logoBtn:hover{ background: rgba(124,92,255,.32); transform: translateY(-1px); }
     .logoBtn:active{ transform: translateY(0); }
-    .logoBtn img{ width:20px; height:20px; display:block; }
+    .logoBtn img{ width:26px; height:26px; display:block; }
     .pill{
       border:1px solid var(--stroke);
       background: rgba(255,255,255,.06);
@@ -808,6 +808,24 @@
       gap:8px;
       padding-right:4px;
     }
+    .gameLog{
+      border:1px solid var(--stroke);
+      border-radius:14px;
+      background: rgba(0,0,0,.16);
+      padding:8px 10px;
+    }
+    .gameLog summary{
+      list-style:none;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    .gameLog summary::-webkit-details-marker{ display:none; }
+    .gameTitle{ font-weight:800; font-size:13px; }
+    .gameMeta{ font-size:12px; color:var(--muted); }
+    .gameHands{ margin-top:8px; display:flex; flex-direction:column; gap:8px; }
     .handLog{
       border:1px solid var(--stroke);
       border-radius:12px;
@@ -1624,6 +1642,7 @@ const state = {
   trumpSuit: null,
   currentTrick: { plays: [], leadSuit: null },
   handId: 0,
+  gameId: 0,
   selectedCardIds: new Set(),
   selectedForSwap: new Set(),
   // animation & deal helpers
@@ -1852,7 +1871,7 @@ let settingsSyncTimer = null;
 function scheduleSettingsSync(){
   if(!isMultiplayer() || !state.roomId) return;
   if(state.selfUid !== state.hostUid) return;
-  if(state.phase !== PHASE.LOBBY) return;
+  if(state.phase !== PHASE.LOBBY && state.phase !== PHASE.GAME_OVER) return;
   if(settingsSyncTimer) clearTimeout(settingsSyncTimer);
   settingsSyncTimer = setTimeout(()=>{
     settingsSyncTimer = null;
@@ -1882,6 +1901,7 @@ function foldCurrentPlayer(){
     logRoomEvent({
       type: "fold",
       handId: state.handId,
+      gameId: state.gameId,
       playerIndex: state.currentTurnIndex,
       playerName: p.name,
     });
@@ -2171,7 +2191,9 @@ function flashNicknameStatus(msg){
 }
 function updateNicknameUI(){
   if(!els.nicknameRow || !els.nicknameInput || !els.saveNicknameBtn) return;
-  if(!state.isSignedIn){
+  const inRoom = !!state.roomId;
+  const canEdit = state.isSignedIn && inRoom;
+  if(!canEdit){
     els.nicknameRow.style.display = "none";
     if(els.nicknameDivider) els.nicknameDivider.style.display = "none";
     setNicknameStatus("");
@@ -2179,14 +2201,8 @@ function updateNicknameUI(){
   }
   els.nicknameRow.style.display = "flex";
   if(els.nicknameDivider) els.nicknameDivider.style.display = "block";
-  const inRoom = !!state.roomId;
-  els.nicknameInput.disabled = !inRoom;
-  els.saveNicknameBtn.disabled = !inRoom;
-  if(!inRoom){
-    els.nicknameInput.value = "";
-    setNicknameStatus("");
-    return;
-  }
+  els.nicknameInput.disabled = false;
+  els.saveNicknameBtn.disabled = false;
   const saved = getRoomNickname(state.roomId);
   if(saved){
     if(document.activeElement !== els.nicknameInput){
@@ -2646,22 +2662,24 @@ function updateRoomNameUI(){
     setRoomNameStatus("");
     return;
   }
-  els.roomNameRow.style.display = "flex";
-  if(els.roomNameDivider) els.roomNameDivider.style.display = "block";
   const inRoom = !!state.roomId;
   const isHost = inRoom && state.selfUid && state.hostUid && state.selfUid === state.hostUid;
-  els.roomNameInput.disabled = inRoom && !isHost;
-  els.saveRoomNameBtn.disabled = inRoom && !isHost;
+  if(inRoom && !isHost){
+    els.roomNameRow.style.display = "none";
+    if(els.roomNameDivider) els.roomNameDivider.style.display = "none";
+    setRoomNameStatus("");
+    return;
+  }
+  els.roomNameRow.style.display = "flex";
+  if(els.roomNameDivider) els.roomNameDivider.style.display = "block";
+  els.roomNameInput.disabled = false;
+  els.saveRoomNameBtn.disabled = false;
   if(inRoom){
     const current = getRoomDisplayName(state.roomName);
     if(document.activeElement !== els.roomNameInput){
       els.roomNameInput.value = current;
     }
-    if(!isHost){
-      flashRoomNameStatus("Only the host can rename this room.");
-    } else {
-      setRoomNameStatus("");
-    }
+    setRoomNameStatus("");
     return;
   }
   const draft = getRoomDisplayName(state.roomNameDraft || getDefaultRoomName());
@@ -3160,6 +3178,7 @@ function serializeRoomState(){
     turnUid: state.players[state.currentTurnIndex]?.uid ?? null,
     trickNumber: state.trickNumber,
     handId: state.handId,
+    gameId: state.gameId,
     deck: state.deck,
     trumpCard: state.trumpCard,
     trumpSuit: state.trumpSuit,
@@ -3212,6 +3231,7 @@ function applyRoomState(data){
     state.currentTurnIndex = data.currentTurnIndex ?? state.currentTurnIndex;
     state.trickNumber = data.trickNumber ?? state.trickNumber;
     state.handId = data.handId ?? state.handId;
+    state.gameId = data.gameId ?? state.gameId;
     state.deck = Array.isArray(data.deck) ? data.deck : state.deck;
     state.trumpCard = data.trumpCard ?? null;
     state.trumpSuit = data.trumpSuit ?? null;
@@ -3533,101 +3553,137 @@ function renderRoomLog(){
     hint = "No hands yet";
   } else {
     if(els.chatBlock) els.chatBlock.style.display = "flex";
-    const hands = new Map();
+    const games = new Map();
     state.logEntries.forEach((entry)=>{
       if(entry.type === "chat") return;
       const handId = Number(entry.handId || 0);
       if(!handId) return;
-      if(!hands.has(handId)) hands.set(handId, { plays: [], end: null, events: [] });
-      const hand = hands.get(handId);
+      const gameId = Number(entry.gameId || 1);
+      if(!games.has(gameId)) games.set(gameId, new Map());
+      const gameHands = games.get(gameId);
+      if(!gameHands.has(handId)) gameHands.set(handId, { plays: [], end: null, events: [] });
+      const hand = gameHands.get(handId);
       if(entry.type === "play") hand.plays.push(entry);
       if(entry.type === "hand_end") hand.end = entry;
       if(entry.type === "fold") hand.events.push(entry);
     });
-    const handIds = Array.from(hands.keys()).sort((a,b)=>a-b);
-    hint = `${handIds.length} hand${handIds.length === 1 ? "" : "s"}`;
-    if(!handIds.length){
+    const gameIds = Array.from(games.keys()).sort((a,b)=>a-b);
+    const totalHands = gameIds.reduce((sum, gameId)=> sum + games.get(gameId).size, 0);
+    hint = totalHands ? `${totalHands} hand${totalHands === 1 ? "" : "s"}` : "No hands yet";
+    if(gameIds.length > 1){
+      hint = `${hint} · ${gameIds.length} game${gameIds.length === 1 ? "" : "s"}`;
+    }
+    if(!totalHands){
       const empty = document.createElement("div");
       empty.className = "small";
       empty.textContent = "No hands logged yet.";
       els.logList.appendChild(empty);
     }
-    handIds.forEach((handId)=>{
-      const hand = hands.get(handId);
-      const details = document.createElement("details");
-      details.className = "handLog";
-      const summary = document.createElement("summary");
-      const title = document.createElement("div");
-      title.className = "handTitle";
-      const scores = (hand.end && Array.isArray(hand.end.scores)) ? hand.end.scores : [];
-      const scoreLine = scores.length
-        ? scores.map(s => `${s.name}: ${s.score}`).join(" · ")
-        : `Hand ${handId} (in progress)`;
-      title.textContent = scoreLine;
-      const meta = document.createElement("div");
-      meta.className = "handScores";
-      meta.textContent = scores.length ? `Hand ${handId}` : "Scores pending";
-      summary.appendChild(title);
-      summary.appendChild(meta);
-      details.appendChild(summary);
+    const latestGameId = gameIds.length ? gameIds[gameIds.length - 1] : null;
+    gameIds.forEach((gameId)=>{
+      const gameHands = games.get(gameId);
+      const handIds = Array.from(gameHands.keys()).sort((a,b)=>a-b);
+      const gameDetails = document.createElement("details");
+      gameDetails.className = "gameLog";
+      gameDetails.open = gameId === latestGameId;
+      const gameSummary = document.createElement("summary");
+      const gameTitle = document.createElement("div");
+      gameTitle.className = "gameTitle";
+      gameTitle.textContent = `Game ${gameId}`;
+      const gameMeta = document.createElement("div");
+      gameMeta.className = "gameMeta";
+      gameMeta.textContent = `${handIds.length} hand${handIds.length === 1 ? "" : "s"}`;
+      gameSummary.appendChild(gameTitle);
+      gameSummary.appendChild(gameMeta);
+      gameDetails.appendChild(gameSummary);
 
-      const playsByTrick = new Map();
-      hand.plays.forEach((play)=>{
-        const trick = Number(play.trickNumber || 0);
-        if(!playsByTrick.has(trick)) playsByTrick.set(trick, []);
-        playsByTrick.get(trick).push(play);
-      });
-      const trickIds = Array.from(playsByTrick.keys()).sort((a,b)=>a-b);
-      const playsWrap = document.createElement("div");
-      playsWrap.className = "handPlays";
-      trickIds.forEach((trickId)=>{
-        const trickBlock = document.createElement("div");
-        trickBlock.className = "trickLog";
-        const trickTitle = document.createElement("div");
-        trickTitle.className = "small";
-        trickTitle.textContent = `Trick ${trickId}`;
-        trickBlock.appendChild(trickTitle);
-        playsByTrick.get(trickId).forEach((play)=>{
-          const line = document.createElement("div");
-          line.className = "playLine";
-          const name = play.playerName || "Player";
-          const card = play.card ? cardLabel(play.card) : "—";
-          line.innerHTML = `<span>${name}</span><span>${card}</span>`;
-          trickBlock.appendChild(line);
+      const gameWrap = document.createElement("div");
+      gameWrap.className = "gameHands";
+      handIds.forEach((handId)=>{
+        const hand = gameHands.get(handId);
+        const details = document.createElement("details");
+        details.className = "handLog";
+        const summary = document.createElement("summary");
+        const title = document.createElement("div");
+        title.className = "handTitle";
+        const scores = (hand.end && Array.isArray(hand.end.scores)) ? hand.end.scores : [];
+        const scoreLine = scores.length
+          ? scores.map(s => `${s.name}: ${s.score}`).join(" · ")
+          : `Hand ${handId} (in progress)`;
+        title.textContent = scoreLine;
+        const meta = document.createElement("div");
+        meta.className = "handScores";
+        meta.textContent = scores.length ? `Hand ${handId}` : "Scores pending";
+        summary.appendChild(title);
+        summary.appendChild(meta);
+        details.appendChild(summary);
+
+        const playsByTrick = new Map();
+        hand.plays.forEach((play)=>{
+          const trick = Number(play.trickNumber || 0);
+          if(!playsByTrick.has(trick)) playsByTrick.set(trick, []);
+          playsByTrick.get(trick).push(play);
         });
-        playsWrap.appendChild(trickBlock);
-      });
-      if(hand.events && hand.events.length){
-        const eventsBlock = document.createElement("div");
-        eventsBlock.className = "trickLog";
-        const header = document.createElement("div");
-        header.className = "small";
-        header.textContent = "Events";
-        eventsBlock.appendChild(header);
-        hand.events.forEach((event)=>{
-          const line = document.createElement("div");
-          line.className = "playLine";
-          const name = event.playerName || "Player";
-          line.innerHTML = `<span>${name}</span><span>Folded</span>`;
-          eventsBlock.appendChild(line);
+        const trickIds = Array.from(playsByTrick.keys()).sort((a,b)=>a-b);
+        const playsWrap = document.createElement("div");
+        playsWrap.className = "handPlays";
+        trickIds.forEach((trickId)=>{
+          const trickBlock = document.createElement("div");
+          trickBlock.className = "trickLog";
+          const trickTitle = document.createElement("div");
+          trickTitle.className = "small";
+          trickTitle.textContent = `Trick ${trickId}`;
+          trickBlock.appendChild(trickTitle);
+          playsByTrick.get(trickId).forEach((play)=>{
+            const line = document.createElement("div");
+            line.className = "playLine";
+            const name = play.playerName || "Player";
+            const card = play.card ? cardLabel(play.card) : "—";
+            line.innerHTML = `<span>${name}</span><span>${card}</span>`;
+            trickBlock.appendChild(line);
+          });
+          playsWrap.appendChild(trickBlock);
         });
-        playsWrap.appendChild(eventsBlock);
-      }
-      if(hand.end && hand.end.reason === "all_folded"){
-        const endLine = document.createElement("div");
-        endLine.className = "small";
-        const winnerName = hand.end.winnerName || "Player";
-        endLine.textContent = `${winnerName} won the hand because everyone folded.`;
-        playsWrap.appendChild(endLine);
-      }
-      if(!playsWrap.childNodes.length){
+        if(hand.events && hand.events.length){
+          const eventsBlock = document.createElement("div");
+          eventsBlock.className = "trickLog";
+          const header = document.createElement("div");
+          header.className = "small";
+          header.textContent = "Events";
+          eventsBlock.appendChild(header);
+          hand.events.forEach((event)=>{
+            const line = document.createElement("div");
+            line.className = "playLine";
+            const name = event.playerName || "Player";
+            line.innerHTML = `<span>${name}</span><span>Folded</span>`;
+            eventsBlock.appendChild(line);
+          });
+          playsWrap.appendChild(eventsBlock);
+        }
+        if(hand.end && hand.end.reason === "all_folded"){
+          const endLine = document.createElement("div");
+          endLine.className = "small";
+          const winnerName = hand.end.winnerName || "Player";
+          endLine.textContent = `${winnerName} won the hand because everyone folded.`;
+          playsWrap.appendChild(endLine);
+        }
+        if(!playsWrap.childNodes.length){
+          const empty = document.createElement("div");
+          empty.className = "small";
+          empty.textContent = "No plays recorded.";
+          playsWrap.appendChild(empty);
+        }
+        details.appendChild(playsWrap);
+        gameWrap.appendChild(details);
+      });
+      if(!handIds.length){
         const empty = document.createElement("div");
         empty.className = "small";
-        empty.textContent = "No plays recorded.";
-        playsWrap.appendChild(empty);
+        empty.textContent = "No hands logged yet.";
+        gameWrap.appendChild(empty);
       }
-      details.appendChild(playsWrap);
-      els.logList.appendChild(details);
+      gameDetails.appendChild(gameWrap);
+      els.logList.appendChild(gameDetails);
     });
   }
   if(els.chatBlock && els.chatList){
@@ -3966,6 +4022,7 @@ async function startMultiplayerGame(){
   state.trickNumber = 0;
   state.deck = [];
   state.handId = 0;
+  advanceGameId();
   state.trumpCard = null;
   state.trumpSuit = null;
   state.currentTrick = { plays: [], leadSuit: null };
@@ -4172,6 +4229,7 @@ function resetAll(){
   state.trumpCard = null;
   state.trumpSuit = null;
   state.currentTrick = { plays: [], leadSuit: null };
+  state.gameId = 0;
   state.selectedCardIds = new Set();
   state.selectedForSwap = new Set();
   state.incomingCardIds.clear();
@@ -4196,6 +4254,11 @@ function resetAll(){
   render();
 }
 
+function advanceGameId(){
+  const current = Number(state.gameId || 0);
+  state.gameId = current + 1;
+}
+
 function startNewGame(){
   setError(null);
   if(state.phase !== PHASE.GAME_OVER){
@@ -4207,6 +4270,9 @@ function startNewGame(){
     return;
   }
   if(isMultiplayer() && !ensureConnectedForAction()) return;
+  if(isMultiplayer()){
+    advanceGameId();
+  }
   state.phase = PHASE.HAND_END;
   state.dealerIndex = 0;
   state.leaderIndex = 0;
@@ -4723,6 +4789,7 @@ function playSelectedCard(){
       logRoomEvent({
         type: "play",
         handId: state.handId,
+        gameId: state.gameId,
         trickNumber: state.trickNumber,
         playerIndex: state.currentTurnIndex,
         playerName: name,
@@ -4886,6 +4953,7 @@ function endHand(){
     logRoomEvent({
       type: "hand_end",
       handId: state.handId,
+      gameId: state.gameId,
       scores,
       reason: state.handEndedByFolds ? "all_folded" : "complete",
       winnerName: state.handEndedByFolds ? (state.players[state.foldWinIndex]?.name ?? null) : null,
@@ -5502,8 +5570,10 @@ function render(){
     }
   }
 
-  // settings: lock after lobby, but allow peek by expanding
-  const settingsLocked = state.phase !== PHASE.LOBBY || (isMulti && !isHost);
+  // settings: lock after lobby, except hosts can edit at game over
+  const canEditSettings = (state.phase === PHASE.LOBBY || state.phase === PHASE.GAME_OVER)
+    && (!isMulti || isHost);
+  const settingsLocked = !canEditSettings;
   if(els.settingsCard){
     els.settingsCard.classList.toggle('collapsed', !!state.settingsCollapsed);
   }
