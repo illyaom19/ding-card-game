@@ -810,6 +810,161 @@
       font-size:12px;
       color:var(--muted);
     }
+    .chatBlock{
+      border:1px solid var(--stroke);
+      border-radius:12px;
+      background: rgba(0,0,0,.18);
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-bottom:10px;
+    }
+    .chatHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      font-weight:800;
+      font-size:13px;
+    }
+    .chatList{
+      max-height:160px;
+      overflow-y:auto;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      padding-right:4px;
+    }
+    .chatMessage{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      padding:6px 8px;
+      border-radius:10px;
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.06);
+    }
+    .chatMeta{
+      font-size:11px;
+      color:var(--muted);
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+    .chatText{
+      font-size:13px;
+      color:var(--text);
+      word-break:break-word;
+    }
+    .chatComposer{
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    .chatComposer input{
+      flex:1;
+      min-width:0;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.04);
+      color:var(--text);
+      font-size:13px;
+    }
+    .chatComposer input::placeholder{ color:var(--muted); }
+    .connectionStatus{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      font-weight:700;
+    }
+    .statusDot{
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      background: var(--good);
+      box-shadow: 0 0 10px rgba(62,226,138,.45);
+      display:inline-block;
+    }
+    .statusSpinner{
+      width:12px;
+      height:12px;
+      border-radius:999px;
+      border:2px solid rgba(124,92,255,.35);
+      border-top-color: rgba(124,92,255,.9);
+      animation: spin 1s linear infinite;
+      display:inline-block;
+    }
+    @keyframes spin{
+      from{ transform: rotate(0deg); }
+      to{ transform: rotate(360deg); }
+    }
+    .reconnectOverlay{
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background: rgba(6,9,18,.55);
+      backdrop-filter: blur(6px);
+      z-index: 60;
+      text-align:center;
+    }
+    .reconnectCard{
+      background: rgba(12,18,40,.92);
+      border:1px solid var(--stroke);
+      border-radius:20px;
+      padding:24px 20px;
+      box-shadow: var(--shadow);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      align-items:center;
+      max-width:320px;
+    }
+    .fullscreenPopup{
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background: rgba(6,9,18,.7);
+      backdrop-filter: blur(8px);
+      z-index: 70;
+    }
+    .fullscreenPopup.show{ display:flex; }
+    .popupCard{
+      padding:28px 26px;
+      border-radius:20px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(12,18,40,.95);
+      box-shadow: var(--shadow);
+      text-align:center;
+      animation: popupIn 0.24s ease-out;
+      min-width:220px;
+    }
+    .popupCard.danger{
+      border-color: rgba(255,92,122,.45);
+      background: rgba(40,10,20,.92);
+    }
+    .popupCard.good{
+      border-color: rgba(62,226,138,.45);
+      background: rgba(10,40,24,.92);
+    }
+    .popupTitle{
+      font-weight:900;
+      font-size:24px;
+      letter-spacing:.6px;
+    }
+    .popupSubtitle{
+      margin-top:8px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    @keyframes popupIn{
+      from{ transform: scale(.9); opacity:.6; }
+      to{ transform: scale(1); opacity:1; }
+    }
     .lobbyList{ display:flex; flex-direction:column; gap:6px; }
     .lobbyPlayer{
       padding:8px 10px;
@@ -996,6 +1151,20 @@
     </div>
   </div>
 </div>
+<div id="reconnectOverlay" class="reconnectOverlay" aria-live="assertive">
+  <div class="reconnectCard">
+    <div class="statusSpinner" aria-hidden="true"></div>
+    <div style="font-weight:900;font-size:18px;">Reconnecting...</div>
+    <div class="small" id="reconnectStatus">Trying to restore database access.</div>
+    <button class="btn" id="offlineModeBtn" type="button">I want to play offline instead</button>
+  </div>
+</div>
+<div id="fullscreenPopup" class="fullscreenPopup" aria-live="assertive">
+  <div class="popupCard" id="popupCard">
+    <div class="popupTitle" id="popupTitle">YOU GOT DUNG</div>
+    <div class="popupSubtitle" id="popupSubtitle"></div>
+  </div>
+</div>
 <!-- Winner banner: shows when a player hits 0 -->
 <div id="winnerBanner" class="panel" style="margin:12px auto;max-width:1100px;border-radius:12px;display:none;">
   <div class="bd" style="display:flex;align-items:center;gap:12px;padding:12px 14px;">
@@ -1167,6 +1336,17 @@
               <div class="small" id="logHint" style="margin-left:auto;color:var(--muted);">Collapsed</div>
             </div>
             <div class="logBody" id="logBody">
+              <div class="chatBlock" id="chatBlock">
+                <div class="chatHeader">
+                  <span>Room chat</span>
+                  <span class="small" id="chatHint">Multiplayer only</span>
+                </div>
+                <div class="chatList" id="chatList"></div>
+                <div class="chatComposer">
+                  <input id="chatInput" type="text" maxlength="240" placeholder="Send a message to the room..." />
+                  <button class="btn primary" id="chatSendBtn" type="button">Send</button>
+                </div>
+              </div>
               <div class="logList" id="logList"></div>
             </div>
           </div>
@@ -1240,7 +1420,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, writeBatch, addDoc, query, orderBy, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, writeBatch, addDoc, query, orderBy, arrayUnion, arrayRemove, enableNetwork } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging.js";
 /** =========================
  *  Ding Prototype (Hotseat)
@@ -1406,6 +1586,19 @@ const state = {
   playedCards: [],
   logEntries: [],
   logCollapsed: true,
+  connectionStatus: "unknown",
+  connectionStatusDetail: "",
+  lastConnectionChangeAt: 0,
+  offlineFallbackEnabled: false,
+  reconnecting: false,
+  handEndedByFolds: false,
+  foldWinIndex: null,
+  lastPopupKey: "",
+  lastNotificationKey: "",
+  lastNotificationAcked: "",
+  unsubConnectivity: null,
+  reconnectTimer: null,
+  popupTimer: null,
   collapsed: { game:false, table:false, hand:false },
 };
 
@@ -1478,6 +1671,18 @@ const els = {
   logCaret: document.getElementById("logCaret"),
   logList: document.getElementById("logList"),
   logHint: document.getElementById("logHint"),
+  chatBlock: document.getElementById("chatBlock"),
+  chatList: document.getElementById("chatList"),
+  chatHint: document.getElementById("chatHint"),
+  chatInput: document.getElementById("chatInput"),
+  chatSendBtn: document.getElementById("chatSendBtn"),
+  reconnectOverlay: document.getElementById("reconnectOverlay"),
+  reconnectStatus: document.getElementById("reconnectStatus"),
+  offlineModeBtn: document.getElementById("offlineModeBtn"),
+  fullscreenPopup: document.getElementById("fullscreenPopup"),
+  popupCard: document.getElementById("popupCard"),
+  popupTitle: document.getElementById("popupTitle"),
+  popupSubtitle: document.getElementById("popupSubtitle"),
 
   scoreboard: document.getElementById("scoreboard"),
   gameOverActions: document.getElementById("gameOverActions"),
@@ -1572,7 +1777,7 @@ function clampSettings(){
 function foldCurrentPlayer(){
   if(state.phase !== PHASE.SWAP) return;
   const isMulti = isMultiplayer();
-  const isHost = !isMulti || (state.selfUid && state.hostUid && state.selfUid === state.hostUid);
+  if(isMulti && !ensureConnectedForAction()) return;
   if(isMulti && state.selfIndex !== state.currentTurnIndex){
     setError("Not your turn.");
     return;
@@ -1587,6 +1792,14 @@ function foldCurrentPlayer(){
   // mark folded and mark as swapped so they are excluded from further swap turns
   p.folded = true;
   p.hasSwapped = true;
+  if(isMulti){
+    logRoomEvent({
+      type: "fold",
+      handId: state.handId,
+      playerIndex: state.currentTurnIndex,
+      playerName: p.name,
+    });
+  }
   // move their hand to discard pile (also handle trump if present)
   const hand = isMulti ? state.selfHand : p.hand;
   if(hand && hand.length){
@@ -1617,6 +1830,8 @@ function foldCurrentPlayer(){
       state.players[remainingIdx].tricksWonThisHand = 5;
       state.lastTrickWinnerIndex = remainingIdx;
     }
+    state.handEndedByFolds = true;
+    state.foldWinIndex = remainingIdx;
     endHand();
     return;
   }
@@ -1647,6 +1862,38 @@ function hasFirebase(){ return !!(firebaseApp && firebaseAuth && firebaseDb); }
 function roomRef(roomId){ return doc(firebaseDb, ROOM_COLLECTION, roomId); }
 function userRef(uid){ return doc(firebaseDb, USER_COLLECTION, uid); }
 function appMetaRef(){ return doc(firebaseDb, "meta", "app"); }
+function ensureConnectedForAction(){
+  if(!isMultiplayer()) return true;
+  if(state.connectionStatus === "connected") return true;
+  setConnectionStatus("reconnecting", "Reconnecting to the database.");
+  setError("Reconnecting...");
+  return false;
+}
+function currentTurnKey(){
+  return `${state.handId || 0}-${state.trickNumber || 0}-${state.currentTurnIndex || 0}-${state.phase || ""}`;
+}
+async function ackTurnNotification(turnKey){
+  if(!turnKey || !state.selfUid || !firebaseDb) return;
+  try{
+    await setDoc(userRef(state.selfUid), {
+      lastTurnAck: turnKey,
+      lastTurnAckAt: serverTimestamp(),
+    }, { merge: true });
+    state.lastNotificationAcked = turnKey;
+  } catch (err){
+    console.error("Failed to ack turn notification:", err);
+  }
+}
+function ackTurnNotificationIfNeeded(){
+  if(!isMultiplayer() || !state.selfUid) return;
+  if(state.selfIndex === null || state.selfIndex === undefined || state.selfIndex < 0) return;
+  const isYourTurn = state.players[state.currentTurnIndex]?.uid === state.selfUid;
+  if(!isYourTurn) return;
+  const key = currentTurnKey();
+  if(key && key !== state.lastNotificationAcked){
+    ackTurnNotification(key);
+  }
+}
 function formatCommitHash(commit){
   if(!commit) return "dev";
   return commit.length > 8 ? commit.slice(0, 7) : commit;
@@ -1984,6 +2231,67 @@ function startAppCommitListener(){
     console.error("App commit listener failed:", err);
   });
 }
+function setConnectionStatus(status, detail = ""){
+  if(state.connectionStatus === status && state.connectionStatusDetail === detail) return;
+  state.connectionStatus = status;
+  state.connectionStatusDetail = detail;
+  state.lastConnectionChangeAt = Date.now();
+  renderConnectionOverlay();
+  updateAuthUI();
+}
+function renderConnectionOverlay(){
+  if(!els.reconnectOverlay) return;
+  const show = isMultiplayer() && state.connectionStatus !== "connected" && !state.offlineFallbackEnabled;
+  els.reconnectOverlay.style.display = show ? "flex" : "none";
+  if(els.reconnectStatus){
+    els.reconnectStatus.textContent = state.connectionStatusDetail || "Trying to restore database access.";
+  }
+}
+function ensureReconnectLoop(){
+  if(state.reconnectTimer){
+    clearInterval(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
+  state.reconnectTimer = setInterval(()=>{
+    if(state.connectionStatus === "connected") return;
+    if(!firebaseDb) return;
+    enableNetwork(firebaseDb).catch(()=>{});
+  }, 15000);
+}
+function startConnectivityMonitor(){
+  if(!firebaseDb) return;
+  if(state.unsubConnectivity){ state.unsubConnectivity(); state.unsubConnectivity = null; }
+  setConnectionStatus("reconnecting", "Connecting to the database.");
+  state.unsubConnectivity = onSnapshot(appMetaRef(), { includeMetadataChanges: true }, (snap)=>{
+    const fromCache = snap.metadata.fromCache;
+    if(fromCache){
+      setConnectionStatus("reconnecting", "Reconnecting to the database.");
+    } else {
+      setConnectionStatus("connected", "");
+    }
+  }, (err)=>{
+    console.error("Connectivity monitor error:", err);
+    setConnectionStatus("reconnecting", "Reconnecting to the database.");
+  });
+  ensureReconnectLoop();
+}
+function showFullscreenPopup({ title, subtitle = "", tone = "" }){
+  if(!els.fullscreenPopup || !els.popupTitle || !els.popupCard) return;
+  if(state.popupTimer){ clearTimeout(state.popupTimer); state.popupTimer = null; }
+  els.popupTitle.textContent = title;
+  if(els.popupSubtitle) els.popupSubtitle.textContent = subtitle;
+  els.popupCard.classList.remove("danger", "good");
+  if(tone) els.popupCard.classList.add(tone);
+  els.fullscreenPopup.classList.add("show");
+  state.popupTimer = setTimeout(()=>{
+    els.fullscreenPopup.classList.remove("show");
+  }, 1400);
+}
+function triggerPopupOnce(key, options){
+  if(!key || state.lastPopupKey === key) return;
+  state.lastPopupKey = key;
+  showFullscreenPopup(options);
+}
 function showPwaPrompt(){
   if(!els.pwaPrompt) return;
   els.pwaPrompt.style.display = "flex";
@@ -2167,15 +2475,20 @@ function initMessagingListeners(){
     if(Notification.permission !== "granted") return;
     if(document.visibilityState === "visible") return;
     const data = payload?.data || {};
-    const roomName = data.roomName || getRoomDisplayName(state.roomName);
-    const title = payload?.notification?.title || "DING Online";
-    const body = payload?.notification?.body || `DING Online - It's your turn in ${roomName}`;
+    const title = data.title || payload?.notification?.title || "DING Online";
+    const body = data.body || payload?.notification?.body || "It's your turn...";
+    const turnKey = data.turnKey || "";
+    if(turnKey && state.lastNotificationKey === turnKey) return;
+    if(turnKey) state.lastNotificationKey = turnKey;
     try{
       new Notification(title, {
         body,
         tag: data.roomId || "ding-turn",
-        data: { roomId: data.roomId || "" },
+        data: { roomId: data.roomId || "", turnKey },
       });
+      if(turnKey){
+        ackTurnNotification(turnKey);
+      }
     } catch (err){
       console.error("Foreground notification failed:", err);
     }
@@ -2185,7 +2498,7 @@ function maybeRestorePushNotifications(){
   if(!state.isSignedIn) return;
   if(!supportsPush()) return;
   if(Notification.permission !== "granted") return;
-  enableTurnNotifications(false);
+  registerServiceWorker().then(()=> enableTurnNotifications(false)).catch(()=> enableTurnNotifications(false));
 }
 function maybePromptNotificationPermissionOnPwa(){
   if(!state.isSignedIn) return;
@@ -2291,6 +2604,23 @@ function updateModeUI(){
   updateGameTitle();
 }
 
+function appendConnectionStatus(container){
+  if(!hasFirebase() || !container) return;
+  const wrap = document.createElement("span");
+  wrap.className = "connectionStatus";
+  const indicator = document.createElement("span");
+  if(state.connectionStatus === "connected"){
+    indicator.className = "statusDot";
+    wrap.appendChild(indicator);
+    wrap.appendChild(document.createTextNode("Connected"));
+  } else {
+    indicator.className = "statusSpinner";
+    wrap.appendChild(indicator);
+    wrap.appendChild(document.createTextNode("Reconnecting"));
+  }
+  container.appendChild(wrap);
+}
+
 function setMode(mode){
   if(mode === state.mode){
     updateModeUI();
@@ -2302,6 +2632,9 @@ function setMode(mode){
     return;
   }
   state.mode = mode;
+  if(mode === MODE.MULTI){
+    state.offlineFallbackEnabled = false;
+  }
   if(mode === MODE.HOTSEAT){
     leaveRoom();
     resetAll();
@@ -2327,10 +2660,20 @@ function updateAuthUI(){
   if(els.shareRoomBtn) els.shareRoomBtn.disabled = !state.roomId;
   if(els.headerGreeting){
     if(state.isSignedIn && state.selfName){
-      els.headerGreeting.textContent = `Hi ${state.selfName} - welcome back.`;
+      els.headerGreeting.textContent = "";
+      els.headerGreeting.appendChild(document.createTextNode(`Hi ${state.selfName} - welcome back!`));
+      if(hasFirebase()){
+        els.headerGreeting.appendChild(document.createTextNode(" Connection status: "));
+        appendConnectionStatus(els.headerGreeting);
+      }
       els.headerGreeting.style.display = "block";
     } else if(state.isSignedIn){
-      els.headerGreeting.textContent = "Hi there - welcome back.";
+      els.headerGreeting.textContent = "";
+      els.headerGreeting.appendChild(document.createTextNode("Hi there - welcome back!"));
+      if(hasFirebase()){
+        els.headerGreeting.appendChild(document.createTextNode(" Connection status: "));
+        appendConnectionStatus(els.headerGreeting);
+      }
       els.headerGreeting.style.display = "block";
     } else {
       els.headerGreeting.textContent = "";
@@ -2695,6 +3038,8 @@ function serializeRoomState(){
     lastTrickWinnerIndex: state.lastTrickWinnerIndex,
     lastCompletedTrick: state.lastCompletedTrick,
     winnerIndex: state.winnerIndex,
+    handEndedByFolds: state.handEndedByFolds,
+    foldWinIndex: state.foldWinIndex,
     settings: state.settings,
     discardPile: state.discardPile,
     playedCards: state.playedCards,
@@ -2745,6 +3090,8 @@ function applyRoomState(data){
     state.lastTrickWinnerIndex = data.lastTrickWinnerIndex ?? null;
     state.lastCompletedTrick = data.lastCompletedTrick ?? null;
     state.winnerIndex = data.winnerIndex ?? null;
+    state.handEndedByFolds = !!data.handEndedByFolds;
+    state.foldWinIndex = data.foldWinIndex ?? null;
     if("roomName" in data) state.roomName = getRoomDisplayName(data.roomName);
     state.settings = { ...state.settings, ...(data.settings || {}) };
     state.discardPile = Array.isArray(data.discardPile) ? data.discardPile : [];
@@ -2761,6 +3108,7 @@ function applyRoomState(data){
   } finally {
     state.isApplyingRemote = false;
   }
+  ackTurnNotificationIfNeeded();
   syncSettingsUI();
   updateModeUI();
   updateRoomStatus();
@@ -2779,6 +3127,7 @@ async function syncRoomState(reason){
   } catch (err){
     console.error("Failed to sync room state:", reason, err);
     setError("Failed to sync room state.");
+    setConnectionStatus("reconnecting", "Reconnecting to the database.");
   }
 }
 
@@ -2798,6 +3147,7 @@ function subscribeToRoom(roomId){
   }, (err)=>{
     console.error("Room subscription error:", err);
     setError("Room sync failed.");
+    setConnectionStatus("reconnecting", "Reconnecting to the database.");
   });
 }
 
@@ -2816,6 +3166,7 @@ function subscribeToHand(){
     render();
   }, (err)=>{
     console.error("Hand subscription error:", err);
+    setConnectionStatus("reconnecting", "Reconnecting to the database.");
   });
 }
 
@@ -2841,6 +3192,7 @@ function subscribeToLog(){
     renderRoomLog();
   }, (err)=>{
     console.error("Log subscription error:", err);
+    setConnectionStatus("reconnecting", "Reconnecting to the database.");
   });
 }
 
@@ -2855,40 +3207,67 @@ async function logRoomEvent(entry){
     console.error("Failed to write log entry:", err);
   }
 }
+async function sendChatMessage(){
+  if(!isMultiplayer() || !state.roomId || !firebaseDb) return;
+  if(!els.chatInput) return;
+  const message = (els.chatInput.value || "").trim();
+  if(!message) return;
+  const name = state.players[state.selfIndex]?.name || state.selfName || "Player";
+  await logRoomEvent({
+    type: "chat",
+    message: message.slice(0, 240),
+    playerName: name,
+    playerUid: state.selfUid || null,
+  });
+  els.chatInput.value = "";
+}
 
 function renderRoomLog(){
   if(!els.logList) return;
   els.logList.innerHTML = "";
+  if(els.chatList) els.chatList.innerHTML = "";
   let hint = "Multiplayer only";
   if(state.mode !== MODE.MULTI){
+    if(els.chatBlock) els.chatBlock.style.display = "none";
     const empty = document.createElement("div");
     empty.className = "small";
     empty.textContent = "Room log is available in multiplayer.";
     els.logList.appendChild(empty);
   } else if(!state.roomId){
+    if(els.chatBlock) els.chatBlock.style.display = "none";
     const empty = document.createElement("div");
     empty.className = "small";
     empty.textContent = "Join a room to see the log.";
     els.logList.appendChild(empty);
     hint = "No room";
   } else if(!state.logEntries.length){
+    if(els.chatBlock) els.chatBlock.style.display = "flex";
     const empty = document.createElement("div");
     empty.className = "small";
     empty.textContent = "No hands logged yet.";
     els.logList.appendChild(empty);
     hint = "No hands yet";
   } else {
+    if(els.chatBlock) els.chatBlock.style.display = "flex";
     const hands = new Map();
     state.logEntries.forEach((entry)=>{
+      if(entry.type === "chat") return;
       const handId = Number(entry.handId || 0);
       if(!handId) return;
-      if(!hands.has(handId)) hands.set(handId, { plays: [], end: null });
+      if(!hands.has(handId)) hands.set(handId, { plays: [], end: null, events: [] });
       const hand = hands.get(handId);
       if(entry.type === "play") hand.plays.push(entry);
       if(entry.type === "hand_end") hand.end = entry;
+      if(entry.type === "fold") hand.events.push(entry);
     });
     const handIds = Array.from(hands.keys()).sort((a,b)=>a-b);
     hint = `${handIds.length} hand${handIds.length === 1 ? "" : "s"}`;
+    if(!handIds.length){
+      const empty = document.createElement("div");
+      empty.className = "small";
+      empty.textContent = "No hands logged yet.";
+      els.logList.appendChild(empty);
+    }
     handIds.forEach((handId)=>{
       const hand = hands.get(handId);
       const details = document.createElement("details");
@@ -2934,6 +3313,29 @@ function renderRoomLog(){
         });
         playsWrap.appendChild(trickBlock);
       });
+      if(hand.events && hand.events.length){
+        const eventsBlock = document.createElement("div");
+        eventsBlock.className = "trickLog";
+        const header = document.createElement("div");
+        header.className = "small";
+        header.textContent = "Events";
+        eventsBlock.appendChild(header);
+        hand.events.forEach((event)=>{
+          const line = document.createElement("div");
+          line.className = "playLine";
+          const name = event.playerName || "Player";
+          line.innerHTML = `<span>${name}</span><span>Folded</span>`;
+          eventsBlock.appendChild(line);
+        });
+        playsWrap.appendChild(eventsBlock);
+      }
+      if(hand.end && hand.end.reason === "all_folded"){
+        const endLine = document.createElement("div");
+        endLine.className = "small";
+        const winnerName = hand.end.winnerName || "Player";
+        endLine.textContent = `${winnerName} won the hand because everyone folded.`;
+        playsWrap.appendChild(endLine);
+      }
       if(!playsWrap.childNodes.length){
         const empty = document.createElement("div");
         empty.className = "small";
@@ -2943,6 +3345,30 @@ function renderRoomLog(){
       details.appendChild(playsWrap);
       els.logList.appendChild(details);
     });
+  }
+  if(els.chatBlock && els.chatList){
+    const chatEntries = state.logEntries.filter(entry=> entry.type === "chat");
+    if(els.chatHint){
+      els.chatHint.textContent = chatEntries.length ? `${chatEntries.length} message${chatEntries.length === 1 ? "" : "s"}` : "No messages yet";
+    }
+    chatEntries.forEach((entry)=>{
+      const item = document.createElement("div");
+      item.className = "chatMessage";
+      const name = entry.playerName || "Player";
+      const meta = document.createElement("div");
+      meta.className = "chatMeta";
+      meta.textContent = name;
+      const text = document.createElement("div");
+      text.className = "chatText";
+      text.textContent = entry.message || "";
+      item.appendChild(meta);
+      item.appendChild(text);
+      els.chatList.appendChild(item);
+    });
+    const canChat = state.mode === MODE.MULTI && state.roomId;
+    if(els.chatInput) els.chatInput.disabled = !canChat;
+    if(els.chatSendBtn) els.chatSendBtn.disabled = !canChat;
+    if(els.chatList) els.chatList.scrollTop = els.chatList.scrollHeight;
   }
   if(els.logHint) els.logHint.textContent = hint;
   requestAnimationFrame(()=> scrollLogToBottom());
@@ -3202,6 +3628,7 @@ async function startMultiplayerGame(){
     setError("Join a room first.");
     return;
   }
+  if(!ensureConnectedForAction()) return;
   if(state.selfUid !== state.hostUid){
     setError("Only the host can start the game.");
     return;
@@ -3226,6 +3653,8 @@ async function startMultiplayerGame(){
   state.lastTrickWinnerKey = null;
   state.lastCompletedTrick = null;
   state.winnerIndex = null;
+  state.handEndedByFolds = false;
+  state.foldWinIndex = null;
   state.discardPile = [];
   state.playedCards = [];
   state.selectedCardIds.clear();
@@ -3251,6 +3680,7 @@ async function resetRoomState(){
     resetAll();
     return;
   }
+  if(!ensureConnectedForAction()) return;
   if(state.selfUid !== state.hostUid){
     setError("Only the host can reset the room.");
     return;
@@ -3273,6 +3703,8 @@ async function resetRoomState(){
   state.lastTrickWinnerKey = null;
   state.lastCompletedTrick = null;
   state.winnerIndex = null;
+  state.handEndedByFolds = false;
+  state.foldWinIndex = null;
   state.discardPile = [];
   state.playedCards = [];
   state.selectedCardIds.clear();
@@ -3464,7 +3896,10 @@ function dealHand(){
     return;
   }
   if(state.dealing) return;
+  state.handEndedByFolds = false;
+  state.foldWinIndex = null;
   if(isMultiplayer()){
+    if(!ensureConnectedForAction()) return;
     if(state.phase !== PHASE.HAND_END){
       setError("Can't deal: finish the current hand first.");
       return;
@@ -3764,6 +4199,7 @@ function confirmSwap(){
 function confirmSwapMultiplayer(){
   setError(null);
   if(state.phase !== PHASE.SWAP) return;
+  if(!ensureConnectedForAction()) return;
   if(state.selfIndex === null || state.selfIndex !== state.currentTurnIndex){
     setError("Not your turn.");
     return;
@@ -3836,6 +4272,7 @@ function playSelectedCard(){
   setError(null);
   if(state.phase !== PHASE.TRICK) return;
   const isMulti = isMultiplayer();
+  if(isMulti && !ensureConnectedForAction()) return;
   if(isMulti && state.selfIndex !== state.currentTurnIndex){
     setError("Not your turn.");
     return;
@@ -4026,14 +4463,16 @@ function endHand(){
   state.phase = PHASE.HAND_END;
 
   // scoring: count down from STARTING_SCORE, reset on DUNG
-  for(const p of state.players){
+  const dingedIndexes = [];
+  state.players.forEach((p, idx)=>{
     if(p.tricksWonThisHand === 0 && !p.folded){
       p.score = state.settings.startingScore;
       p.dingCount = (p.dingCount || 0) + 1;
+      dingedIndexes.push(idx);
     } else {
       p.score = Math.max(0, p.score - p.tricksWonThisHand);
     }
-  }
+  });
   const winnerIdx = state.players.findIndex(p => p.score <= 0);
   if(winnerIdx >= 0){
     state.winnerIndex = winnerIdx;
@@ -4044,7 +4483,13 @@ function endHand(){
   }
   if(isMultiplayer()){
     const scores = state.players.map(p => ({ name: p.name, score: p.score }));
-    logRoomEvent({ type: "hand_end", handId: state.handId, scores });
+    logRoomEvent({
+      type: "hand_end",
+      handId: state.handId,
+      scores,
+      reason: state.handEndedByFolds ? "all_folded" : "complete",
+      winnerName: state.handEndedByFolds ? (state.players[state.foldWinIndex]?.name ?? null) : null,
+    });
   }
 
   // dealer update
@@ -4079,6 +4524,25 @@ function endHand(){
   }
   render();
   if(isMultiplayer()) syncRoomState("end-hand");
+
+  const selfIdx = isMultiplayer() ? state.selfIndex : null;
+  if(selfIdx !== null && dingedIndexes.includes(selfIdx)){
+    triggerPopupOnce(`ding-${state.handId}-${selfIdx}`, {
+      title: "YOU GOT DUNG",
+      subtitle: "Reset to the starting score.",
+      tone: "danger",
+    });
+  }
+  if(state.winnerIndex !== null){
+    const winnerName = state.players[state.winnerIndex]?.name ?? "Player";
+    const isSelfWinner = isMultiplayer() && selfIdx === state.winnerIndex;
+    const title = isSelfWinner ? "YOU WON" : `${winnerName} WON`;
+    triggerPopupOnce(`win-${state.handId}-${state.winnerIndex}`, {
+      title,
+      subtitle: isSelfWinner ? "Nice work." : "Game over.",
+      tone: "good",
+    });
+  }
 }
 
 function renderScoreboard(){
@@ -4187,9 +4651,11 @@ function renderTrickArea(){
   infoRow.className = "trickInfoRow";
   let hasInfo = false;
   let summary = null;
+  const showFoldWin = state.handEndedByFolds && state.foldWinIndex !== null
+    && (state.phase === PHASE.HAND_END || state.phase === PHASE.GAME_OVER);
 
   // show the last trick winner after each completed trick (styled pill with mini-card)
-  if(state.lastCompletedTrick && state.lastTrickWinnerIndex !== null){
+  if(!showFoldWin && state.lastCompletedTrick && state.lastTrickWinnerIndex !== null){
     summary = document.createElement("div");
     summary.className = "pill trick-winner";
     const winner = state.players[state.lastTrickWinnerIndex]?.name ?? "-";
@@ -4207,6 +4673,15 @@ function renderTrickArea(){
       </div>
     `;
     infoRow.appendChild(summary);
+    hasInfo = true;
+  }
+
+  if(showFoldWin){
+    const winnerName = state.players[state.foldWinIndex]?.name ?? "Player";
+    const banner = document.createElement("div");
+    banner.className = "pill";
+    banner.innerHTML = `<strong>${winnerName}</strong> won the hand because everyone folded.`;
+    infoRow.appendChild(banner);
     hasInfo = true;
   }
 
@@ -4674,6 +5149,7 @@ function render(){
   renderHand();
   renderStatus();
   renderRoomLog();
+  renderConnectionOverlay();
   state.lastPhase = state.phase;
 
   // keep Game header summary empty; notifier handles status now
@@ -4976,6 +5452,38 @@ if(els.pwaEnableBtn){
     enableTurnNotifications(true);
   });
 }
+if(els.chatSendBtn){
+  els.chatSendBtn.addEventListener("click", ()=>{ sendChatMessage(); });
+}
+if(els.chatInput){
+  els.chatInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){
+      e.preventDefault();
+      sendChatMessage();
+    }
+  });
+}
+if(els.offlineModeBtn){
+  els.offlineModeBtn.addEventListener("click", ()=>{
+    state.offlineFallbackEnabled = true;
+    setMode(MODE.HOTSEAT);
+    renderConnectionOverlay();
+  });
+}
+window.addEventListener("online", ()=>{
+  if(!hasFirebase()) return;
+  setConnectionStatus("reconnecting", "Reconnecting to the database.");
+  if(state.isSignedIn) startConnectivityMonitor();
+});
+window.addEventListener("offline", ()=>{
+  if(!hasFirebase()) return;
+  setConnectionStatus("reconnecting", "Offline. Waiting to reconnect.");
+});
+document.addEventListener("visibilitychange", ()=>{
+  if(supportsPush() && document.visibilityState === "visible"){
+    registerServiceWorker();
+  }
+});
 if(els.signInBtn){
   els.signInBtn.addEventListener("click", async ()=>{
     if(!firebaseAuth || !googleProvider){
@@ -5023,6 +5531,9 @@ if(firebaseAuth){
     state.hasSavedAppCommit = false;
     state.remoteCommit = "";
     if(state.unsubAppMeta){ state.unsubAppMeta(); state.unsubAppMeta = null; }
+    if(state.unsubConnectivity){ state.unsubConnectivity(); state.unsubConnectivity = null; }
+    if(state.reconnectTimer){ clearInterval(state.reconnectTimer); state.reconnectTimer = null; }
+    setConnectionStatus("unknown", "");
     state.roomIds = [];
     state.roomList = {};
     clearRoomListSubscriptions();
@@ -5039,6 +5550,7 @@ if(firebaseAuth){
     maybePromptNotificationPermissionOnPwa();
     await ensureAppCommitSaved();
     startAppCommitListener();
+    startConnectivityMonitor();
     if(state.mode === MODE.MULTI){
       await maybeAutoJoinRoom();
     }
@@ -5054,5 +5566,3 @@ initMessagingListeners();
 </script>
 </body>
 </html>
-
-

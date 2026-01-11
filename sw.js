@@ -23,14 +23,12 @@ if(self.FIREBASE_CONFIG && self.firebase){
 
   messaging.onBackgroundMessage((payload)=>{
     const data = payload && payload.data ? payload.data : {};
-    const roomName = data.roomName || "your lobby";
-    const title = (payload && payload.notification && payload.notification.title) || "DING Online";
-    const body = (payload && payload.notification && payload.notification.body)
-      || `DING Online - It's your turn in ${roomName}`;
+    const title = data.title || (payload && payload.notification && payload.notification.title) || "DING Online";
+    const body = data.body || (payload && payload.notification && payload.notification.body) || "It's your turn...";
     const options = {
       body,
       tag: data.roomId ? `ding-turn-${data.roomId}` : "ding-turn",
-      data: { roomId: data.roomId || "" },
+      data: { roomId: data.roomId || "", turnKey: data.turnKey || "" },
       icon: "icon.svg",
       badge: "icon.svg",
     };
