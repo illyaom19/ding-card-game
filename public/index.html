@@ -52,16 +52,16 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      padding:0;
-      overflow:visible;
+      padding:6px;
+      overflow:hidden;
       cursor:pointer;
       transition: background .12s ease, transform .12s ease;
     }
     .logoBtn:hover{ background: rgba(124,92,255,.32); transform: translateY(-1px); }
     .logoBtn:active{ transform: translateY(0); }
     .logoBtn img{
-      width:clamp(70px, 16vw, 96px);
-      height:clamp(70px, 16vw, 96px);
+      width:100%;
+      height:100%;
       display:block;
     }
     .pill{
@@ -251,11 +251,11 @@
     }
     .cardBtn{
       width: var(--cardW);
-      height: 96px;
-      border-radius: 14px;
+      height: calc(var(--cardW) * 1.45);
+      border-radius:10px;
       position: relative;
-      border:1px solid rgba(255,255,255,.18);
-      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
+      border:1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
       box-shadow: 0 10px 22px rgba(0,0,0,.35);
       padding:10px;
       cursor:pointer;
@@ -655,7 +655,7 @@
       header{ padding:10px 12px }
       .title div{ font-size:14px }
       .pill{ padding:6px 8px; font-size:12px }
-      .cardBtn{ width: var(--cardW); height: calc(var(--cardW) * 1.3); }
+      .cardBtn{ width: var(--cardW); height: calc(var(--cardW) * 1.45); }
       .cardFace{ width: var(--cardW); height: calc(var(--cardW) * 1.35); }
       .trickSlot{ min-width: var(--cardW); }
       .pill.trick-winner .miniCard{ width:40px; height:48px }
