@@ -857,6 +857,25 @@
     .handLog summary::-webkit-details-marker{ display:none; }
     .handTitle{ font-weight:800; font-size:13px; }
     .handScores{ font-size:12px; color:var(--muted); }
+    .scoreMiniTable{
+      display:grid;
+      gap:2px;
+    }
+    .scoreMiniRow{
+      display:grid;
+      gap:6px;
+      align-items:center;
+    }
+    .scoreMiniCell{
+      text-align:center;
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .scoreMiniRow.scores .scoreMiniCell{
+      font-weight:800;
+      color:var(--text);
+    }
     .handPlays{ margin-top:8px; display:flex; flex-direction:column; gap:6px; }
     .trickLog{
       border-top:1px dashed var(--stroke);
@@ -1615,6 +1634,16 @@ function determineTrickWinner(plays, leadSuit, trumpSuit){
   }
   return best.playerIndex;
 }
+function checkFastTrackWin(winnerIdx){
+  const winner = state.players[winnerIdx];
+  if(!winner || typeof winner.score !== "number") return false;
+  const projectedScore = winner.score - winner.tricksWonThisHand;
+  if(projectedScore <= 0){
+    endHand();
+    return true;
+  }
+  return false;
+}
 
 // removed unused helper: clone()
 
@@ -2184,6 +2213,11 @@ function normalizeRoomName(name){
 }
 function getRoomDisplayName(name){
   return normalizeRoomName(name) || "Player's Lobby";
+}
+function getNameInitial(name){
+  const clean = (name || "").trim();
+  if(!clean) return "?";
+  return clean[0].toUpperCase();
 }
 function getDefaultRoomName(){
   const raw = (state.selfName || "").trim();
@@ -3764,12 +3798,17 @@ function renderRoomLog(){
   } else {
     if(els.chatBlock) els.chatBlock.style.display = "flex";
     const games = new Map();
+    const gameWinners = new Map();
     state.logEntries.forEach((entry)=>{
       if(entry.type === "chat") return;
       const handId = Number(entry.handId || 0);
       if(!handId) return;
       const gameId = Number(entry.gameId || 1);
       if(!games.has(gameId)) games.set(gameId, new Map());
+      if(!gameWinners.has(gameId) && entry.type === "hand_end" && Array.isArray(entry.scores)){
+        const winner = entry.scores.find(s => typeof s.score === "number" && s.score <= 0);
+        if(winner && winner.name) gameWinners.set(gameId, winner.name);
+      }
       const gameHands = games.get(gameId);
       if(!gameHands.has(handId)) gameHands.set(handId, { plays: [], end: null, events: [] });
       const hand = gameHands.get(handId);
@@ -3799,7 +3838,8 @@ function renderRoomLog(){
       const gameSummary = document.createElement("summary");
       const gameTitle = document.createElement("div");
       gameTitle.className = "gameTitle";
-      gameTitle.textContent = `Game ${gameId}`;
+      const winnerName = gameWinners.get(gameId);
+      gameTitle.textContent = winnerName ? `Game ${gameId} - ${winnerName} won` : `Game ${gameId}`;
       const gameMeta = document.createElement("div");
       gameMeta.className = "gameMeta";
       gameMeta.textContent = `${handIds.length} hand${handIds.length === 1 ? "" : "s"}`;
@@ -3817,10 +3857,32 @@ function renderRoomLog(){
         const title = document.createElement("div");
         title.className = "handTitle";
         const scores = (hand.end && Array.isArray(hand.end.scores)) ? hand.end.scores : [];
-        const scoreLine = scores.length
-          ? scores.map(s => `${s.name}: ${s.score}`).join(" · ")
-          : `Hand ${handId} (in progress)`;
-        title.textContent = scoreLine;
+        if(scores.length){
+          const columns = `repeat(${scores.length}, minmax(0, 1fr))`;
+          const table = document.createElement("div");
+          table.className = "scoreMiniTable";
+          const initialRow = document.createElement("div");
+          initialRow.className = "scoreMiniRow initials";
+          initialRow.style.gridTemplateColumns = columns;
+          const scoreRow = document.createElement("div");
+          scoreRow.className = "scoreMiniRow scores";
+          scoreRow.style.gridTemplateColumns = columns;
+          scores.forEach((s)=>{
+            const initial = document.createElement("div");
+            initial.className = "scoreMiniCell";
+            initial.textContent = getNameInitial(s.name);
+            initialRow.appendChild(initial);
+            const scoreCell = document.createElement("div");
+            scoreCell.className = "scoreMiniCell";
+            scoreCell.textContent = typeof s.score === "number" ? String(s.score) : "-";
+            scoreRow.appendChild(scoreCell);
+          });
+          table.appendChild(initialRow);
+          table.appendChild(scoreRow);
+          title.appendChild(table);
+        } else {
+          title.textContent = `Hand ${handId} (in progress)`;
+        }
         const meta = document.createElement("div");
         meta.className = "handScores";
         meta.textContent = scores.length ? `Hand ${handId}` : "Scores pending";
@@ -5047,6 +5109,8 @@ function playSelectedCard(){
       // next leader is trick winner
       state.leaderIndex = winnerIdx;
 
+      if(checkFastTrackWin(winnerIdx)) return;
+
       // next trick or end hand
       if(state.trickNumber >= 5){
         endHand();
@@ -5123,6 +5187,8 @@ function playSelectedCard(){
 
     // next leader is trick winner
     state.leaderIndex = winnerIdx;
+
+    if(checkFastTrackWin(winnerIdx)) return;
 
     // next trick or end hand
     if(state.trickNumber >= 5){
