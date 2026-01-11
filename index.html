@@ -1420,7 +1420,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, writeBatch, addDoc, query, orderBy, arrayUnion, arrayRemove, enableNetwork } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, getDocFromServer, updateDoc, deleteDoc, onSnapshot, collection, serverTimestamp, writeBatch, addDoc, query, orderBy, arrayUnion, arrayRemove, enableNetwork } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-messaging.js";
 /** =========================
  *  Ding Prototype (Hotseat)
@@ -1542,6 +1542,10 @@ const state = {
   unsubPlayers: null,
   unsubHand: null,
   unsubLog: null,
+  roomSynced: false,
+  handSynced: false,
+  roomResyncing: false,
+  handResyncing: false,
   isApplyingRemote: false,
   dealerIndex: 0,
   leaderIndex: 0,        // who leads the current trick
@@ -1777,7 +1781,7 @@ function clampSettings(){
 function foldCurrentPlayer(){
   if(state.phase !== PHASE.SWAP) return;
   const isMulti = isMultiplayer();
-  if(isMulti && !ensureConnectedForAction()) return;
+  if(isMulti && !ensureConnectedForAction({ requireHand: true })) return;
   if(isMulti && state.selfIndex !== state.currentTurnIndex){
     setError("Not your turn.");
     return;
@@ -1862,12 +1866,25 @@ function hasFirebase(){ return !!(firebaseApp && firebaseAuth && firebaseDb); }
 function roomRef(roomId){ return doc(firebaseDb, ROOM_COLLECTION, roomId); }
 function userRef(uid){ return doc(firebaseDb, USER_COLLECTION, uid); }
 function appMetaRef(){ return doc(firebaseDb, "meta", "app"); }
-function ensureConnectedForAction(){
+function ensureConnectedForAction(options = {}){
+  const { requireHand = false } = options;
   if(!isMultiplayer()) return true;
-  if(state.connectionStatus === "connected") return true;
-  setConnectionStatus("reconnecting", "Reconnecting to the database.");
-  setError("Reconnecting...");
-  return false;
+  if(state.connectionStatus !== "connected"){
+    setConnectionStatus("reconnecting", "Reconnecting to the database.");
+    setError("Reconnecting...");
+    return false;
+  }
+  if(!state.roomSynced){
+    refreshRoomFromServer().catch(()=>{});
+    setError("Syncing game state. Try again in a moment.");
+    return false;
+  }
+  if(requireHand && !state.handSynced){
+    refreshHandFromServer().catch(()=>{});
+    setError("Syncing your hand. Try again in a moment.");
+    return false;
+  }
+  return true;
 }
 function currentTurnKey(){
   return `${state.handId || 0}-${state.trickNumber || 0}-${state.currentTurnIndex || 0}-${state.phase || ""}`;
@@ -2233,11 +2250,18 @@ function startAppCommitListener(){
 }
 function setConnectionStatus(status, detail = ""){
   if(state.connectionStatus === status && state.connectionStatusDetail === detail) return;
+  const prevStatus = state.connectionStatus;
   state.connectionStatus = status;
   state.connectionStatusDetail = detail;
   state.lastConnectionChangeAt = Date.now();
   renderConnectionOverlay();
   updateAuthUI();
+  if(status === "connected" && prevStatus !== "connected"){
+    if(isMultiplayer() && state.roomId){
+      if(!state.roomSynced) refreshRoomFromServer().catch(()=>{});
+      if(state.selfUid && !state.handSynced) refreshHandFromServer().catch(()=>{});
+    }
+  }
 }
 function renderConnectionOverlay(){
   if(!els.reconnectOverlay) return;
@@ -3116,6 +3140,73 @@ function applyRoomState(data){
   render();
 }
 
+function trimSelectionsToHand(){
+  if(!Array.isArray(state.selfHand)) return;
+  const ids = new Set(state.selfHand.map(c => c.id));
+  for(const id of Array.from(state.selectedCardIds)){
+    if(!ids.has(id)) state.selectedCardIds.delete(id);
+  }
+  for(const id of Array.from(state.selectedForSwap)){
+    if(!ids.has(id)) state.selectedForSwap.delete(id);
+  }
+  for(const id of Array.from(state.incomingCardIds)){
+    if(!ids.has(id)) state.incomingCardIds.delete(id);
+  }
+}
+
+function setSelfHandFromServer(nextHand){
+  state.selfHand = Array.isArray(nextHand) ? nextHand : [];
+  trimSelectionsToHand();
+}
+
+async function refreshRoomFromServer(){
+  if(!isMultiplayer() || !state.roomId || !firebaseDb) return false;
+  if(state.roomResyncing) return false;
+  state.roomResyncing = true;
+  const roomId = state.roomId;
+  try{
+    const snap = await getDocFromServer(roomRef(roomId));
+    if(state.roomId !== roomId) return false;
+    if(!snap.exists()) return false;
+    applyRoomState(snap.data());
+    state.roomSynced = true;
+    return true;
+  } catch (err){
+    console.error("Failed to refresh room state:", err);
+    return false;
+  } finally {
+    state.roomResyncing = false;
+  }
+}
+
+async function refreshHandFromServer(){
+  if(!isMultiplayer() || !state.roomId || !state.selfUid || !firebaseDb) return false;
+  if(state.handResyncing) return false;
+  state.handResyncing = true;
+  const roomId = state.roomId;
+  const selfUid = state.selfUid;
+  try{
+    const snap = await getDocFromServer(handRef(roomId, selfUid));
+    if(state.roomId !== roomId || state.selfUid !== selfUid) return false;
+    if(!snap.exists()){
+      setSelfHandFromServer([]);
+      state.handSynced = true;
+      render();
+      return true;
+    }
+    const data = snap.data() || {};
+    setSelfHandFromServer(Array.isArray(data.hand) ? data.hand : []);
+    state.handSynced = true;
+    render();
+    return true;
+  } catch (err){
+    console.error("Failed to refresh hand:", err);
+    return false;
+  } finally {
+    state.handResyncing = false;
+  }
+}
+
 async function syncRoomState(reason){
   if(!isMultiplayer() || !state.roomId || !firebaseDb) return;
   if(state.isApplyingRemote) return;
@@ -3128,6 +3219,7 @@ async function syncRoomState(reason){
     console.error("Failed to sync room state:", reason, err);
     setError("Failed to sync room state.");
     setConnectionStatus("reconnecting", "Reconnecting to the database.");
+    state.roomSynced = false;
   }
 }
 
@@ -3135,10 +3227,14 @@ function subscribeToRoom(roomId){
   if(state.unsubRoom){ state.unsubRoom(); state.unsubRoom = null; }
   state.mode = MODE.MULTI;
   state.roomId = roomId;
+  state.roomSynced = false;
+  state.roomResyncing = false;
   updateRoomStatus();
   const ref = roomRef(roomId);
-  state.unsubRoom = onSnapshot(ref, (snap)=>{
+  state.unsubRoom = onSnapshot(ref, { includeMetadataChanges: true }, (snap)=>{
+    state.roomSynced = !snap.metadata.fromCache;
     if(!snap.exists()){
+      state.roomSynced = false;
       setError("Room not found.");
       return;
     }
@@ -3146,6 +3242,7 @@ function subscribeToRoom(roomId){
     ensureRoomNicknameApplied().catch((err)=> console.error("Failed to apply nickname:", err));
   }, (err)=>{
     console.error("Room subscription error:", err);
+    state.roomSynced = false;
     setError("Room sync failed.");
     setConnectionStatus("reconnecting", "Reconnecting to the database.");
   });
@@ -3153,19 +3250,23 @@ function subscribeToRoom(roomId){
 
 function subscribeToHand(){
   if(state.unsubHand){ state.unsubHand(); state.unsubHand = null; }
+  state.handSynced = false;
+  state.handResyncing = false;
   if(!state.roomId || !state.selfUid || !firebaseDb) return;
   const ref = handRef(state.roomId, state.selfUid);
-  state.unsubHand = onSnapshot(ref, (snap)=>{
+  state.unsubHand = onSnapshot(ref, { includeMetadataChanges: true }, (snap)=>{
+    state.handSynced = !snap.metadata.fromCache;
     if(!snap.exists()){
-      state.selfHand = [];
+      setSelfHandFromServer([]);
       render();
       return;
     }
     const data = snap.data();
-    state.selfHand = Array.isArray(data.hand) ? data.hand : [];
+    setSelfHandFromServer(Array.isArray(data.hand) ? data.hand : []);
     render();
   }, (err)=>{
     console.error("Hand subscription error:", err);
+    state.handSynced = false;
     setConnectionStatus("reconnecting", "Reconnecting to the database.");
   });
 }
@@ -3180,6 +3281,8 @@ async function syncSelfHand(){
   } catch (err){
     console.error("Failed to sync hand:", err);
     setError("Failed to sync hand.");
+    state.handSynced = false;
+    refreshHandFromServer().catch(()=>{});
   }
 }
 
@@ -3765,6 +3868,10 @@ function resetAll(){
   state.lastPhase = PHASE.LOBBY;
   state.players = [];
   state.selfHand = [];
+  state.roomSynced = false;
+  state.handSynced = false;
+  state.roomResyncing = false;
+  state.handResyncing = false;
   state.dealerIndex = 0;
   state.leaderIndex = 0;
   state.currentTurnIndex = 0;
@@ -3807,6 +3914,7 @@ function startNewGame(){
     setError("Only the host can start a new game.");
     return;
   }
+  if(isMultiplayer() && !ensureConnectedForAction()) return;
   state.phase = PHASE.HAND_END;
   state.dealerIndex = 0;
   state.leaderIndex = 0;
@@ -4199,7 +4307,7 @@ function confirmSwap(){
 function confirmSwapMultiplayer(){
   setError(null);
   if(state.phase !== PHASE.SWAP) return;
-  if(!ensureConnectedForAction()) return;
+  if(!ensureConnectedForAction({ requireHand: true })) return;
   if(state.selfIndex === null || state.selfIndex !== state.currentTurnIndex){
     setError("Not your turn.");
     return;
@@ -4272,7 +4380,7 @@ function playSelectedCard(){
   setError(null);
   if(state.phase !== PHASE.TRICK) return;
   const isMulti = isMultiplayer();
-  if(isMulti && !ensureConnectedForAction()) return;
+  if(isMulti && !ensureConnectedForAction({ requireHand: true })) return;
   if(isMulti && state.selfIndex !== state.currentTurnIndex){
     setError("Not your turn.");
     return;
@@ -5524,6 +5632,10 @@ if(firebaseAuth){
     state.lastRoomId = null;
     state.roomName = null;
     state.roomNameDraft = "";
+    state.roomSynced = false;
+    state.handSynced = false;
+    state.roomResyncing = false;
+    state.handResyncing = false;
     state.hasMadeFirstMove = false;
     state.pwaPromptDismissed = false;
     state.pushToken = null;
