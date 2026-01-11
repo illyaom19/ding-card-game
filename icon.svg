@@ -1,16 +1,249 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2a355f"/>
-      <stop offset="1" stop-color="#0b1020"/>
+    <!-- Background -->
+    <radialGradient id="bgRad" cx="35%" cy="28%" r="85%">
+      <stop offset="0" stop-color="#0f2552"/>
+      <stop offset="0.6" stop-color="#08142f"/>
+      <stop offset="1" stop-color="#060b1b"/>
+    </radialGradient>
+
+    <!-- Icon rim -->
+    <linearGradient id="rimGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b6ea6" stop-opacity="0.9"/>
+      <stop offset="0.45" stop-color="#1f2e58" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#111b37" stop-opacity="0.9"/>
     </linearGradient>
-    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#7c5cff"/>
-      <stop offset="1" stop-color="#3ee28a"/>
+
+    <!-- "DING" fill -->
+    <linearGradient id="dingFill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8c5cff"/>
+      <stop offset="0.45" stop-color="#4f7bff"/>
+      <stop offset="1" stop-color="#33e6b3"/>
     </linearGradient>
+
+    <!-- Gloss highlight -->
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Card face -->
+    <linearGradient id="cardFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e9eefc"/>
+    </linearGradient>
+
+    <!-- Chip gradient -->
+    <radialGradient id="chipRad" cx="35%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.65"/>
+      <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.25"/>
+    </radialGradient>
+
+    <linearGradient id="chipRing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff5a7a"/>
+      <stop offset="1" stop-color="#ffcc4a"/>
+    </linearGradient>
+
+    <!-- Filters -->
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%">
+      <feOffset dx="0" dy="20" />
+      <feGaussianBlur stdDeviation="22" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 .35 0" result="s"/>
+      <feMerge>
+        <feMergeNode in="s"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="softGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="7" result="g"/>
+      <feColorMatrix in="g" type="matrix"
+        values="0 0 0 0 0.30
+                0 0 0 0 0.55
+                0 0 0 0 1.00
+                0 0 0 .55 0" result="cg"/>
+      <feMerge>
+        <feMergeNode in="cg"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="textShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feOffset dx="0" dy="18" result="o"/>
+      <feGaussianBlur in="o" stdDeviation="14" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 .55 0" result="s"/>
+      <feMerge>
+        <feMergeNode in="s"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="innerShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feOffset dx="0" dy="12"/>
+      <feGaussianBlur stdDeviation="18" result="offBlur"/>
+      <feComposite in="offBlur" in2="SourceAlpha" operator="out" result="inv"/>
+      <feColorMatrix in="inv" type="matrix"
+        values="0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 0 0
+                0 0 0 .45 0" result="sh"/>
+      <feComposite in="sh" in2="SourceGraphic" operator="over"/>
+    </filter>
+
+    <filter id="dotGlow" x="-120%" y="-120%" width="340%" height="340%">
+      <feGaussianBlur stdDeviation="11" result="b"/>
+      <feColorMatrix in="b" type="matrix"
+        values="0 0 0 0 0
+                0 0 0 0 1
+                0 0 0 0 0.6
+                0 0 0 .70 0" result="g"/>
+      <feMerge>
+        <feMergeNode in="g"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Suit symbols -->
+    <path id="heart" d="M12,21 C4,15 2,10 5,7 C7,5 10,6 12,8 C14,6 17,5 19,7 C22,10 20,15 12,21 Z"/>
+    <path id="spade" d="M12,2 C6,7 3,10 3,14 C3,18 6,20 9,19 C10.5,18.5 11.5,17.5 12,16.5 C12.5,17.5 13.5,18.5 15,19 C18,20 21,18 21,14 C21,10 18,7 12,2 Z
+                        M10,19 C10,22 8,23 8,23 L16,23 C16,23 14,22 14,19 Z"/>
+    <path id="club" d="M12,8 C13.8,5.2 18,5.5 19.5,8.3 C21.1,11.2 19.1,14.6 15.9,14.6 C16.8,16.8 15.4,19 12.9,19.1
+                       L12.9,19.1 C12.6,19.1 12.3,19.1 12,19.1 C11.7,19.1 11.4,19.1 11.1,19.1
+                       C8.6,19 7.2,16.8 8.1,14.6 C4.9,14.6 2.9,11.2 4.5,8.3 C6,5.5 10.2,5.2 12,8 Z
+                       M10,19 C10,22 8,23 8,23 L16,23 C16,23 14,22 14,19 Z"/>
+    <path id="diamond" d="M12,2 L22,12 L12,22 L2,12 Z"/>
+
+    <!-- Clip for glossy text highlight -->
+    <clipPath id="textClip">
+      <text x="512" y="628" text-anchor="middle"
+            font-family="Inter, SF Pro Display, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+            font-weight="900" font-size="290" letter-spacing="10">
+        DING
+      </text>
+    </clipPath>
   </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <rect x="44" y="44" width="424" height="424" rx="84" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="6"/>
-  <text x="50%" y="52%" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="152" font-weight="900" fill="url(#glow)">DING</text>
-  <circle cx="412" cy="136" r="18" fill="#3ee28a"/>
+
+  <!-- Base icon -->
+  <g filter="url(#drop)">
+    <rect x="110" y="110" width="804" height="804" rx="150" fill="url(#bgRad)"/>
+    <rect x="118" y="118" width="788" height="788" rx="145" fill="none" stroke="url(#rimGrad)" stroke-width="16"/>
+    <rect x="155" y="155" width="714" height="714" rx="128"
+          fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="6"
+          filter="url(#innerShadow)"/>
+  </g>
+
+  <!-- Decorative sparkles -->
+  <g opacity="0.55">
+    <circle cx="290" cy="290" r="3" fill="#7fd3ff"/>
+    <circle cx="740" cy="270" r="2.5" fill="#a7ffdf"/>
+    <circle cx="680" cy="760" r="3" fill="#ffd77a"/>
+    <circle cx="270" cy="760" r="2.5" fill="#ff9bd2"/>
+  </g>
+
+  <!-- Cards behind the title -->
+  <g filter="url(#drop)" opacity="0.98">
+    <!-- Left card -->
+    <g transform="translate(0,0) rotate(-14 380 420)">
+      <rect x="260" y="260" width="260" height="360" rx="26" fill="url(#cardFace)"/>
+      <rect x="272" y="272" width="236" height="336" rx="22" fill="none" stroke="rgba(10,20,45,0.18)" stroke-width="4"/>
+      <!-- A ♥ -->
+      <text x="290" y="310" font-family="ui-sans-serif, system-ui" font-weight="900" font-size="44" fill="#ff3b6b">A</text>
+      <g transform="translate(272 322) scale(2.2)" fill="#ff3b6b">
+        <use href="#heart"/>
+      </g>
+      <g transform="translate(438 552) scale(2.1)" fill="#ff3b6b" opacity="0.9">
+        <use href="#heart"/>
+      </g>
+    </g>
+
+    <!-- Right card -->
+    <g transform="translate(0,0) rotate(12 650 420)">
+      <rect x="540" y="255" width="260" height="360" rx="26" fill="url(#cardFace)"/>
+      <rect x="552" y="267" width="236" height="336" rx="22" fill="none" stroke="rgba(10,20,45,0.18)" stroke-width="4"/>
+      <!-- K ♠ -->
+      <text x="570" y="305" font-family="ui-sans-serif, system-ui" font-weight="900" font-size="44" fill="#1b2340">K</text>
+      <g transform="translate(552 317) scale(2.2)" fill="#1b2340">
+        <use href="#spade"/>
+      </g>
+      <g transform="translate(718 547) scale(2.1)" fill="#1b2340" opacity="0.9">
+        <use href="#spade"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Poker chip + coins (simple) -->
+  <g filter="url(#drop)" opacity="0.98">
+    <!-- Chip -->
+    <g transform="translate(0,0) rotate(-10 330 735)">
+      <circle cx="330" cy="735" r="86" fill="url(#chipRing)"/>
+      <circle cx="330" cy="735" r="70" fill="#0b1230"/>
+      <circle cx="330" cy="735" r="58" fill="url(#chipRad)"/>
+      <!-- notches -->
+      <g fill="rgba(255,255,255,0.9)">
+        <rect x="322" y="645" width="16" height="28" rx="6"/>
+        <rect x="322" y="797" width="16" height="28" rx="6"/>
+        <rect x="240" y="727" width="28" height="16" rx="6"/>
+        <rect x="392" y="727" width="28" height="16" rx="6"/>
+      </g>
+    </g>
+
+    <!-- Coins -->
+    <g opacity="0.9">
+      <g transform="translate(0,0) rotate(18 735 760)">
+        <ellipse cx="735" cy="760" rx="62" ry="40" fill="#ffcf5a"/>
+        <ellipse cx="735" cy="752" rx="58" ry="36" fill="#ffd97c"/>
+        <ellipse cx="735" cy="748" rx="46" ry="26" fill="#ffe9b0" opacity="0.65"/>
+      </g>
+      <g transform="translate(0,0) rotate(-12 800 720)">
+        <ellipse cx="800" cy="720" rx="44" ry="28" fill="#ffcf5a"/>
+        <ellipse cx="800" cy="715" rx="40" ry="24" fill="#ffd97c"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Stylized DING (outline + fill + gloss) -->
+  <g filter="url(#textShadow)">
+    <!-- dark outline -->
+    <text x="512" y="628" text-anchor="middle"
+          font-family="Inter, SF Pro Display, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+          font-weight="900" font-size="290" letter-spacing="10"
+          fill="url(#dingFill)" stroke="#0a0f24" stroke-width="26" paint-order="stroke fill">
+      DING
+    </text>
+
+    <!-- inner stroke to feel "embossed" -->
+    <text x="512" y="628" text-anchor="middle"
+          font-family="Inter, SF Pro Display, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+          font-weight="900" font-size="290" letter-spacing="10"
+          fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="10" paint-order="stroke"
+          filter="url(#softGlow)">
+      DING
+    </text>
+  </g>
+
+  <!-- Gloss band clipped to the text -->
+  <g clip-path="url(#textClip)" opacity="0.9">
+    <path d="M120,380 C320,300 480,320 700,270 C860,235 960,250 1024,300 L1024,470 C850,430 720,470 520,520 C330,565 220,545 120,520 Z"
+          fill="url(#gloss)"/>
+  </g>
+
+  <!-- Small suit accents near the word (card-game cue without clutter) -->
+  <g opacity="0.95" filter="url(#softGlow)">
+    <g transform="translate(240 430) scale(3.0)" fill="#ff3b6b"><use href="#heart"/></g>
+    <g transform="translate(785 438) scale(3.0)" fill="#33e6b3"><use href="#club"/></g>
+    <g transform="translate(520 690) scale(2.9)" fill="#ffd26a"><use href="#diamond"/></g>
+  </g>
+
+  <!-- Green dot signature -->
+  <circle cx="820" cy="392" r="34" fill="#2ef3a3" filter="url(#dotGlow)"/>
 </svg>
