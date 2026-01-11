@@ -215,7 +215,7 @@
     <text x="512" y="628" text-anchor="middle"
           font-family="Inter, SF Pro Display, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
           font-weight="900" font-size="290" letter-spacing="10"
-          fill="url(#dingFill)" stroke="#0a0f24" stroke-width="26" paint-order="stroke fill">
+          fill="#050814" stroke="#0a0f24" stroke-width="26" paint-order="stroke fill">
       DING
     </text>
 
