@@ -3807,6 +3807,8 @@ function applyRoomState(data){
       state.swapCounts = {};
       if(state.phase === PHASE.SWAP){
         state.pendingDealAnimationForHand = state.handId;
+        state.dealStagingIds = new Set();
+        state.lastDealAnimationHandId = null;
       }
     }
     const nextSwapCounts = (data.swapCounts && typeof data.swapCounts === "object") ? data.swapCounts : {};
