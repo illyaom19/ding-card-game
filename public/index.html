@@ -2445,6 +2445,19 @@ function normalizeRoomCode(code){
 function normalizeRoomName(name){
   return (name || "").trim().replace(/\s+/g, " ").slice(0, MAX_ROOM_NAME_LENGTH);
 }
+function navigateToRoomFromNotification(roomId){
+  const code = normalizeRoomCode(roomId || "");
+  if(!code) return;
+  const current = normalizeRoomCode(location.hash.replace("#", ""));
+  if(current !== code){
+    location.hash = code;
+  }
+  if(state.isSignedIn){
+    if(state.roomId !== code){
+      joinRoom(code);
+    }
+  }
+}
 function getRoomDisplayName(name){
   return normalizeRoomName(name) || "Player's Lobby";
 }
@@ -2973,11 +2986,16 @@ function initMessagingListeners(){
     if(turnKey && state.lastNotificationKey === turnKey) return;
     if(turnKey) state.lastNotificationKey = turnKey;
     try{
-      new Notification(title, {
+      const notice = new Notification(title, {
         body,
         tag: data.roomId || "ding-turn",
         data: { roomId: data.roomId || "", turnKey },
       });
+      notice.onclick = ()=> {
+        try{ notice.close(); } catch (err){}
+        if(window.focus) window.focus();
+        navigateToRoomFromNotification(data.roomId || "");
+      };
       if(turnKey){
         ackTurnNotification(turnKey);
       }
