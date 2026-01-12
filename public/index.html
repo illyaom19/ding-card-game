@@ -3919,6 +3919,12 @@ function queueIncomingCards(cards, { stagger = 140, duration = 520, stage = fals
   }, cards.length * stagger + duration + 40);
   state.incomingTimers.push(finalTimer);
 }
+function maybeAnimateSelfHandDeal(){
+  if(state.phase !== PHASE.SWAP) return;
+  if(!state.selfHand.length) return;
+  if(state.lastDealAnimationHandId === state.handId) return;
+  queueIncomingCards(state.selfHand, { stage: true });
+}
 function clearSwapAnnouncementTimers(){
   if(state.swapAnnouncementTimer){ clearTimeout(state.swapAnnouncementTimer); state.swapAnnouncementTimer = null; }
   if(state.swapAnnouncementHideTimer){ clearTimeout(state.swapAnnouncementHideTimer); state.swapAnnouncementHideTimer = null; }
@@ -3969,12 +3975,8 @@ function dealerHasPlayedFirstCard(){
 function setSelfHandFromServer(nextHand){
   state.selfHand = Array.isArray(nextHand) ? nextHand : [];
   trimSelectionsToHand();
-  if(state.pendingDealAnimationForHand && state.handId === state.pendingDealAnimationForHand && state.selfHand.length){
-    state.pendingDealAnimationForHand = null;
-    if(state.lastDealAnimationHandId !== state.handId){
-      queueIncomingCards(state.selfHand, { stage: true });
-    }
-  }
+  maybeAnimateSelfHandDeal();
+  state.pendingDealAnimationForHand = null;
 }
 
 async function refreshRoomFromServer(){
