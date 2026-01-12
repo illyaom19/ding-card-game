@@ -1891,6 +1891,7 @@ const state = {
   selectedForSwap: new Set(),
   // animation & deal helpers
   incomingCardIds: new Set(), // cards that should animate in
+  incomingAnimationPlayed: new Set(),
   // per-player initial reveal flags: players with pending initial reveal
   playersPendingInitial: new Set(),
   dealing: false,             // whether a deal animation is in progress
@@ -3847,7 +3848,10 @@ function trimSelectionsToHand(){
     if(!ids.has(id)) state.selectedForSwap.delete(id);
   }
   for(const id of Array.from(state.incomingCardIds)){
-    if(!ids.has(id)) state.incomingCardIds.delete(id);
+    if(!ids.has(id)){
+      state.incomingCardIds.delete(id);
+      state.incomingAnimationPlayed.delete(id);
+    }
   }
 }
 
@@ -3874,19 +3878,25 @@ function clearIncomingTimers(){
 function queueIncomingCards(cards, { stagger = 140, duration = 520 } = {}){
   if(!Array.isArray(cards) || !cards.length) return;
   clearIncomingTimers();
-  state.incomingCardIds.clear();
+  resetIncomingAnimationState();
   cards.forEach((card, idx)=>{
     const startAt = idx * stagger;
     const addTimer = setTimeout(()=>{
+      state.incomingAnimationPlayed.delete(card.id);
       state.incomingCardIds.add(card.id);
       render();
     }, startAt);
     const removeTimer = setTimeout(()=>{
       state.incomingCardIds.delete(card.id);
+      state.incomingAnimationPlayed.delete(card.id);
       render();
     }, startAt + duration);
     state.incomingTimers.push(addTimer, removeTimer);
   });
+}
+function resetIncomingAnimationState(){
+  state.incomingCardIds.clear();
+  state.incomingAnimationPlayed.clear();
 }
 function markDealFade(){
   if(!state.handId) return;
@@ -4797,6 +4807,8 @@ async function resetRoomState(){
   state.dealFadePending = false;
   state.lastDealtHandId = null;
   clearIncomingTimers();
+  resetIncomingAnimationState();
+  state.playersPendingInitial.clear();
   clearSwapAnnouncementTimers();
   state.selfHand = [];
   if(firebaseDb && state.roomId){
@@ -4858,7 +4870,7 @@ async function resetHandState(){
   state.playedCards = [];
   state.selectedCardIds.clear();
   state.selectedForSwap.clear();
-  state.incomingCardIds.clear();
+  resetIncomingAnimationState();
   state.playersPendingInitial.clear();
   clearIncomingTimers();
   state.dealFadePending = false;
@@ -4952,7 +4964,7 @@ function resetAll(){
   state.gameId = 0;
   state.selectedCardIds = new Set();
   state.selectedForSwap = new Set();
-  state.incomingCardIds.clear();
+  resetIncomingAnimationState();
   state.playersPendingInitial.clear();
   state.dealTimeouts.forEach(t => clearTimeout(t));
   state.dealTimeouts = [];
@@ -5013,7 +5025,7 @@ function startNewGame(){
   state.playedCards = [];
   state.selectedCardIds.clear();
   state.selectedForSwap.clear();
-  state.incomingCardIds.clear();
+  resetIncomingAnimationState();
   state.playersPendingInitial.clear();
   clearIncomingTimers();
   state.dealFadePending = false;
@@ -5125,7 +5137,7 @@ function dealHand(){
       if(p.uid) handsByUid.set(p.uid, []);
     }
     state.deck = shuffle(makeDecks(state.settings.decks));
-    state.incomingCardIds.clear();
+    resetIncomingAnimationState();
     state.playersPendingInitial.clear();
 
     for(let i=0;i<5;i++){
@@ -5198,7 +5210,7 @@ function dealHand(){
   state.deck = shuffle(makeDecks(state.settings.decks));
 
   // clear any pending incoming flags and per-player initial reveal markers
-  state.incomingCardIds.clear();
+  resetIncomingAnimationState();
   state.playersPendingInitial.clear();
 
   // deal 5 cards to each player instantly, but DO NOT animate them yet
@@ -5364,11 +5376,13 @@ function confirmSwap(){
         const card = state.deck.pop();
         const insertIdx = Math.min(curIdx === -1 ? p.hand.length : curIdx, p.hand.length);
         p.hand.splice(insertIdx, 0, card);
+        state.incomingAnimationPlayed.delete(card.id);
         state.incomingCardIds.add(card.id);
         render();
         // hold the incoming indicator for the per-card interval
         await sleep(perCardMs);
         state.incomingCardIds.delete(card.id);
+        state.incomingAnimationPlayed.delete(card.id);
         render();
       } else {
         // no card to draw; continue after a short pause
@@ -6117,9 +6131,12 @@ function renderHand(){
       btn.dataset.cardId = card.id;
       // highlight trumps in-hand with a subtle gold outline (disabled in hyperrealistic)
       if(!hyper && state.trumpSuit && card.suit === state.trumpSuit){ btn.classList.add('trump'); }
-      // animate incoming cards
+      // animate incoming cards (only once per draw to avoid repeated re-renders)
       if(state.incomingCardIds.has(card.id)){
-        btn.classList.add('fly-in');
+        if(!state.incomingAnimationPlayed.has(card.id)){
+          btn.classList.add('fly-in');
+          state.incomingAnimationPlayed.add(card.id);
+        }
       }
 
       const top = `${RANK_LABEL[card.rank] ?? card.rank}${SUIT_ICON[card.suit]}`;
@@ -6583,21 +6600,13 @@ document.addEventListener("keydown", (e)=>{
 });
 
 els.revealBtn.addEventListener("click", ()=>{
-  // if there's a pending reveal for a locked player, animate their initial cards
   if(state.lockOn && state.pendingRevealForIndex !== null && state.phase === PHASE.SWAP){
     const idx = state.pendingRevealForIndex;
-    // only perform initial fly-in if this player hasn't had their initial reveal yet
     if(state.playersPendingInitial.has(idx)){
-      // remove pending flag
       state.playersPendingInitial.delete(idx);
-      // unlock so they can interact
-      setLock(false, null);
-      queueIncomingCards(state.players[idx].hand, { stage: true });
-      return;
     }
   }
 
-  // default reveal behavior
   setLock(false, null);
   render();
 });
