@@ -1913,7 +1913,6 @@ const state = {
   settingsCollapsed: true,
   appCommit,
   remoteCommit: "",
-  hasSavedAppCommit: false,
   unsubAppMeta: null,
   debugLogEnabled: false,
   debugLogLines: [],
@@ -2639,17 +2638,6 @@ function notifyPushSetupIssue(msg){
     return;
   }
   setError(msg);
-}
-async function ensureAppCommitSaved(){
-  if(!firebaseDb || !state.isSignedIn) return;
-  if(!state.appCommit) return;
-  if(state.hasSavedAppCommit) return;
-  state.hasSavedAppCommit = true;
-  try{
-    await setDoc(appMetaRef(), { commit: state.appCommit, updatedAt: serverTimestamp() }, { merge: true });
-  } catch (err){
-    console.error("Failed to save app commit:", err);
-  }
 }
 function startAppCommitListener(){
   if(!firebaseDb || !state.isSignedIn) return;
@@ -6923,7 +6911,6 @@ if(firebaseAuth){
     state.pwaPromptDismissed = false;
     state.pushToken = null;
     state.swRegistration = null;
-    state.hasSavedAppCommit = false;
     state.remoteCommit = "";
     if(state.unsubAppMeta){ state.unsubAppMeta(); state.unsubAppMeta = null; }
     if(state.unsubConnectivity){ state.unsubConnectivity(); state.unsubConnectivity = null; }
@@ -6943,7 +6930,6 @@ if(firebaseAuth){
     initMessagingListeners();
     maybeRestorePushNotifications();
     maybePromptNotificationPermissionOnPwa();
-    await ensureAppCommitSaved();
     startAppCommitListener();
     startConnectivityMonitor();
     if(state.mode === MODE.MULTI){
@@ -6961,7 +6947,6 @@ initMessagingListeners();
 </script>
 </body>
 </html>
-
 
 
 
