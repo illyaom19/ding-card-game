@@ -1942,9 +1942,8 @@ const state = {
   swapAnnouncementTimer: null,
   swapAnnouncementHideTimer: null,
   incomingTimers: [],
-  dealStagingIds: null,
-  pendingDealAnimationForHand: null,
-  lastDealAnimationHandId: null,
+  dealFadePending: false,
+  lastDealtHandId: null,
   collapsed: { game:false, table:false, hand:false },
 };
 
@@ -3805,11 +3804,7 @@ function applyRoomState(data){
     if(handIdChanged){
       state.swapNoticeHistory.clear();
       state.swapCounts = {};
-      if(state.phase === PHASE.SWAP){
-        state.pendingDealAnimationForHand = state.handId;
-        state.dealStagingIds = new Set();
-        state.lastDealAnimationHandId = null;
-      }
+      state.lastDealtHandId = null;
     }
     const nextSwapCounts = (data.swapCounts && typeof data.swapCounts === "object") ? data.swapCounts : {};
     state.swapCounts = { ...nextSwapCounts };
@@ -3891,19 +3886,13 @@ function clearIncomingTimers(){
   state.incomingTimers.forEach(t => clearTimeout(t));
   state.incomingTimers = [];
 }
-function queueIncomingCards(cards, { stagger = 140, duration = 520, stage = false } = {}){
+function queueIncomingCards(cards, { stagger = 140, duration = 520 } = {}){
   if(!Array.isArray(cards) || !cards.length) return;
   clearIncomingTimers();
   state.incomingCardIds.clear();
-  if(stage){
-    state.dealStagingIds = new Set();
-    state.lastDealAnimationHandId = state.handId;
-    render();
-  }
   cards.forEach((card, idx)=>{
     const startAt = idx * stagger;
     const addTimer = setTimeout(()=>{
-      if(stage && state.dealStagingIds) state.dealStagingIds.add(card.id);
       state.incomingCardIds.add(card.id);
       render();
     }, startAt);
@@ -3913,19 +3902,12 @@ function queueIncomingCards(cards, { stagger = 140, duration = 520, stage = fals
     }, startAt + duration);
     state.incomingTimers.push(addTimer, removeTimer);
   });
-  const finalTimer = setTimeout(()=>{
-    if(stage){
-      state.dealStagingIds = null;
-      render();
-    }
-  }, cards.length * stagger + duration + 40);
-  state.incomingTimers.push(finalTimer);
 }
-function maybeAnimateSelfHandDeal(){
-  if(state.phase !== PHASE.SWAP) return;
-  if(!state.selfHand.length) return;
-  if(state.lastDealAnimationHandId === state.handId) return;
-  queueIncomingCards(state.selfHand, { stage: true });
+function markDealFade(){
+  if(!state.handId) return;
+  if(state.lastDealtHandId === state.handId) return;
+  state.dealFadePending = true;
+  state.lastDealtHandId = state.handId;
 }
 function clearSwapAnnouncementTimers(){
   if(state.swapAnnouncementTimer){ clearTimeout(state.swapAnnouncementTimer); state.swapAnnouncementTimer = null; }
@@ -3977,8 +3959,7 @@ function dealerHasPlayedFirstCard(){
 function setSelfHandFromServer(nextHand){
   state.selfHand = Array.isArray(nextHand) ? nextHand : [];
   trimSelectionsToHand();
-  maybeAnimateSelfHandDeal();
-  state.pendingDealAnimationForHand = null;
+  markDealFade();
 }
 
 async function refreshRoomFromServer(){
@@ -4826,9 +4807,8 @@ async function resetRoomState(){
   state.selectedForSwap.clear();
   state.swapCounts = {};
   state.swapNoticeHistory.clear();
-  state.pendingDealAnimationForHand = null;
-  state.lastDealAnimationHandId = null;
-  state.dealStagingIds = null;
+  state.dealFadePending = false;
+  state.lastDealtHandId = null;
   clearIncomingTimers();
   clearSwapAnnouncementTimers();
   state.selfHand = [];
@@ -4894,9 +4874,8 @@ async function resetHandState(){
   state.incomingCardIds.clear();
   state.playersPendingInitial.clear();
   clearIncomingTimers();
-  state.dealStagingIds = null;
-  state.pendingDealAnimationForHand = null;
-  state.lastDealAnimationHandId = null;
+  state.dealFadePending = false;
+  state.lastDealtHandId = null;
   state.swapCounts = {};
   state.swapNoticeHistory.clear();
   clearSwapAnnouncementTimers();
@@ -5050,9 +5029,8 @@ function startNewGame(){
   state.incomingCardIds.clear();
   state.playersPendingInitial.clear();
   clearIncomingTimers();
-  state.dealStagingIds = null;
-  state.pendingDealAnimationForHand = null;
-  state.lastDealAnimationHandId = null;
+  state.dealFadePending = false;
+  state.lastDealtHandId = null;
   state.swapCounts = {};
   state.swapNoticeHistory.clear();
   clearSwapAnnouncementTimers();
@@ -5147,9 +5125,8 @@ function dealHand(){
     state.swapNoticeHistory.clear();
     clearSwapAnnouncementTimers();
     clearIncomingTimers();
-    state.dealStagingIds = null;
-    state.pendingDealAnimationForHand = null;
-    state.lastDealAnimationHandId = null;
+    state.dealFadePending = false;
+    state.lastDealtHandId = null;
 
     // reset hand-only fields
     const handsByUid = new Map();
@@ -5220,9 +5197,8 @@ function dealHand(){
   state.swapNoticeHistory.clear();
   clearSwapAnnouncementTimers();
   clearIncomingTimers();
-  state.dealStagingIds = null;
-  state.pendingDealAnimationForHand = null;
-  state.lastDealAnimationHandId = null;
+  state.dealFadePending = false;
+  state.lastDealtHandId = null;
 
   // reset hand-only fields
   for(const p of state.players){
@@ -5335,7 +5311,6 @@ function confirmSwap(){
   setError(null);
   if(state.phase !== PHASE.SWAP) return;
   const p = state.players[state.currentTurnIndex];
-  state.dealStagingIds = null;
 
   // prevent multiple swaps per hand
   if(p.hasSwapped){ setError("You have already swapped this hand."); return; }
@@ -5456,7 +5431,6 @@ function confirmSwapMultiplayer(){
     setError("Not your turn.");
     return;
   }
-  state.dealStagingIds = null;
   const p = state.players[state.selfIndex];
   if(!p){
     setError("Player not found.");
@@ -6159,9 +6133,6 @@ function renderHand(){
       // animate incoming cards
       if(state.incomingCardIds.has(card.id)){
         btn.classList.add('fly-in');
-      }
-      if(state.dealStagingIds && !state.dealStagingIds.has(card.id)){
-        btn.classList.add('dealHidden');
       }
 
       const top = `${RANK_LABEL[card.rank] ?? card.rank}${SUIT_ICON[card.suit]}`;
