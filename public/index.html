@@ -1924,6 +1924,7 @@ const state = {
   connectionStatus: "unknown",
   connectionStatusDetail: "",
   lastConnectionChangeAt: 0,
+  connectionStatusTimer: null,
   offlineFallbackEnabled: false,
   reconnecting: false,
   handEndedByFolds: false,
@@ -2667,6 +2668,10 @@ function startAppCommitListener(){
   });
 }
 function setConnectionStatus(status, detail = ""){
+  if(state.connectionStatusTimer){
+    clearTimeout(state.connectionStatusTimer);
+    state.connectionStatusTimer = null;
+  }
   if(state.connectionStatus === status && state.connectionStatusDetail === detail) return;
   const prevStatus = state.connectionStatus;
   state.connectionStatus = status;
@@ -2680,6 +2685,16 @@ function setConnectionStatus(status, detail = ""){
       if(state.selfUid && !state.handSynced) refreshHandFromServer().catch(()=>{});
     }
   }
+}
+const CONNECTION_STATUS_DELAY_MS = 1200;
+function scheduleConnectionStatus(status, detail = ""){
+  if(state.connectionStatusTimer){
+    clearTimeout(state.connectionStatusTimer);
+  }
+  state.connectionStatusTimer = setTimeout(()=>{
+    state.connectionStatusTimer = null;
+    setConnectionStatus(status, detail);
+  }, CONNECTION_STATUS_DELAY_MS);
 }
 function renderConnectionOverlay(){
   if(!els.reconnectOverlay) return;
@@ -2703,11 +2718,11 @@ function ensureReconnectLoop(){
 function startConnectivityMonitor(){
   if(!firebaseDb || !state.isSignedIn) return;
   if(state.unsubConnectivity){ state.unsubConnectivity(); state.unsubConnectivity = null; }
-  setConnectionStatus("reconnecting", "Connecting to the database.");
+  scheduleConnectionStatus("reconnecting", "Connecting to the database.");
   state.unsubConnectivity = onSnapshot(appMetaRef(), { includeMetadataChanges: true }, (snap)=>{
     const fromCache = snap.metadata.fromCache;
     if(fromCache){
-      setConnectionStatus("reconnecting", "Reconnecting to the database.");
+      scheduleConnectionStatus("reconnecting", "Reconnecting to the database.");
     } else {
       setConnectionStatus("connected", "");
     }
@@ -4035,7 +4050,8 @@ function subscribeToRoom(roomId){
   updateRoomStatus();
   const ref = roomRef(roomId);
   state.unsubRoom = onSnapshot(ref, { includeMetadataChanges: true }, (snap)=>{
-    state.roomSynced = !snap.metadata.fromCache;
+    const isStale = snap.metadata.fromCache && !snap.metadata.hasPendingWrites;
+    state.roomSynced = !isStale;
     if(!snap.exists()){
       state.roomSynced = false;
       setError("Room not found.");
@@ -4058,7 +4074,8 @@ function subscribeToHand(){
   if(!state.roomId || !state.selfUid || !firebaseDb) return;
   const ref = handRef(state.roomId, state.selfUid);
   state.unsubHand = onSnapshot(ref, { includeMetadataChanges: true }, (snap)=>{
-    state.handSynced = !snap.metadata.fromCache;
+    const isStale = snap.metadata.fromCache && !snap.metadata.hasPendingWrites;
+    state.handSynced = !isStale;
     if(!snap.exists()){
       setSelfHandFromServer([]);
       render();
@@ -6944,7 +6961,6 @@ initMessagingListeners();
 </script>
 </body>
 </html>
-
 
 
 
