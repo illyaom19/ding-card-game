@@ -4702,16 +4702,32 @@ async function joinRoom(roomId){
   const players = Array.isArray(data.players) ? data.players.slice() : [];
   const existingIdx = players.findIndex(p => p.uid === state.selfUid);
   if(existingIdx === -1){
-    if(data.phase && data.phase !== PHASE.LOBBY){
-      setError("Game already in progress.");
-      return;
-    }
     if(players.length >= MAX_PLAYERS){
       setError("Room is full.");
       return;
     }
-    players.push(buildPlayer(state.selfUid, getSelfRoomName(code)));
+    const newPlayerName = getSelfRoomName(code);
+    const newPlayer = buildPlayer(state.selfUid, newPlayerName);
+    const isMidHand = data.phase === PHASE.SWAP || data.phase === PHASE.TRICK;
+    if(isMidHand){
+      newPlayer.folded = true;
+      newPlayer.hasSwapped = true;
+    }
+    players.push(newPlayer);
     await updateDoc(roomRef(code), { players });
+    if(isMidHand){
+      try{
+        await logRoomEventForRoom(code, {
+          type: "chat",
+          message: `${newPlayerName} has joined.`,
+          likes: [],
+          playerName: "System",
+          playerUid: null,
+        });
+      } catch (err){
+        console.error("Failed to log join message:", err);
+      }
+    }
   }
   await addRoomToProfile(code);
   if(els.roomCodeInput) els.roomCodeInput.value = code;
