@@ -4247,6 +4247,20 @@ function renderRoomLog(){
       if(entry.type === "hand_end") hand.end = entry;
       if(entry.type === "fold") hand.events.push(entry);
     });
+    const currentHandId = Number(state.handId || 0);
+    const hasActiveHand = currentHandId && (state.phase === PHASE.SWAP || state.phase === PHASE.TRICK);
+    if(hasActiveHand){
+      const currentGameId = Number(state.gameId || 0);
+      const normalizedGameId = Number.isFinite(currentGameId) ? currentGameId : 0;
+      let currentGameHands = games.get(normalizedGameId);
+      if(!currentGameHands){
+        currentGameHands = new Map();
+        games.set(normalizedGameId, currentGameHands);
+      }
+      if(!currentGameHands.has(currentHandId)){
+        currentGameHands.set(currentHandId, { plays: [], end: null, events: [] });
+      }
+    }
     const gameIds = Array.from(games.keys()).sort((a,b)=>a-b);
     const totalHands = gameIds.reduce((sum, gameId)=> sum + games.get(gameId).size, 0);
     hint = totalHands ? `${totalHands} hand${totalHands === 1 ? "" : "s"}` : "No hands yet";
