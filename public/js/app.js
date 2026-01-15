@@ -654,7 +654,7 @@ function updateVoteStartUI(){
   if(!els.voteStartStatus || !els.voteStartBlock || !els.voteStartBtn) return;
   const isMulti = isMultiplayer();
   const showStart = state.phase === PHASE.LOBBY;
-  const showVote = showStart && isMulti;
+  const showVote = showStart && isMulti && !!state.roomId;
   els.voteStartBlock.style.display = showVote ? "flex" : "none";
   if(!showVote) return;
   const { voteCount, totalCount } = getStartVoteCounts();
