@@ -1079,6 +1079,9 @@
       justify-content:space-between;
       gap:8px;
     }
+    .chatVoiceStatusError{
+      color: var(--warn);
+    }
     .chatVoiceDraft audio{
       width:100%;
     }
