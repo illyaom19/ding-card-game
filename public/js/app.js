@@ -1841,8 +1841,8 @@ async function leaveRoomPermanently(roomId){
       if(leavingName){
         await logRoomEventForRoom(code, {
           type: "chat",
-          message: "Player has permanently left the room.",
-          playerName: leavingName,
+          message: `${leavingName} has permanently left the room.`,
+          playerName: "System",
           playerUid: state.selfUid || null,
         });
       }
@@ -2571,6 +2571,9 @@ function renderRoomLog(){
       row.className = "chatRow";
       const text = document.createElement("div");
       text.className = "chatText";
+      if(name === "System"){
+        text.classList.add("chatTextSystem");
+      }
       text.textContent = entry.message || "";
       const heart = document.createElement("div");
       heart.className = "chatHeart";
@@ -2985,11 +2988,10 @@ async function resetRoomState(){
   if(!confirm("Reset the game for everyone?")){
     return;
   }
-  const hostName = state.players[state.selfIndex]?.name || state.selfName || "Host";
   await logRoomEvent({
     type: "chat",
     message: "Host has reset game.",
-    playerName: hostName,
+    playerName: "System",
     playerUid: state.selfUid || null,
   });
   const players = state.players.map(p => buildPlayer(p.uid, p.name));
@@ -3050,11 +3052,10 @@ async function resetHandState(){
   if(!confirm("Reset the current hand for everyone?")){
     return;
   }
-  const hostName = state.players[state.selfIndex]?.name || state.selfName || "Host";
   await logRoomEvent({
     type: "chat",
     message: "Host has reset hand.",
-    playerName: hostName,
+    playerName: "System",
     playerUid: state.selfUid || null,
   });
   for(const p of state.players){

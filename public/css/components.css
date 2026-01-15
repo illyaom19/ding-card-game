@@ -999,6 +999,9 @@
       word-break:break-word;
       flex:1;
     }
+    .chatTextSystem{
+      font-style: italic;
+    }
     .chatHeart{
       display:inline-flex;
       align-items:center;
