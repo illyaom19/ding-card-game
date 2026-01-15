@@ -260,6 +260,7 @@ const els = {
   chatInput: document.getElementById("chatInput"),
   chatSendBtn: document.getElementById("chatSendBtn"),
   playerMenu: document.getElementById("playerMenu"),
+  playerMenuChangeNameBtn: document.getElementById("playerMenuChangeNameBtn"),
   playerMenuKickBtn: document.getElementById("playerMenuKickBtn"),
   playerMenuMakeHostBtn: document.getElementById("playerMenuMakeHostBtn"),
   reconnectOverlay: document.getElementById("reconnectOverlay"),
@@ -1282,6 +1283,20 @@ function updateChatPlacement(){
 function canManagePlayers(){
   return !!(isMultiplayer() && state.roomId && state.isSignedIn && state.selfUid && state.hostUid && state.selfUid === state.hostUid);
 }
+function canChangeOwnName(){
+  return !!(isMultiplayer() && state.roomId && state.isSignedIn && state.selfUid);
+}
+function focusNicknameInput(){
+  if(!canChangeOwnName()) return;
+  updateNicknameUI();
+  if(els.nicknameRow){
+    els.nicknameRow.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  if(els.nicknameInput){
+    els.nicknameInput.focus();
+    els.nicknameInput.select();
+  }
+}
 function closePlayerMenu(){
   if(!els.playerMenu) return;
   els.playerMenu.classList.remove("open");
@@ -1294,8 +1309,20 @@ function openPlayerMenu(target, anchor){
   state.playerMenuTarget = target;
   const isSelf = target.uid && target.uid === state.selfUid;
   const isTargetHost = target.uid && target.uid === state.hostUid;
-  if(els.playerMenuKickBtn) els.playerMenuKickBtn.disabled = isSelf || isTargetHost;
-  if(els.playerMenuMakeHostBtn) els.playerMenuMakeHostBtn.disabled = isSelf || isTargetHost;
+  const canManage = canManagePlayers();
+  const showManageActions = canManage && !isSelf;
+  const showChangeName = isSelf && canChangeOwnName();
+  if(els.playerMenuKickBtn){
+    els.playerMenuKickBtn.disabled = isSelf || isTargetHost;
+    els.playerMenuKickBtn.style.display = showManageActions ? "" : "none";
+  }
+  if(els.playerMenuMakeHostBtn){
+    els.playerMenuMakeHostBtn.disabled = isSelf || isTargetHost;
+    els.playerMenuMakeHostBtn.style.display = showManageActions ? "" : "none";
+  }
+  if(els.playerMenuChangeNameBtn){
+    els.playerMenuChangeNameBtn.style.display = showChangeName ? "" : "none";
+  }
   els.playerMenu.classList.add("open");
   const rect = anchor.getBoundingClientRect();
   const menuRect = els.playerMenu.getBoundingClientRect();
@@ -1313,8 +1340,10 @@ function openPlayerMenu(target, anchor){
   els.playerMenu.style.top = `${top}px`;
 }
 function maybeOpenPlayerMenu(target, anchor){
-  if(!canManagePlayers()) return;
-  if(!target || !target.uid || target.uid === state.selfUid) return;
+  if(!target || !target.uid) return;
+  const isSelf = target.uid === state.selfUid;
+  const canOpenSelf = isSelf && canChangeOwnName();
+  if(!canManagePlayers() && !canOpenSelf) return;
   if(els.playerMenu && state.playerMenuTarget && state.playerMenuTarget.uid === target.uid && els.playerMenu.classList.contains("open")){
     closePlayerMenu();
     return;
@@ -4906,6 +4935,12 @@ if(els.shareRoomBtn){
 }
 if(els.playerMenu){
   els.playerMenu.addEventListener("click", (e)=> e.stopPropagation());
+}
+if(els.playerMenuChangeNameBtn){
+  els.playerMenuChangeNameBtn.addEventListener("click", ()=>{
+    closePlayerMenu();
+    focusNicknameInput();
+  });
 }
 if(els.playerMenuKickBtn){
   els.playerMenuKickBtn.addEventListener("click", ()=>{
