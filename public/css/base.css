@@ -1,0 +1,96 @@
+/**
+ * Base layout, typography, and global variables for DING Online.
+ */
+:root{
+      --bg:#0b1020; --panel:#121a33; --panel2:#0f1730; --text:#e9eeff;
+      --muted:#a7b0d6; --accent:#7c5cff; --danger:#ff5c7a; --good:#3ee28a;
+      --stroke:rgba(255,255,255,.12);
+      --shadow: 0 14px 40px rgba(0,0,0,.45);
+      --radius: 16px;
+      --cardW: 72px;
+    }
+    *{box-sizing:border-box}
+    html, body{
+      min-height:100%;
+    }
+    body{
+      margin:0;
+      background: radial-gradient(1200px 800px at 20% 10%, rgba(124,92,255,.25), transparent 60%),
+                  radial-gradient(900px 700px at 80% 20%, rgba(62,226,138,.18), transparent 60%),
+                  var(--bg);
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      line-height:1.25;
+      min-height:100vh;
+    }
+    header{
+      position:sticky; top:0; z-index:10;
+      padding:14px 16px;
+      background: linear-gradient(to bottom, rgba(11,16,32,.92), rgba(11,16,32,.65));
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--stroke);
+    }
+    header .row{display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;}
+    .title{display:flex; gap:10px; align-items:center;}
+    .logoBtn{
+      width:clamp(52px, 12vw, 72px);
+      height:clamp(52px, 12vw, 72px);
+      border-radius:14px;
+      background: rgba(124,92,255,.25);
+      border:0.5px solid rgba(124,92,255,.5);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:6px;
+      overflow:hidden;
+      cursor:pointer;
+      transition: background .12s ease, transform .12s ease;
+    }
+    .logoBtn:hover{ background: rgba(124,92,255,.32); transform: translateY(-1px); }
+    .logoBtn:active{ transform: translateY(0); }
+    .logoBtn img{
+      width:100%;
+      height:100%;
+      display:block;
+    }
+    .pill{
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.06);
+      padding:8px 10px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 13px;
+      display:flex; gap:8px; align-items:center;
+    }
+    #statusBox{ display:none; }
+    #trumpPill{
+      font-weight:900;
+      font-size:14px;
+      letter-spacing:.2px;
+      text-shadow: 0 2px 10px rgba(0,0,0,.45);
+    }
+    .pill strong{color:var(--text); font-weight:700;}
+    main{padding:16px; max-width:1100px; margin:0 auto;}
+    .grid{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:14px;
+    }
+    @media (max-width: 960px){
+      .grid{grid-template-columns: 1fr;}
+    }
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    #gamePanel{ overflow: visible; }
+    .panel .hd{
+      padding:12px 14px;
+      border-bottom:1px solid var(--stroke);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background: rgba(255,255,255,.04);
+    }
+    .panel .bd{padding:14px;}
