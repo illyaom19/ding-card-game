@@ -1999,6 +1999,8 @@ function applyRoomState(data){
       state.swapNoticeHistory.clear();
       state.swapCounts = {};
       state.lastDealtHandId = null;
+      state.lastTrickWinnerIndex = null;
+      state.lastCompletedTrick = null;
     }
     const nextSwapCounts = (data.swapCounts && typeof data.swapCounts === "object") ? data.swapCounts : {};
     state.swapCounts = { ...nextSwapCounts };
@@ -3323,6 +3325,8 @@ function dealHand(){
     clearIncomingTimers();
     state.dealFadePending = false;
     state.lastDealtHandId = null;
+    state.lastTrickWinnerIndex = null;
+    state.lastCompletedTrick = null;
 
     // reset hand-only fields
     const handsByUid = new Map();
@@ -3395,6 +3399,8 @@ function dealHand(){
   clearIncomingTimers();
   state.dealFadePending = false;
   state.lastDealtHandId = null;
+  state.lastTrickWinnerIndex = null;
+  state.lastCompletedTrick = null;
 
   // reset hand-only fields
   for(const p of state.players){
@@ -4166,16 +4172,6 @@ function renderTrickArea(){
     hasInfo = true;
   }
 
-  // show folded players on the table
-  const folded = state.players.filter(p => p.folded).map(p => p.name);
-  if(folded.length){
-    const f = document.createElement('div');
-    f.className = 'pill foldedPill';
-    f.innerHTML = `<strong style="margin-right:8px;color:var(--muted);font-size:12px">Folded:</strong> <span style="color:var(--muted);">${folded.join(', ')}</span>`;
-    infoRow.appendChild(f);
-    hasInfo = true;
-  }
-
   if(hasInfo){
     els.trickArea.appendChild(infoRow);
   }
@@ -4256,11 +4252,12 @@ function renderSwapSummary(){
   state.players.forEach((player, idx)=>{
     const key = swapKeyForPlayer(player, idx);
     const hasCount = typeof state.swapCounts[key] === "number";
-    if(!player.hasSwapped && !hasCount) return;
+    if(!player.folded && !player.hasSwapped && !hasCount) return;
     const count = hasCount ? state.swapCounts[key] : 0;
     const item = document.createElement("div");
     item.className = "swapSummaryItem";
-    item.innerHTML = `<span>${player.name}</span><span class="mono">${count}</span>`;
+    const statusLabel = player.folded ? "FOLDED" : String(count);
+    item.innerHTML = `<span>${player.name}</span><span class="mono">${statusLabel}</span>`;
     els.swapSummaryList.appendChild(item);
   });
   if(!els.swapSummaryList.childNodes.length){
@@ -4466,10 +4463,38 @@ function renderMeta(){
   }
 }
 
+function getHandWinnerIndex(){
+  if(state.handEndedByFolds && state.foldWinIndex !== null) return state.foldWinIndex;
+  if(state.phase !== PHASE.HAND_END) return null;
+  let maxTricks = -1;
+  let winnerIndex = null;
+  let hasTie = false;
+  state.players.forEach((player, idx)=>{
+    if(player.tricksWonThisHand > maxTricks){
+      maxTricks = player.tricksWonThisHand;
+      winnerIndex = idx;
+      hasTie = false;
+    } else if(player.tricksWonThisHand === maxTricks){
+      hasTie = true;
+    }
+  });
+  if(winnerIndex === null || hasTie) return null;
+  return winnerIndex;
+}
+
 function renderStatus(){
   let msg = "—";
   const isMulti = isMultiplayer();
   const isHost = !isMulti || (state.selfUid && state.hostUid && state.selfUid === state.hostUid);
+  const selfIndex = isMulti ? state.selfIndex : 0;
+  const handWinnerIndex = getHandWinnerIndex();
+  const isSelfHandWinner = selfIndex !== null && handWinnerIndex !== null && selfIndex === handWinnerIndex;
+  const isSelfDealer = !isMulti || (selfIndex !== null && selfIndex === state.dealerIndex);
+  const handEndNotes = [];
+  if(state.phase === PHASE.HAND_END){
+    if(isSelfHandWinner) handEndNotes.push("You won the hand.");
+    if(isSelfDealer) handEndNotes.push("It's your deal.");
+  }
   const winnerBanner = document.getElementById('winnerBanner');
   const winnerDetail = document.getElementById('winnerDetail');
   if(winnerBanner){
@@ -4502,6 +4527,7 @@ function renderStatus(){
       msg = `Play a card: ${state.players[state.currentTurnIndex].name}${lead}`;
     }
     if(state.phase === PHASE.HAND_END) msg = `Hand over. Dealer is ${state.players[state.dealerIndex].name}. Deal next hand when ready.`;
+    if(handEndNotes.length) msg = `${msg} ${handEndNotes.join(" ")}`;
     if(state.phase === PHASE.GAME_OVER) msg = isHost ? "Game over. Start a new game to reset scores." : "Game over. Waiting for host to start a new game.";
     els.statusText.textContent = msg;
     return;
@@ -4542,6 +4568,7 @@ function renderStatus(){
     icon.textContent = '🏁';
     title.textContent = 'Hand complete';
     detail.textContent = `Dealer: ${state.players[state.dealerIndex]?.name ?? '—'}. Deal next hand when ready.`;
+    if(handEndNotes.length) detail.textContent += ` ${handEndNotes.join(" ")}`;
     // notifications are informational only; actions are handled in the main UI
   }
 
