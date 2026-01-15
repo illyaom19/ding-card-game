@@ -4661,8 +4661,8 @@ function render(){
     els.confirmSwapBtn.style.display = showSwap ? 'inline-block' : 'none';
     // update label based on number of selected cards when visible
     if(showSwap){
-      // simple confirm button — always use 'Confirm'
-      els.confirmSwapBtn.textContent = 'Confirm';
+      // simple swap button — always use 'Swap'
+      els.confirmSwapBtn.textContent = 'Swap';
     }
   }
 
