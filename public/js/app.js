@@ -261,6 +261,10 @@ const els = {
   chatSendBtn: document.getElementById("chatSendBtn"),
   playerMenu: document.getElementById("playerMenu"),
   playerMenuChangeNameBtn: document.getElementById("playerMenuChangeNameBtn"),
+  playerMenuNameRow: document.getElementById("playerMenuNameRow"),
+  playerMenuNameInput: document.getElementById("playerMenuNameInput"),
+  playerMenuSaveNameBtn: document.getElementById("playerMenuSaveNameBtn"),
+  playerMenuNameDivider: document.getElementById("playerMenuNameDivider"),
   playerMenuKickBtn: document.getElementById("playerMenuKickBtn"),
   playerMenuMakeHostBtn: document.getElementById("playerMenuMakeHostBtn"),
   reconnectOverlay: document.getElementById("reconnectOverlay"),
@@ -748,6 +752,14 @@ function getRoomNickname(roomId){
   const nickname = state.roomNicknames[roomId];
   return (nickname && typeof nickname === "string") ? nickname : null;
 }
+function getNicknameDraft(){
+  const saved = getRoomNickname(state.roomId);
+  if(saved) return saved;
+  if(state.selfIndex !== null && state.selfIndex !== undefined && state.selfIndex >= 0){
+    return state.players[state.selfIndex]?.name || "";
+  }
+  return "";
+}
 function getSelfRoomName(roomId){
   return getRoomNickname(roomId) || state.selfName || "Player";
 }
@@ -792,6 +804,13 @@ function updateNicknameUI(){
     if(currentName) els.nicknameInput.value = currentName;
   }
   setNicknameStatus("");
+}
+function syncPlayerMenuNameInput(){
+  if(!els.playerMenuNameInput) return;
+  const draft = getNicknameDraft();
+  if(draft && document.activeElement !== els.playerMenuNameInput){
+    els.playerMenuNameInput.value = draft;
+  }
 }
 function updateGameTitle(){
   if(!els.gameTitle) return;
@@ -1286,22 +1305,26 @@ function canManagePlayers(){
 function canChangeOwnName(){
   return !!(isMultiplayer() && state.roomId && state.isSignedIn && state.selfUid);
 }
-function focusNicknameInput(){
-  if(!canChangeOwnName()) return;
-  updateNicknameUI();
-  if(els.nicknameRow){
-    els.nicknameRow.scrollIntoView({ behavior: "smooth", block: "center" });
+function showPlayerMenuNameEditor(){
+  if(!els.playerMenuNameRow || !els.playerMenuNameDivider) return;
+  els.playerMenuNameRow.style.display = "flex";
+  els.playerMenuNameDivider.style.display = "block";
+  syncPlayerMenuNameInput();
+  if(els.playerMenuNameInput){
+    els.playerMenuNameInput.focus();
+    els.playerMenuNameInput.select();
   }
-  if(els.nicknameInput){
-    els.nicknameInput.focus();
-    els.nicknameInput.select();
-  }
+}
+function hidePlayerMenuNameEditor(){
+  if(els.playerMenuNameRow) els.playerMenuNameRow.style.display = "none";
+  if(els.playerMenuNameDivider) els.playerMenuNameDivider.style.display = "none";
 }
 function closePlayerMenu(){
   if(!els.playerMenu) return;
   els.playerMenu.classList.remove("open");
   els.playerMenu.style.left = "";
   els.playerMenu.style.top = "";
+  hidePlayerMenuNameEditor();
   state.playerMenuTarget = null;
 }
 function openPlayerMenu(target, anchor){
@@ -1322,6 +1345,10 @@ function openPlayerMenu(target, anchor){
   }
   if(els.playerMenuChangeNameBtn){
     els.playerMenuChangeNameBtn.style.display = showChangeName ? "" : "none";
+  }
+  hidePlayerMenuNameEditor();
+  if(showChangeName){
+    syncPlayerMenuNameInput();
   }
   els.playerMenu.classList.add("open");
   const rect = anchor.getBoundingClientRect();
@@ -2639,23 +2666,16 @@ async function ensureRoomNicknameApplied(){
   }
 }
 
-async function saveNickname(){
-  if(!els.nicknameInput) return;
-  if(!state.isSignedIn){
-    setNicknameStatus("");
-    return;
-  }
-  if(!state.roomId){
-    setNicknameStatus("");
-    return;
+async function persistNickname(rawValue){
+  if(!state.isSignedIn || !state.roomId){
+    return { nickname: null, error: "unavailable" };
   }
   if(!state.profileLoaded){
     await loadUserProfile();
   }
-  const nickname = normalizeNickname(els.nicknameInput.value);
+  const nickname = normalizeNickname(rawValue);
   if(!nickname){
-    setNicknameStatus("");
-    return;
+    return { nickname: null, error: "empty" };
   }
   state.roomNicknames = { ...(state.roomNicknames || {}), [state.roomId]: nickname };
   if(firebaseDb && state.selfUid){
@@ -2663,13 +2683,48 @@ async function saveNickname(){
       await setDoc(userRef(state.selfUid), { roomNicknames: state.roomNicknames }, { merge: true });
     } catch (err){
       console.error("Failed to save nickname:", err);
-      setNicknameStatus("Nickname save failed.");
-      return;
+      return { nickname: null, error: "save-failed" };
     }
   }
   await ensureRoomNicknameApplied();
-  if(els.nicknameInput) els.nicknameInput.value = nickname;
+  return { nickname };
+}
+
+async function saveNickname(){
+  if(!els.nicknameInput) return;
+  if(!state.isSignedIn || !state.roomId){
+    setNicknameStatus("");
+    return;
+  }
+  const result = await persistNickname(els.nicknameInput.value);
+  if(!result.nickname){
+    if(result.error === "save-failed"){
+      setNicknameStatus("Nickname save failed.");
+    } else {
+      setNicknameStatus("");
+    }
+    return;
+  }
+  if(els.nicknameInput) els.nicknameInput.value = result.nickname;
+  if(els.playerMenuNameInput) els.playerMenuNameInput.value = result.nickname;
   flashNicknameStatus("Nickname saved.");
+}
+
+async function savePlayerMenuName(){
+  if(!els.playerMenuNameInput) return;
+  const result = await persistNickname(els.playerMenuNameInput.value);
+  if(!result.nickname){
+    if(result.error === "save-failed"){
+      flashNicknameStatus("Nickname save failed.");
+    } else {
+      setNicknameStatus("");
+    }
+    return;
+  }
+  els.playerMenuNameInput.value = result.nickname;
+  if(els.nicknameInput) els.nicknameInput.value = result.nickname;
+  flashNicknameStatus("Nickname saved.");
+  closePlayerMenu();
 }
 
 async function saveRoomName(){
@@ -4938,8 +4993,20 @@ if(els.playerMenu){
 }
 if(els.playerMenuChangeNameBtn){
   els.playerMenuChangeNameBtn.addEventListener("click", ()=>{
-    closePlayerMenu();
-    focusNicknameInput();
+    showPlayerMenuNameEditor();
+  });
+}
+if(els.playerMenuSaveNameBtn){
+  els.playerMenuSaveNameBtn.addEventListener("click", async ()=>{
+    await savePlayerMenuName();
+  });
+}
+if(els.playerMenuNameInput){
+  els.playerMenuNameInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){
+      e.preventDefault();
+      savePlayerMenuName();
+    }
   });
 }
 if(els.playerMenuKickBtn){

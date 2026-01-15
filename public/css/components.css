@@ -356,6 +356,21 @@
       margin:4px 6px;
       background: rgba(255,255,255,.12);
     }
+    .menuField{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      padding:6px;
+    }
+    .menuField .input{
+      font-size:13px;
+      padding:8px 10px;
+    }
+    .menuField .btn{
+      width:100%;
+      font-size:13px;
+      padding:8px 10px;
+    }
     .headerTapZone{
       position:absolute;
       top:8px;
