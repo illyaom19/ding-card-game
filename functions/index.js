@@ -97,6 +97,108 @@ exports.notifyTurn = onDocumentUpdated("rooms/{roomId}", async (event) => {
   return null;
 });
 
+exports.notifyGameOver = onDocumentUpdated("rooms/{roomId}", async (event) => {
+  const before = event.data.before.data() || {};
+  const after = event.data.after.data() || {};
+  if (before.phase === "GAME_OVER" || after.phase !== "GAME_OVER") return null;
+
+  const players = Array.isArray(after.players) ? after.players : [];
+  const targetUids = players.map((p) => p && p.uid).filter(Boolean);
+  if (!targetUids.length) return null;
+
+  const roomName = after.roomName || "Player's Lobby";
+  const winnerIdx = typeof after.winnerIndex === "number" ? after.winnerIndex : -1;
+  const winnerUid = winnerIdx >= 0 ? players[winnerIdx]?.uid || null : null;
+
+  const userRefs = targetUids.map((uid) => admin.firestore().doc(`users/${uid}`));
+  const userSnaps = await admin.firestore().getAll(...userRefs);
+
+  const winnerTokens = [];
+  const winnerTokenToUid = new Map();
+  const otherTokens = [];
+  const otherTokenToUid = new Map();
+
+  userSnaps.forEach((snap, idx) => {
+    if (!snap.exists) return;
+    const uid = targetUids[idx];
+    const userData = snap.data() || {};
+    const pushTokens = Array.isArray(userData.pushTokens) ? userData.pushTokens : [];
+    pushTokens.forEach((token) => {
+      if (!token) return;
+      if (uid && uid === winnerUid) {
+        winnerTokens.push(token);
+        winnerTokenToUid.set(token, uid);
+      } else {
+        otherTokens.push(token);
+        otherTokenToUid.set(token, uid);
+      }
+    });
+  });
+
+  const sendNotice = async (tokens, tokenToUid, body) => {
+    const uniqueTokens = Array.from(new Set(tokens));
+    if (!uniqueTokens.length) return;
+    const payload = {
+      data: {
+        roomId: event.params.roomId,
+        roomName,
+        title: "DING Online",
+        body,
+      },
+    };
+    const sendOnce = async (tokensToSend) =>
+      admin.messaging().sendEachForMulticast({
+        tokens: tokensToSend,
+        ...payload,
+      });
+
+    const res = await sendOnce(uniqueTokens);
+    const invalidByUid = new Map();
+    const retryable = [];
+    res.responses.forEach((r, idx) => {
+      if (!r.success && r.error) {
+        const code = r.error.code;
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token"
+        ) {
+          const token = uniqueTokens[idx];
+          const uid = tokenToUid.get(token);
+          if (!uid) return;
+          if (!invalidByUid.has(uid)) invalidByUid.set(uid, []);
+          invalidByUid.get(uid).push(token);
+        } else if (code === "messaging/internal-error" || code === "messaging/server-unavailable") {
+          retryable.push(uniqueTokens[idx]);
+        }
+      }
+    });
+
+    if (retryable.length) {
+      try {
+        await sendOnce(retryable);
+      } catch (err) {
+        console.warn("Retry game over push send failed:", err);
+      }
+    }
+
+    const invalidWrites = [];
+    invalidByUid.forEach((tokensToRemove, uid) => {
+      invalidWrites.push(
+        admin.firestore().doc(`users/${uid}`).update({
+          pushTokens: admin.firestore.FieldValue.arrayRemove(...tokensToRemove),
+        })
+      );
+    });
+    if (invalidWrites.length) {
+      await Promise.allSettled(invalidWrites);
+    }
+  };
+
+  await sendNotice(winnerTokens, winnerTokenToUid, "YOU WON, vote to start a new game");
+  await sendNotice(otherTokens, otherTokenToUid, "Game over, vote to start a new game");
+  return null;
+});
+
 exports.notifyChat = onDocumentCreated("rooms/{roomId}/roomLog/{logId}", async (event) => {
   const entry = event.data.data() || {};
   if (entry.type !== "chat") return null;

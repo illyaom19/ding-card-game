@@ -1506,14 +1506,17 @@ async function makeHostForPlayer(target){
     setError("Failed to make host.");
   }
 }
-function buildPlayer(uid, name, seed=null){
+function buildPlayer(uid, name, seed=null, startingScoreOverride=null){
+  const startingScore = typeof startingScoreOverride === "number"
+    ? startingScoreOverride
+    : state.settings.startingScore;
   return {
     uid,
     name: name || "Player",
     hand: [],
     tricksWonThisHand: 0,
     wonTricks: [],
-    score: state.settings.startingScore,
+    score: startingScore,
     dingCount: (seed && typeof seed.dingCount === "number") ? seed.dingCount : 0,
     totalWins: (seed && typeof seed.totalWins === "number") ? seed.totalWins : 0,
     hasSwapped: false,
@@ -2104,6 +2107,9 @@ function applyRoomState(data){
   maybeAutoStartFromVotes();
   renderLobbyPlayers();
   render();
+  if(prevPhase !== state.phase && state.phase === PHASE.GAME_OVER){
+    showGameOverNotice();
+  }
 }
 
 function trimSelectionsToHand(){
@@ -3216,7 +3222,10 @@ async function joinRoom(roomId){
       return;
     }
     const newPlayerName = getSelfRoomName(code);
-    const newPlayer = buildPlayer(state.selfUid, newPlayerName);
+    const startingScore = typeof data.settings?.startingScore === "number"
+      ? data.settings.startingScore
+      : state.settings.startingScore;
+    const newPlayer = buildPlayer(state.selfUid, newPlayerName, null, startingScore);
     const isMidHand = data.phase === PHASE.SWAP || data.phase === PHASE.TRICK;
     if(isMidHand){
       newPlayer.folded = true;
@@ -4272,6 +4281,25 @@ function playSelectedCard(){
   render();
 }
 
+function showGameOverNotice(){
+  if(state.phase !== PHASE.GAME_OVER) return;
+  if(!isMultiplayer()) return;
+  const selfIdx = state.selfIndex;
+  if(selfIdx === null || selfIdx < 0) return;
+  const winnerIdx = state.winnerIndex;
+  const isSelfWinner = winnerIdx !== null && selfIdx === winnerIdx;
+  const title = isSelfWinner
+    ? "YOU WON, vote to start a new game"
+    : "Game over, vote to start a new game";
+  const noticeKey = `gameover-${state.gameId || state.handId || "0"}-${winnerIdx}-${selfIdx}`;
+  triggerPopupOnce(noticeKey, {
+    title,
+    subtitle: "",
+    tone: isSelfWinner ? "good" : "danger",
+    confetti: isSelfWinner,
+  });
+}
+
 function endHand(){
   state.phase = PHASE.HAND_END;
 
@@ -4342,25 +4370,8 @@ function endHand(){
 
   const selfIdx = isMultiplayer() ? state.selfIndex : null;
   const selfDinged = selfIdx !== null && dingedIndexes.includes(selfIdx);
-  if(state.winnerIndex !== null){
-    const winnerName = state.players[state.winnerIndex]?.name ?? "Player";
-    const isSelfWinner = isMultiplayer() && selfIdx === state.winnerIndex;
-    if(isSelfWinner){
-      triggerPopupOnce(`win-${state.handId}-${state.winnerIndex}-self`, {
-        title: "YOU WON!",
-        subtitle: "",
-        tone: "good",
-        confetti: true,
-      });
-    } else if(selfIdx !== null){
-      const title = selfDinged ? "YOU JUST GOT DUNG!" : `${winnerName} WON`;
-      const subtitle = selfDinged ? `${winnerName} WON` : "";
-      triggerPopupOnce(`win-${state.handId}-${state.winnerIndex}-${selfIdx}-${selfDinged ? "dung" : "loss"}`, {
-        title,
-        subtitle,
-        tone: "danger",
-      });
-    }
+  if(state.phase === PHASE.GAME_OVER){
+    showGameOverNotice();
   } else if(selfDinged){
     triggerPopupOnce(`ding-${state.handId}-${selfIdx}`, {
       title: "YOU GOT DUNG",
