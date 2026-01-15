@@ -63,6 +63,10 @@ const LOG_COLLECTION = "roomLog";
 const MAX_PLAYERS = 6;
 const MAX_NICKNAME_LENGTH = 18;
 const PWA_FIRST_LAUNCH_KEY = "dingPwaFirstLaunch";
+const CHAT_VOICE_MAX_SECONDS = 10;
+const CHAT_VOICE_MAX_BYTES = 700000;
+const CHAT_VOICE_TTL_MS = 30 * 60 * 1000;
+const CHAT_SCROLL_FUZZ = 12;
 // removed unused helper: clone()
 
 const state = {
@@ -150,6 +154,16 @@ const state = {
   playedCards: [],
   logEntries: [],
   logCollapsed: true,
+  chatHasUnseen: false,
+  lastChatCount: 0,
+  chatVoiceDraft: null,
+  chatVoiceRecording: false,
+  chatVoiceRecordingStartedAt: 0,
+  chatVoiceRecorder: null,
+  chatVoiceStream: null,
+  chatVoiceChunks: [],
+  chatVoiceTimer: null,
+  chatVoiceTimeout: null,
   connectionStatus: "unknown",
   connectionStatusDetail: "",
   lastConnectionChangeAt: 0,
@@ -257,8 +271,16 @@ const els = {
   chatBlock: document.getElementById("chatBlock"),
   chatList: document.getElementById("chatList"),
   chatHint: document.getElementById("chatHint"),
+  chatUnreadDot: document.getElementById("chatUnreadDot"),
   chatInput: document.getElementById("chatInput"),
   chatSendBtn: document.getElementById("chatSendBtn"),
+  chatMicBtn: document.getElementById("chatMicBtn"),
+  chatVoiceDraft: document.getElementById("chatVoiceDraft"),
+  chatVoiceStatus: document.getElementById("chatVoiceStatus"),
+  chatVoiceTimer: document.getElementById("chatVoiceTimer"),
+  chatVoiceAudio: document.getElementById("chatVoiceAudio"),
+  chatVoiceDeleteBtn: document.getElementById("chatVoiceDeleteBtn"),
+  chatVoiceSendBtn: document.getElementById("chatVoiceSendBtn"),
   playerMenu: document.getElementById("playerMenu"),
   playerMenuChangeNameBtn: document.getElementById("playerMenuChangeNameBtn"),
   playerMenuNameRow: document.getElementById("playerMenuNameRow"),
@@ -1888,6 +1910,11 @@ function leaveRoom(){
   state.selfHand = [];
   state.players = [];
   state.logEntries = [];
+  state.chatHasUnseen = false;
+  state.lastChatCount = 0;
+  clearChatVoiceDraft();
+  cleanupChatVoiceRecording();
+  updateChatUnreadIndicator();
   updateRoomStatus();
   closeRoomMenu();
   resetAll();
@@ -2252,7 +2279,8 @@ function subscribeToLog(){
 
 async function logRoomEventForRoom(roomId, entry){
   if(!roomId || !firebaseDb) return;
-  const payload = (entry && entry.type === "chat" && !("likes" in entry))
+  const isChatEntry = entry && (entry.type === "chat" || entry.type === "chat_voice");
+  const payload = (isChatEntry && !("likes" in entry))
     ? { ...entry, likes: [] }
     : entry;
   try{
@@ -2282,6 +2310,206 @@ async function sendChatMessage(){
     playerUid: state.selfUid || null,
   });
   els.chatInput.value = "";
+}
+
+function getChatEntryTimestamp(entry){
+  if(entry && entry.createdAt && typeof entry.createdAt.toMillis === "function"){
+    return entry.createdAt.toMillis();
+  }
+  if(typeof entry.clientCreatedAt === "number"){
+    return entry.clientCreatedAt;
+  }
+  return 0;
+}
+
+function getChatDistanceFromBottom(){
+  if(!els.chatList) return 0;
+  return els.chatList.scrollHeight - els.chatList.scrollTop - els.chatList.clientHeight;
+}
+
+function isChatNearBottom(){
+  return getChatDistanceFromBottom() <= CHAT_SCROLL_FUZZ;
+}
+
+function updateChatUnreadIndicator(){
+  if(!els.chatUnreadDot) return;
+  els.chatUnreadDot.classList.toggle("visible", !!state.chatHasUnseen);
+}
+
+function selectVoiceMimeType(){
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+  ];
+  if(typeof MediaRecorder === "undefined") return "";
+  const supported = candidates.find(type => MediaRecorder.isTypeSupported(type));
+  return supported || "";
+}
+
+function updateChatVoiceUI(){
+  if(els.chatMicBtn){
+    els.chatMicBtn.classList.toggle("recording", !!state.chatVoiceRecording);
+    els.chatMicBtn.disabled = !isMultiplayer() || !state.roomId;
+  }
+  if(!els.chatVoiceDraft) return;
+  const hasDraft = !!state.chatVoiceDraft;
+  els.chatVoiceDraft.hidden = !(state.chatVoiceRecording || hasDraft);
+  if(els.chatVoiceAudio){
+    els.chatVoiceAudio.hidden = !hasDraft;
+  }
+  if(els.chatVoiceSendBtn) els.chatVoiceSendBtn.disabled = !hasDraft;
+  if(els.chatVoiceDeleteBtn) els.chatVoiceDeleteBtn.disabled = !hasDraft;
+  if(els.chatVoiceStatus){
+    if(state.chatVoiceRecording){
+      els.chatVoiceStatus.textContent = "Recording... (release to finish)";
+    } else if(hasDraft){
+      els.chatVoiceStatus.textContent = "Voice message ready";
+    } else {
+      els.chatVoiceStatus.textContent = "Hold the mic to record.";
+    }
+  }
+  if(els.chatVoiceTimer){
+    if(state.chatVoiceRecording){
+      const elapsed = Math.min(Date.now() - state.chatVoiceRecordingStartedAt, CHAT_VOICE_MAX_SECONDS * 1000);
+      const seconds = Math.floor(elapsed / 1000);
+      els.chatVoiceTimer.textContent = `0:${String(seconds).padStart(2, "0")} / 0:${CHAT_VOICE_MAX_SECONDS}`;
+    } else if(hasDraft && typeof state.chatVoiceDraft?.duration === "number"){
+      const seconds = Math.ceil(state.chatVoiceDraft.duration);
+      els.chatVoiceTimer.textContent = `Length 0:${String(seconds).padStart(2, "0")}`;
+    } else {
+      els.chatVoiceTimer.textContent = "";
+    }
+  }
+}
+
+function clearChatVoiceDraft(){
+  if(state.chatVoiceDraft?.url){
+    URL.revokeObjectURL(state.chatVoiceDraft.url);
+  }
+  state.chatVoiceDraft = null;
+  if(els.chatVoiceAudio){
+    els.chatVoiceAudio.src = "";
+  }
+  updateChatVoiceUI();
+}
+
+function cleanupChatVoiceRecording(){
+  if(state.chatVoiceTimeout){ clearTimeout(state.chatVoiceTimeout); }
+  if(state.chatVoiceTimer){ clearInterval(state.chatVoiceTimer); }
+  state.chatVoiceTimeout = null;
+  state.chatVoiceTimer = null;
+  state.chatVoiceRecording = false;
+  state.chatVoiceRecordingStartedAt = 0;
+  if(state.chatVoiceStream){
+    state.chatVoiceStream.getTracks().forEach(track => track.stop());
+  }
+  state.chatVoiceStream = null;
+  state.chatVoiceRecorder = null;
+  state.chatVoiceChunks = [];
+}
+
+async function startChatVoiceRecording(){
+  if(state.chatVoiceRecording) return;
+  if(!isMultiplayer() || !state.roomId) return;
+  if(!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function" || typeof MediaRecorder === "undefined"){
+    setError("Voice messages are not supported in this browser.");
+    return;
+  }
+  clearChatVoiceDraft();
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = selectVoiceMimeType();
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    state.chatVoiceStream = stream;
+    state.chatVoiceRecorder = recorder;
+    state.chatVoiceRecording = true;
+    state.chatVoiceRecordingStartedAt = Date.now();
+    state.chatVoiceChunks = [];
+    recorder.addEventListener("dataavailable", (event)=>{
+      if(event.data && event.data.size){
+        state.chatVoiceChunks.push(event.data);
+      }
+    });
+    recorder.addEventListener("stop", ()=>{
+      const chunks = state.chatVoiceChunks || [];
+      const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
+      cleanupChatVoiceRecording();
+      if(!blob.size){
+        updateChatVoiceUI();
+        return;
+      }
+      if(blob.size > CHAT_VOICE_MAX_BYTES){
+        setError("Voice message is too large. Try a shorter recording.");
+        updateChatVoiceUI();
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const draft = { blob, url, mimeType: blob.type || recorder.mimeType || mimeType };
+      state.chatVoiceDraft = draft;
+      if(els.chatVoiceAudio){
+        els.chatVoiceAudio.src = url;
+        els.chatVoiceAudio.onloadedmetadata = ()=>{
+          draft.duration = Number.isFinite(els.chatVoiceAudio.duration) ? els.chatVoiceAudio.duration : null;
+          updateChatVoiceUI();
+        };
+      }
+      updateChatVoiceUI();
+    });
+    recorder.start();
+    state.chatVoiceTimer = setInterval(()=> updateChatVoiceUI(), 200);
+    state.chatVoiceTimeout = setTimeout(()=> stopChatVoiceRecording(), CHAT_VOICE_MAX_SECONDS * 1000);
+    updateChatVoiceUI();
+  } catch (err){
+    console.error("Failed to start voice recording:", err);
+    setError("Microphone access was denied.");
+    cleanupChatVoiceRecording();
+    updateChatVoiceUI();
+  }
+}
+
+function stopChatVoiceRecording(){
+  if(!state.chatVoiceRecording || !state.chatVoiceRecorder) return;
+  if(state.chatVoiceRecorder.state !== "inactive"){
+    state.chatVoiceRecorder.stop();
+  }
+}
+
+async function blobToDataUrl(blob){
+  return await new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(String(reader.result || ""));
+    reader.onerror = ()=> reject(reader.error || new Error("Failed to read audio data."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function sendChatVoiceMessage(){
+  if(!state.chatVoiceDraft?.blob) return;
+  if(!isMultiplayer() || !state.roomId || !firebaseDb) return;
+  if(state.chatVoiceDraft.blob.size > CHAT_VOICE_MAX_BYTES){
+    setError("Voice message is too large. Try a shorter recording.");
+    return;
+  }
+  const name = state.players[state.selfIndex]?.name || state.selfName || "Player";
+  try{
+    const dataUrl = await blobToDataUrl(state.chatVoiceDraft.blob);
+    await logRoomEvent({
+      type: "chat_voice",
+      voiceData: dataUrl,
+      voiceMime: state.chatVoiceDraft.mimeType || "audio/webm",
+      voiceDuration: state.chatVoiceDraft.duration || null,
+      likes: [],
+      playerName: name,
+      playerUid: state.selfUid || null,
+      clientCreatedAt: Date.now(),
+    });
+    clearChatVoiceDraft();
+  } catch (err){
+    console.error("Failed to send voice message:", err);
+    setError("Failed to send voice message.");
+  }
 }
 
 async function toggleChatLike(entry){
@@ -2323,7 +2551,7 @@ function buildChatLikeIndex(entries){
   };
   const index = new Map();
   for(const entry of entries){
-    if(entry.type !== "chat") continue;
+    if(entry.type !== "chat" && entry.type !== "chat_voice") continue;
     if(!entry.id) continue;
     if(!Array.isArray(entry.likes)) continue;
     let map = index.get(entry.id);
@@ -2354,6 +2582,9 @@ function buildChatLikeIndex(entries){
 
 function renderRoomLog(){
   if(!els.logList) return;
+  const chatWasNearBottom = els.chatList ? isChatNearBottom() : true;
+  const chatDistanceFromBottom = els.chatList ? getChatDistanceFromBottom() : 0;
+  const previousChatCount = state.lastChatCount;
   els.logList.innerHTML = "";
   if(els.chatList) els.chatList.innerHTML = "";
   let hint = "Multiplayer only";
@@ -2382,7 +2613,7 @@ function renderRoomLog(){
     const games = new Map();
     const gameWinners = new Map();
     state.logEntries.forEach((entry)=>{
-      if(entry.type === "chat") return;
+      if(entry.type === "chat" || entry.type === "chat_voice") return;
       const handId = Number(entry.handId || 0);
       if(!handId) return;
       const gameId = Number(entry.gameId || 1);
@@ -2556,7 +2787,16 @@ function renderRoomLog(){
   }
   if(els.chatBlock && els.chatList){
     const likeIndex = buildChatLikeIndex(state.logEntries || []);
-    const chatEntries = state.logEntries.filter(entry=> entry.type === "chat");
+    const now = Date.now();
+    const chatEntries = state.logEntries.filter(entry=>{
+      if(entry.type === "chat") return true;
+      if(entry.type === "chat_voice"){
+        if(!entry.voiceData) return false;
+        const ts = getChatEntryTimestamp(entry);
+        return !ts || now - ts <= CHAT_VOICE_TTL_MS;
+      }
+      return false;
+    });
     if(els.chatHint){
       els.chatHint.textContent = chatEntries.length ? `${chatEntries.length} message${chatEntries.length === 1 ? "" : "s"}` : "No messages yet";
     }
@@ -2574,7 +2814,30 @@ function renderRoomLog(){
       if(name === "System"){
         text.classList.add("chatTextSystem");
       }
-      text.textContent = entry.message || "";
+      const isVoice = entry.type === "chat_voice";
+      if(isVoice){
+        const voiceWrap = document.createElement("div");
+        voiceWrap.className = "chatVoiceClip";
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.preload = "metadata";
+        if(entry.voiceData){
+          audio.src = entry.voiceData;
+        }
+        voiceWrap.appendChild(audio);
+        if(typeof entry.voiceDuration === "number"){
+          const badge = document.createElement("span");
+          badge.className = "chatVoiceBadge";
+          badge.textContent = `0:${String(Math.ceil(entry.voiceDuration)).padStart(2, "0")}`;
+          voiceWrap.appendChild(badge);
+        }
+        text.textContent = "Voice message";
+        row.appendChild(text);
+        row.appendChild(voiceWrap);
+      } else {
+        text.textContent = entry.message || "";
+        row.appendChild(text);
+      }
       const heart = document.createElement("div");
       heart.className = "chatHeart";
       const likeMap = likeIndex.get(entry.id);
@@ -2590,7 +2853,6 @@ function renderRoomLog(){
       heart.classList.toggle("hidden", likeCount === 0);
       heart.classList.toggle("liked", likedBySelf);
       heart.innerHTML = `&#9829; ${likeCount}`;
-      row.appendChild(text);
       row.appendChild(heart);
       item.appendChild(meta);
       item.appendChild(row);
@@ -2614,9 +2876,23 @@ function renderRoomLog(){
     const canChat = state.mode === MODE.MULTI && state.roomId;
     if(els.chatInput) els.chatInput.disabled = !canChat;
     if(els.chatSendBtn) els.chatSendBtn.disabled = !canChat;
-    if(els.chatList) els.chatList.scrollTop = els.chatList.scrollHeight;
+    if(els.chatList){
+      if(chatWasNearBottom){
+        els.chatList.scrollTop = els.chatList.scrollHeight;
+        state.chatHasUnseen = false;
+      } else {
+        const scrollTop = Math.max(0, els.chatList.scrollHeight - els.chatList.clientHeight - chatDistanceFromBottom);
+        els.chatList.scrollTop = scrollTop;
+        if(chatEntries.length > previousChatCount){
+          state.chatHasUnseen = true;
+        }
+      }
+    }
+    state.lastChatCount = chatEntries.length;
+    updateChatUnreadIndicator();
   }
   if(els.logHint) els.logHint.textContent = hint;
+  updateChatVoiceUI();
   requestAnimationFrame(()=> scrollLogToBottom());
 }
 
@@ -5129,6 +5405,48 @@ if(els.chatInput){
     if(e.key === "Enter"){
       e.preventDefault();
       sendChatMessage();
+    }
+  });
+}
+if(els.chatMicBtn){
+  const startRecording = (e)=>{
+    e.preventDefault();
+    startChatVoiceRecording();
+  };
+  const stopRecording = (e)=>{
+    e.preventDefault();
+    stopChatVoiceRecording();
+  };
+  els.chatMicBtn.addEventListener("pointerdown", startRecording);
+  els.chatMicBtn.addEventListener("pointerup", stopRecording);
+  els.chatMicBtn.addEventListener("pointerleave", stopRecording);
+  els.chatMicBtn.addEventListener("pointercancel", stopRecording);
+  els.chatMicBtn.addEventListener("keydown", (e)=>{
+    if(e.key === " " || e.key === "Enter"){
+      e.preventDefault();
+      startChatVoiceRecording();
+    }
+  });
+  els.chatMicBtn.addEventListener("keyup", (e)=>{
+    if(e.key === " " || e.key === "Enter"){
+      e.preventDefault();
+      stopChatVoiceRecording();
+    }
+  });
+}
+if(els.chatVoiceDeleteBtn){
+  els.chatVoiceDeleteBtn.addEventListener("click", ()=>{ clearChatVoiceDraft(); });
+}
+if(els.chatVoiceSendBtn){
+  els.chatVoiceSendBtn.addEventListener("click", ()=>{ sendChatVoiceMessage(); });
+}
+if(els.chatList){
+  els.chatList.addEventListener("scroll", ()=>{
+    if(isChatNearBottom()){
+      if(state.chatHasUnseen){
+        state.chatHasUnseen = false;
+        updateChatUnreadIndicator();
+      }
     }
   });
 }

@@ -963,6 +963,25 @@
       font-weight:800;
       font-size:13px;
     }
+    .chatHeaderTitle{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+    .chatUnreadDot{
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      background:#ff4d5e;
+      box-shadow:0 0 8px rgba(255,77,94,.65);
+      opacity:0;
+      transform:scale(.7);
+      transition:opacity .2s ease, transform .2s ease;
+    }
+    .chatUnreadDot.visible{
+      opacity:1;
+      transform:scale(1);
+    }
     .chatList{
       max-height:160px;
       overflow-y:auto;
@@ -1018,6 +1037,22 @@
       gap:8px;
       align-items:center;
     }
+    .chatMicBtn{
+      width:40px;
+      height:40px;
+      padding:0;
+      border-radius:999px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      font-size:16px;
+      background: rgba(255,255,255,.06);
+    }
+    .chatMicBtn.recording{
+      border-color:#ff4d5e;
+      box-shadow:0 0 12px rgba(255,77,94,.55);
+      background: rgba(255,77,94,.18);
+    }
     .chatComposer input{
       flex:1;
       min-width:0;
@@ -1029,6 +1064,46 @@
       font-size:16px;
     }
     .chatComposer input::placeholder{ color:var(--muted); }
+    .chatVoiceDraft{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding:8px;
+      border-radius:10px;
+      border:1px dashed rgba(255,255,255,.2);
+      background: rgba(255,255,255,.03);
+    }
+    .chatVoiceMeta{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    .chatVoiceDraft audio{
+      width:100%;
+    }
+    .chatVoiceActions{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+    }
+    .chatVoiceClip{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex:1;
+    }
+    .chatVoiceClip audio{
+      width:100%;
+    }
+    .chatVoiceBadge{
+      font-size:11px;
+      padding:2px 6px;
+      border-radius:999px;
+      background: rgba(255,255,255,.08);
+      color:var(--muted);
+      white-space:nowrap;
+    }
     .connectionStatus{
       display:inline-flex;
       align-items:center;
