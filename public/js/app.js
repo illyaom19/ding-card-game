@@ -218,6 +218,7 @@ const els = {
   lobbyArea: document.getElementById("lobbyArea"),
   controlsArea: document.getElementById("controlsArea"),
   namesInput: document.getElementById("namesInput"),
+  startActions: document.getElementById("startActions"),
   startGameBtn: document.getElementById("startGameBtn"),
   voteStartBtn: document.getElementById("voteStartBtn"),
   voteStartStatus: document.getElementById("voteStartStatus"),
@@ -302,6 +303,7 @@ const els = {
 
   scoreboard: document.getElementById("scoreboard"),
   gameOverActions: document.getElementById("gameOverActions"),
+  gameOverActionRow: document.getElementById("gameOverActionRow"),
   gameOverHint: document.getElementById("gameOverHint"),
   newGameBtn: document.getElementById("newGameBtn"),
   statusText: document.getElementById("statusText"),
@@ -688,11 +690,20 @@ function hasVotedToStart(){
   const { votes } = getStartVoteCounts();
   return votes.includes(state.selfUid);
 }
+function placeVoteStartBlock(){
+  if(!els.voteStartBlock) return;
+  const showGameOver = state.phase === PHASE.GAME_OVER;
+  const target = showGameOver ? els.gameOverActionRow : els.startActions;
+  if(target && els.voteStartBlock.parentElement !== target){
+    target.appendChild(els.voteStartBlock);
+  }
+}
 function updateVoteStartUI(){
   if(!els.voteStartStatus || !els.voteStartBlock || !els.voteStartBtn) return;
   const isMulti = isMultiplayer();
   const showStart = state.phase === PHASE.LOBBY || state.phase === PHASE.GAME_OVER;
   const showVote = showStart && isMulti && !!state.roomId;
+  placeVoteStartBlock();
   els.voteStartBlock.style.display = showVote ? "flex" : "none";
   if(!showVote) return;
   const { voteCount, totalCount } = getStartVoteCounts();
