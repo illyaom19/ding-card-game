@@ -3,7 +3,7 @@
  */
 :root{
       --bg:#0b1020; --panel:#121a33; --panel2:#0f1730; --text:#e9eeff;
-      --muted:#a7b0d6; --accent:#7c5cff; --danger:#ff5c7a; --good:#3ee28a;
+      --muted:#a7b0d6; --accent:#7c5cff; --danger:#ff5c7a; --good:#3ee28a; --swap:#f6c453;
       --stroke:rgba(255,255,255,.12);
       --shadow: 0 14px 40px rgba(0,0,0,.45);
       --radius: 16px;
