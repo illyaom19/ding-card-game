@@ -4277,8 +4277,9 @@ function endHand(){
 
   // scoring: count down from STARTING_SCORE, reset on DUNG
   const dingedIndexes = [];
+  const allTricksPlayed = state.trickNumber >= 5 && !state.handEndedByFolds;
   state.players.forEach((p, idx)=>{
-    if(p.tricksWonThisHand === 0 && !p.folded){
+    if(allTricksPlayed && p.tricksWonThisHand === 0 && !p.folded){
       p.score = state.settings.startingScore;
       p.dingCount = (p.dingCount || 0) + 1;
       dingedIndexes.push(idx);
