@@ -691,17 +691,19 @@ function hasVotedToStart(){
 function updateVoteStartUI(){
   if(!els.voteStartStatus || !els.voteStartBlock || !els.voteStartBtn) return;
   const isMulti = isMultiplayer();
-  const showStart = state.phase === PHASE.LOBBY;
+  const showStart = state.phase === PHASE.LOBBY || state.phase === PHASE.GAME_OVER;
   const showVote = showStart && isMulti && !!state.roomId;
   els.voteStartBlock.style.display = showVote ? "flex" : "none";
   if(!showVote) return;
   const { voteCount, totalCount } = getStartVoteCounts();
   els.voteStartStatus.textContent = `Votes: ${voteCount}/${totalCount}`;
-  const canVote = !!(state.roomId && state.isSignedIn && state.phase === PHASE.LOBBY);
+  els.voteStartBtn.textContent = state.phase === PHASE.GAME_OVER ? "Vote to start new game" : "Vote to start";
+  const canVote = !!(state.roomId && state.isSignedIn
+    && (state.phase === PHASE.LOBBY || state.phase === PHASE.GAME_OVER));
   els.voteStartBtn.disabled = !canVote || hasVotedToStart();
 }
 function maybeAutoStartFromVotes(){
-  if(!isMultiplayer() || state.phase !== PHASE.LOBBY) return;
+  if(!isMultiplayer() || (state.phase !== PHASE.LOBBY && state.phase !== PHASE.GAME_OVER)) return;
   if(!state.roomId || !state.isSignedIn) return;
   if(state.selfUid !== state.hostUid) return;
   const { voteCount, totalCount } = getStartVoteCounts();
@@ -716,8 +718,8 @@ async function voteToStartGame(){
     return;
   }
   if(!ensureConnectedForAction()) return;
-  if(state.phase !== PHASE.LOBBY){
-    setError("Voting is only available in the lobby.");
+  if(state.phase !== PHASE.LOBBY && state.phase !== PHASE.GAME_OVER){
+    setError("Voting is only available in the lobby or after game over.");
     return;
   }
   if(!state.selfUid){
@@ -4963,7 +4965,11 @@ function render(){
     els.lobbyArea.style.display = "none";
     els.controlsArea.style.display = "flex";
     if(els.startGameBtn) els.startGameBtn.style.display = "none";
-    if(els.voteStartBlock) els.voteStartBlock.style.display = "none";
+    if(state.phase === PHASE.GAME_OVER){
+      updateVoteStartUI();
+    } else if(els.voteStartBlock){
+      els.voteStartBlock.style.display = "none";
+    }
     renderScoreboard();
     // disable deal button while a hand is in progress
     els.startHandBtn.disabled = (state.phase !== PHASE.HAND_END) || (state.players.length < 2) || !isSelfDealer;
