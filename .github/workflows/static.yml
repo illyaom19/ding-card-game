@@ -2,7 +2,7 @@ name: Deploy DING to Firebase Hosting
 
 on:
   push:
-    branches: [main, codex/split-index.html-into-separate-files]
+    branches: [main]
 
 jobs:
   deploy:
