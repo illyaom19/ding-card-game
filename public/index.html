@@ -102,6 +102,7 @@
             <button class="btn" id="roomMenuBtn" aria-expanded="false">More ▾</button>
             <div class="menu" id="roomMenu" role="menu">
               <button class="menuItem" id="menuBackLobbyBtn" type="button">Back to menu</button>
+              <button class="menuItem" id="menuInviteRoomBtn" type="button">Invite to room</button>
               <button class="menuItem" id="menuEnableNotificationsBtn" type="button">Enable notifications</button>
               <div class="menuDivider" id="menuDivider" role="separator"></div>
               <button class="menuItem danger" id="menuResetBtn" type="button">Reset game</button>
@@ -161,7 +162,13 @@
             <div id="roomList" class="roomList"></div>
             <div id="roomListEmpty" class="small" style="display:none;">No rooms yet.</div>
           </div>
-          <button class="btn primary" id="startGameBtn">Start Game</button>
+          <div class="startActions" id="startActions">
+            <button class="btn primary" id="startGameBtn">Start Game</button>
+            <div class="voteStartBlock" id="voteStartBlock" style="display:none;">
+              <button class="btn" id="voteStartBtn">Vote to start</button>
+              <div class="small mono voteStartStatus" id="voteStartStatus">0/0 voted</div>
+            </div>
+          </div>
         </div>
 
         <div id="settingsCard" class="settingsCard">
@@ -350,5 +357,4 @@
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
-
 

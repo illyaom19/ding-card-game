@@ -71,6 +71,7 @@ const state = {
   lastPhase: PHASE.LOBBY,
   players: [],
   playerOrder: [],
+  startVotes: [],
   roomId: null,
   roomName: null,
   roomNameDraft: "",
@@ -202,6 +203,9 @@ const els = {
   controlsArea: document.getElementById("controlsArea"),
   namesInput: document.getElementById("namesInput"),
   startGameBtn: document.getElementById("startGameBtn"),
+  voteStartBtn: document.getElementById("voteStartBtn"),
+  voteStartStatus: document.getElementById("voteStartStatus"),
+  voteStartBlock: document.getElementById("voteStartBlock"),
   startHandBtn: document.getElementById("startHandBtn"),
   roomMenuWrap: document.getElementById("roomMenuWrap"),
   roomMenuBtn: document.getElementById("roomMenuBtn"),
@@ -209,6 +213,7 @@ const els = {
   menuResetBtn: document.getElementById("menuResetBtn"),
   menuResetHandBtn: document.getElementById("menuResetHandBtn"),
   menuBackLobbyBtn: document.getElementById("menuBackLobbyBtn"),
+  menuInviteRoomBtn: document.getElementById("menuInviteRoomBtn"),
   menuLeaveRoomBtn: document.getElementById("menuLeaveRoomBtn"),
   menuEnableNotificationsBtn: document.getElementById("menuEnableNotificationsBtn"),
   menuDivider: document.getElementById("menuDivider"),
@@ -616,6 +621,75 @@ async function shareRoomCode(){
     document.execCommand("copy");
     flashRoomStatus("Room code copied.");
   }
+}
+
+function getEligibleStartVoteUids(){
+  return state.players.map(p => p.uid).filter(Boolean);
+}
+function getStartVoteCounts(){
+  const eligible = getEligibleStartVoteUids();
+  const eligibleSet = new Set(eligible);
+  const rawVotes = Array.isArray(state.startVotes) ? state.startVotes : [];
+  const filteredVotes = eligibleSet.size
+    ? rawVotes.filter(uid => eligibleSet.has(uid))
+    : rawVotes.filter(Boolean);
+  const uniqueVotes = Array.from(new Set(filteredVotes));
+  return {
+    votes: uniqueVotes,
+    voteCount: uniqueVotes.length,
+    totalCount: eligible.length || state.players.length,
+  };
+}
+function hasVotedToStart(){
+  if(!state.selfUid) return false;
+  const { votes } = getStartVoteCounts();
+  return votes.includes(state.selfUid);
+}
+function updateVoteStartUI(){
+  if(!els.voteStartStatus || !els.voteStartBlock || !els.voteStartBtn) return;
+  const isMulti = isMultiplayer();
+  const showStart = state.phase === PHASE.LOBBY;
+  const showVote = showStart && isMulti;
+  els.voteStartBlock.style.display = showVote ? "flex" : "none";
+  if(!showVote) return;
+  const { voteCount, totalCount } = getStartVoteCounts();
+  els.voteStartStatus.textContent = `Votes: ${voteCount}/${totalCount}`;
+  const canVote = !!(state.roomId && state.isSignedIn && state.phase === PHASE.LOBBY);
+  els.voteStartBtn.disabled = !canVote || hasVotedToStart();
+}
+function maybeAutoStartFromVotes(){
+  if(!isMultiplayer() || state.phase !== PHASE.LOBBY) return;
+  if(!state.roomId || !state.isSignedIn) return;
+  if(state.selfUid !== state.hostUid) return;
+  const { voteCount, totalCount } = getStartVoteCounts();
+  if(totalCount < 2) return;
+  if(voteCount >= totalCount){
+    startMultiplayerGame();
+  }
+}
+async function voteToStartGame(){
+  if(!state.roomId){
+    setError("Join a room first.");
+    return;
+  }
+  if(!ensureConnectedForAction()) return;
+  if(state.phase !== PHASE.LOBBY){
+    setError("Voting is only available in the lobby.");
+    return;
+  }
+  if(!state.selfUid){
+    setError("Sign in first.");
+    return;
+  }
+  const { votes } = getStartVoteCounts();
+  if(votes.includes(state.selfUid)){
+    updateVoteStartUI();
+    return;
+  }
+  state.startVotes = [...votes, state.selfUid];
+  syncRoomState("vote-start");
+  updateVoteStartUI();
+  maybeAutoStartFromVotes();
 }
 
 function renderLobbyPlayers(){
@@ -1457,10 +1531,12 @@ function updateRoomMenuUI(){
   if(els.menuResetBtn) els.menuResetBtn.style.display = isHost ? "block" : "none";
   if(els.menuResetHandBtn) els.menuResetHandBtn.style.display = (isMulti && isHost) ? "block" : "none";
   if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.style.display = isMulti ? "block" : "none";
+  if(els.menuInviteRoomBtn) els.menuInviteRoomBtn.style.display = isMulti ? "block" : "none";
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.style.display = isMulti ? "block" : "none";
   if(els.menuEnableNotificationsBtn) els.menuEnableNotificationsBtn.style.display = isMulti ? "block" : "none";
   if(els.menuDivider) els.menuDivider.style.display = isMulti ? "block" : "none";
   if(els.menuBackLobbyBtn) els.menuBackLobbyBtn.disabled = !inRoom;
+  if(els.menuInviteRoomBtn) els.menuInviteRoomBtn.disabled = !inRoom;
   if(els.menuLeaveRoomBtn) els.menuLeaveRoomBtn.disabled = !inRoom;
   if(els.menuEnableNotificationsBtn) els.menuEnableNotificationsBtn.disabled = !state.isSignedIn || areNotificationsEnabled();
 }
@@ -1792,6 +1868,7 @@ function serializeRoomState(){
     discardPile: state.discardPile,
     playedCards: state.playedCards,
     swapCounts: state.swapCounts,
+    startVotes: Array.isArray(state.startVotes) ? state.startVotes : [],
     updatedAt: serverTimestamp(),
   };
 }
@@ -1835,6 +1912,13 @@ function applyRoomState(data){
           };
         })
       : state.players;
+    const eligibleUids = state.players.map(p => p.uid).filter(Boolean);
+    const eligibleSet = new Set(eligibleUids);
+    const rawVotes = Array.isArray(data.startVotes) ? data.startVotes : [];
+    const filteredVotes = eligibleSet.size
+      ? rawVotes.filter(uid => eligibleSet.has(uid))
+      : rawVotes.filter(Boolean);
+    state.startVotes = Array.from(new Set(filteredVotes));
     state.dealerIndex = data.dealerIndex ?? state.dealerIndex;
     state.leaderIndex = data.leaderIndex ?? state.leaderIndex;
     state.currentTurnIndex = data.currentTurnIndex ?? state.currentTurnIndex;
@@ -1902,6 +1986,8 @@ function applyRoomState(data){
   syncSettingsUI();
   updateModeUI();
   updateRoomStatus();
+  updateVoteStartUI();
+  maybeAutoStartFromVotes();
   renderLobbyPlayers();
   render();
 }
@@ -2625,6 +2711,7 @@ async function createRoom(){
   if(!state.isSignedIn){ setError("Sign in first."); return; }
   if(!hasFirebase()){ setError("Firebase config missing."); return; }
   state.handId = 0;
+  state.startVotes = [];
   const nameInput = els.roomNameInput ? normalizeRoomName(els.roomNameInput.value) : "";
   const roomName = getRoomDisplayName(nameInput || state.roomNameDraft || getDefaultRoomName(state.selfName));
   state.roomNameDraft = roomName;
@@ -2766,6 +2853,7 @@ async function startMultiplayerGame(){
   state.foldWinIndex = null;
   state.discardPile = [];
   state.playedCards = [];
+  state.startVotes = [];
   state.selectedCardIds.clear();
   state.selectedForSwap.clear();
   state.settingsCollapsed = true;
@@ -2823,6 +2911,7 @@ async function resetRoomState(){
   state.foldWinIndex = null;
   state.discardPile = [];
   state.playedCards = [];
+  state.startVotes = [];
   state.selectedCardIds.clear();
   state.selectedForSwap.clear();
   state.swapCounts = {};
@@ -2967,6 +3056,7 @@ function resetAll(){
   state.lastPhase = PHASE.LOBBY;
   state.players = [];
   state.selfHand = [];
+  state.startVotes = [];
   state.joinRoomActive = false;
   state.roomCreatedBySelf = false;
   state.playRequestPending = false;
@@ -4426,11 +4516,15 @@ function render(){
     els.controlsArea.style.display = "none";
     if(els.startGameBtn){
       els.startGameBtn.disabled = isMulti ? (!isHost || state.players.length < 2) : false;
+      els.startGameBtn.style.display = "inline-block";
     }
+    updateVoteStartUI();
     renderLobbyPlayers();
   } else {
     els.lobbyArea.style.display = "none";
     els.controlsArea.style.display = "flex";
+    if(els.startGameBtn) els.startGameBtn.style.display = "none";
+    if(els.voteStartBlock) els.voteStartBlock.style.display = "none";
     renderScoreboard();
     // disable deal button while a hand is in progress
     els.startHandBtn.disabled = (state.phase !== PHASE.HAND_END) || (state.players.length < 2) || !isSelfDealer;
@@ -4602,6 +4696,12 @@ if(els.menuBackLobbyBtn){
     backToLobby();
   });
 }
+if(els.menuInviteRoomBtn){
+  els.menuInviteRoomBtn.addEventListener("click", ()=>{
+    closeRoomMenu();
+    shareRoomCode();
+  });
+}
 if(els.homeIconBtn){
   els.homeIconBtn.addEventListener("click", ()=>{
     backToLobby();
@@ -4611,6 +4711,11 @@ if(els.menuLeaveRoomBtn){
   els.menuLeaveRoomBtn.addEventListener("click", ()=>{
     closeRoomMenu();
     leaveRoomPermanently(state.roomId);
+  });
+}
+if(els.voteStartBtn){
+  els.voteStartBtn.addEventListener("click", ()=>{
+    voteToStartGame();
   });
 }
 document.addEventListener("click", (e)=>{
