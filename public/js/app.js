@@ -2417,9 +2417,9 @@ async function startChatVoiceRecording(){
     setError("Voice messages are not supported in this browser.");
     return;
   }
-  clearChatVoiceDraft();
   try{
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    clearChatVoiceDraft();
     const mimeType = selectVoiceMimeType();
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     state.chatVoiceStream = stream;
@@ -2431,6 +2431,12 @@ async function startChatVoiceRecording(){
       if(event.data && event.data.size){
         state.chatVoiceChunks.push(event.data);
       }
+    });
+    recorder.addEventListener("error", (event)=>{
+      console.error("Voice recording error:", event.error || event);
+      setError("Voice recording failed.");
+      cleanupChatVoiceRecording();
+      updateChatVoiceUI();
     });
     recorder.addEventListener("stop", ()=>{
       const chunks = state.chatVoiceChunks || [];
@@ -2453,6 +2459,10 @@ async function startChatVoiceRecording(){
         els.chatVoiceAudio.onloadedmetadata = ()=>{
           draft.duration = Number.isFinite(els.chatVoiceAudio.duration) ? els.chatVoiceAudio.duration : null;
           updateChatVoiceUI();
+        };
+        els.chatVoiceAudio.onerror = ()=>{
+          setError("Unable to play back this recording.");
+          clearChatVoiceDraft();
         };
       }
       updateChatVoiceUI();
@@ -5418,12 +5428,6 @@ if(els.chatMicBtn){
     startChatVoiceRecording();
   };
   els.chatMicBtn.addEventListener("click", toggleRecording);
-  els.chatMicBtn.addEventListener("keydown", (e)=>{
-    if(e.key === " " || e.key === "Enter"){
-      e.preventDefault();
-      toggleRecording(e);
-    }
-  });
 }
 if(els.chatVoiceDeleteBtn){
   els.chatVoiceDeleteBtn.addEventListener("click", ()=>{ clearChatVoiceDraft(); });
