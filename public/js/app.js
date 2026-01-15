@@ -2363,11 +2363,11 @@ function updateChatVoiceUI(){
   if(els.chatVoiceDeleteBtn) els.chatVoiceDeleteBtn.disabled = !hasDraft;
   if(els.chatVoiceStatus){
     if(state.chatVoiceRecording){
-      els.chatVoiceStatus.textContent = "Recording... (release to finish)";
+      els.chatVoiceStatus.textContent = "Recording... tap the mic to stop.";
     } else if(hasDraft){
-      els.chatVoiceStatus.textContent = "Voice message ready";
+      els.chatVoiceStatus.textContent = "Review your voice message.";
     } else {
-      els.chatVoiceStatus.textContent = "Hold the mic to record.";
+      els.chatVoiceStatus.textContent = "Tap the mic to record.";
     }
   }
   if(els.chatVoiceTimer){
@@ -5409,28 +5409,19 @@ if(els.chatInput){
   });
 }
 if(els.chatMicBtn){
-  const startRecording = (e)=>{
+  const toggleRecording = (e)=>{
     e.preventDefault();
+    if(state.chatVoiceRecording){
+      stopChatVoiceRecording();
+      return;
+    }
     startChatVoiceRecording();
   };
-  const stopRecording = (e)=>{
-    e.preventDefault();
-    stopChatVoiceRecording();
-  };
-  els.chatMicBtn.addEventListener("pointerdown", startRecording);
-  els.chatMicBtn.addEventListener("pointerup", stopRecording);
-  els.chatMicBtn.addEventListener("pointerleave", stopRecording);
-  els.chatMicBtn.addEventListener("pointercancel", stopRecording);
+  els.chatMicBtn.addEventListener("click", toggleRecording);
   els.chatMicBtn.addEventListener("keydown", (e)=>{
     if(e.key === " " || e.key === "Enter"){
       e.preventDefault();
-      startChatVoiceRecording();
-    }
-  });
-  els.chatMicBtn.addEventListener("keyup", (e)=>{
-    if(e.key === " " || e.key === "Enter"){
-      e.preventDefault();
-      stopChatVoiceRecording();
+      toggleRecording(e);
     }
   });
 }
