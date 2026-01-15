@@ -157,6 +157,8 @@ const state = {
   chatHasUnseen: false,
   lastChatCount: 0,
   chatVoiceDraft: null,
+  chatVoiceNotice: null,
+  chatVoicePanelActivated: false,
   chatVoiceRecording: false,
   chatVoiceRecordingStartedAt: 0,
   chatVoiceRecorder: null,
@@ -2355,14 +2357,18 @@ function updateChatVoiceUI(){
   }
   if(!els.chatVoiceDraft) return;
   const hasDraft = !!state.chatVoiceDraft;
-  els.chatVoiceDraft.hidden = !(state.chatVoiceRecording || hasDraft);
+  const showPanel = state.chatVoicePanelActivated && (state.chatVoiceRecording || hasDraft || !!state.chatVoiceNotice);
+  els.chatVoiceDraft.hidden = !showPanel;
   if(els.chatVoiceAudio){
     els.chatVoiceAudio.hidden = !hasDraft;
   }
   if(els.chatVoiceSendBtn) els.chatVoiceSendBtn.disabled = !hasDraft;
   if(els.chatVoiceDeleteBtn) els.chatVoiceDeleteBtn.disabled = !hasDraft;
   if(els.chatVoiceStatus){
-    if(state.chatVoiceRecording){
+    els.chatVoiceStatus.classList.toggle("chatVoiceStatusError", !!state.chatVoiceNotice?.isError);
+    if(state.chatVoiceNotice){
+      els.chatVoiceStatus.textContent = state.chatVoiceNotice.message;
+    } else if(state.chatVoiceRecording){
       els.chatVoiceStatus.textContent = "Recording... tap the mic to stop.";
     } else if(hasDraft){
       els.chatVoiceStatus.textContent = "Review your voice message.";
@@ -2384,6 +2390,24 @@ function updateChatVoiceUI(){
   }
 }
 
+function setChatVoiceNotice(message, options = {}){
+  if(!message){
+    state.chatVoiceNotice = null;
+    updateChatVoiceUI();
+    return;
+  }
+  state.chatVoicePanelActivated = true;
+  state.chatVoiceNotice = {
+    message,
+    isError: options.isError !== false,
+  };
+  updateChatVoiceUI();
+}
+
+function clearChatVoiceNotice(){
+  state.chatVoiceNotice = null;
+}
+
 function clearChatVoiceDraft(){
   if(state.chatVoiceDraft?.url){
     URL.revokeObjectURL(state.chatVoiceDraft.url);
@@ -2392,6 +2416,7 @@ function clearChatVoiceDraft(){
   if(els.chatVoiceAudio){
     els.chatVoiceAudio.src = "";
   }
+  clearChatVoiceNotice();
   updateChatVoiceUI();
 }
 
@@ -2413,12 +2438,14 @@ function cleanupChatVoiceRecording(){
 async function startChatVoiceRecording(){
   if(state.chatVoiceRecording) return;
   if(!isMultiplayer() || !state.roomId) return;
+  state.chatVoicePanelActivated = true;
   if(!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function" || typeof MediaRecorder === "undefined"){
-    setError("Voice messages are not supported in this browser.");
+    setChatVoiceNotice("Voice messages are not supported in this browser.");
     return;
   }
   try{
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    clearChatVoiceNotice();
     clearChatVoiceDraft();
     const mimeType = selectVoiceMimeType();
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
@@ -2434,7 +2461,7 @@ async function startChatVoiceRecording(){
     });
     recorder.addEventListener("error", (event)=>{
       console.error("Voice recording error:", event.error || event);
-      setError("Voice recording failed.");
+      setChatVoiceNotice("Voice recording failed.");
       cleanupChatVoiceRecording();
       updateChatVoiceUI();
     });
@@ -2447,7 +2474,7 @@ async function startChatVoiceRecording(){
         return;
       }
       if(blob.size > CHAT_VOICE_MAX_BYTES){
-        setError("Voice message is too large. Try a shorter recording.");
+        setChatVoiceNotice("Voice message is too large. Try a shorter recording.");
         updateChatVoiceUI();
         return;
       }
@@ -2461,7 +2488,7 @@ async function startChatVoiceRecording(){
           updateChatVoiceUI();
         };
         els.chatVoiceAudio.onerror = ()=>{
-          setError("Unable to play back this recording.");
+          setChatVoiceNotice("Unable to play back this recording.");
           clearChatVoiceDraft();
         };
       }
@@ -2473,7 +2500,7 @@ async function startChatVoiceRecording(){
     updateChatVoiceUI();
   } catch (err){
     console.error("Failed to start voice recording:", err);
-    setError("Microphone access was denied.");
+    setChatVoiceNotice("Microphone access was denied.");
     cleanupChatVoiceRecording();
     updateChatVoiceUI();
   }
@@ -2499,7 +2526,7 @@ async function sendChatVoiceMessage(){
   if(!state.chatVoiceDraft?.blob) return;
   if(!isMultiplayer() || !state.roomId || !firebaseDb) return;
   if(state.chatVoiceDraft.blob.size > CHAT_VOICE_MAX_BYTES){
-    setError("Voice message is too large. Try a shorter recording.");
+    setChatVoiceNotice("Voice message is too large. Try a shorter recording.");
     return;
   }
   const name = state.players[state.selfIndex]?.name || state.selfName || "Player";
@@ -2518,7 +2545,7 @@ async function sendChatVoiceMessage(){
     clearChatVoiceDraft();
   } catch (err){
     console.error("Failed to send voice message:", err);
-    setError("Failed to send voice message.");
+    setChatVoiceNotice("Failed to send voice message.");
   }
 }
 
@@ -2801,9 +2828,7 @@ function renderRoomLog(){
     const chatEntries = state.logEntries.filter(entry=>{
       if(entry.type === "chat") return true;
       if(entry.type === "chat_voice"){
-        if(!entry.voiceData) return false;
-        const ts = getChatEntryTimestamp(entry);
-        return !ts || now - ts <= CHAT_VOICE_TTL_MS;
+        return !!entry.voiceData;
       }
       return false;
     });
@@ -2841,7 +2866,9 @@ function renderRoomLog(){
           badge.textContent = `0:${String(Math.ceil(entry.voiceDuration)).padStart(2, "0")}`;
           voiceWrap.appendChild(badge);
         }
-        text.textContent = "Voice message";
+        const blurb = document.createElement("em");
+        blurb.textContent = "Voice message.";
+        text.appendChild(blurb);
         row.appendChild(text);
         row.appendChild(voiceWrap);
       } else {
@@ -5425,6 +5452,7 @@ if(els.chatMicBtn){
       stopChatVoiceRecording();
       return;
     }
+    state.chatVoicePanelActivated = true;
     startChatVoiceRecording();
   };
   els.chatMicBtn.addEventListener("click", toggleRecording);
