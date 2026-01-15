@@ -320,6 +320,8 @@ const els = {
   startingScoreValue: document.getElementById("startingScoreValue"),
   foldThresholdInput: document.getElementById("foldThresholdInput"),
   foldThresholdValue: document.getElementById("foldThresholdValue"),
+  foldPenaltyThresholdInput: document.getElementById("foldPenaltyThresholdInput"),
+  foldPenaltyIncreaseInput: document.getElementById("foldPenaltyIncreaseInput"),
   deckCountInput: document.getElementById("deckCountInput"),
   deckCountValue: document.getElementById("deckCountValue"),
   hyperrealisticInput: document.getElementById("hyperrealisticInput"),
@@ -366,6 +368,11 @@ function syncSettingsUI(){
     els.foldThresholdInput.value = String(s.foldThreshold);
     els.foldThresholdValue.textContent = String(s.foldThreshold);
   }
+  if(els.foldPenaltyThresholdInput && els.foldPenaltyIncreaseInput){
+    const isIncrease = s.foldPenalty === "increase";
+    els.foldPenaltyIncreaseInput.checked = isIncrease;
+    els.foldPenaltyThresholdInput.checked = !isIncrease;
+  }
   if(els.deckCountInput){
     els.deckCountInput.value = String(s.decks);
     els.deckCountValue.textContent = String(s.decks);
@@ -383,6 +390,7 @@ function clampSettings(){
   if(s.foldThreshold < 1) s.foldThreshold = 1;
   if(s.startingScore < 5) s.startingScore = 5;
   if(s.startingScore > 50) s.startingScore = 50;
+  if(s.foldPenalty !== "threshold" && s.foldPenalty !== "increase") s.foldPenalty = "threshold";
   if(s.decks < 1) s.decks = 1;
   if(s.decks > 2) s.decks = 2;
 }
@@ -413,7 +421,13 @@ function foldCurrentPlayer(){
     setError("Dealer cannot fold.");
     return;
   }
-  if(p.score < state.settings.foldThreshold) p.score = state.settings.foldThreshold;
+  if(p.score < state.settings.foldThreshold){
+    if(state.settings.foldPenalty === "increase"){
+      p.score += 1;
+    } else {
+      p.score = state.settings.foldThreshold;
+    }
+  }
   // mark folded and mark as swapped so they are excluded from further swap turns
   p.folded = true;
   p.hasSwapped = true;
@@ -4675,6 +4689,8 @@ function render(){
   const setDisabled = (el, disabled)=>{ if(el) el.disabled = disabled; };
   setDisabled(els.startingScoreInput, settingsLocked);
   setDisabled(els.foldThresholdInput, settingsLocked);
+  setDisabled(els.foldPenaltyThresholdInput, settingsLocked);
+  setDisabled(els.foldPenaltyIncreaseInput, settingsLocked);
   setDisabled(els.deckCountInput, settingsLocked);
   setDisabled(els.hyperrealisticInput, settingsLocked);
 
@@ -4899,6 +4915,20 @@ if(els.foldThresholdInput){
     clampSettings();
     syncSettingsUI();
     scheduleSettingsSync();
+  });
+}
+if(els.foldPenaltyThresholdInput && els.foldPenaltyIncreaseInput){
+  const updateFoldPenalty = (value)=>{
+    state.settings.foldPenalty = value;
+    clampSettings();
+    syncSettingsUI();
+    scheduleSettingsSync();
+  };
+  els.foldPenaltyThresholdInput.addEventListener("change", ()=>{
+    if(els.foldPenaltyThresholdInput.checked) updateFoldPenalty("threshold");
+  });
+  els.foldPenaltyIncreaseInput.addEventListener("change", ()=>{
+    if(els.foldPenaltyIncreaseInput.checked) updateFoldPenalty("increase");
   });
 }
 if(els.deckCountInput){

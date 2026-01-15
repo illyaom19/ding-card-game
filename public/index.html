@@ -212,7 +212,16 @@
                 <div class="settingLabel">Leader Fold Penalty</div>
                 <div class="settingMeta">On fold below threshold</div>
               </div>
-              <div class="settingValue">Reset to threshold</div>
+              <div class="settingControls settingOptions">
+                <label class="settingOption">
+                  <input id="foldPenaltyThresholdInput" type="radio" name="foldPenalty" value="threshold" checked />
+                  <span>Reset to threshold</span>
+                </label>
+                <label class="settingOption">
+                  <input id="foldPenaltyIncreaseInput" type="radio" name="foldPenalty" value="increase" />
+                  <span>Increase score by 1</span>
+                </label>
+              </div>
             </div>
             <div class="settingRow">
               <div>

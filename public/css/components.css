@@ -794,6 +794,7 @@
       min-width:56px; text-align:center;
     }
     .settingControls{ display:flex; align-items:center; gap:10px; }
+    .settingOptions{ flex-wrap:wrap; gap:8px; }
     .settingRow input[type="range"]{ width:160px; max-width:60vw; accent-color: var(--accent); }
     .settingToggle{
       display:inline-flex; align-items:center; gap:8px;
@@ -802,6 +803,14 @@
       font-weight:800; font-size:12px; color:var(--muted);
     }
     .settingToggle input{ width:18px; height:18px; }
+    .settingOption{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:6px 10px; border-radius:999px;
+      background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+      font-weight:800; font-size:12px; color:var(--muted); cursor:pointer;
+    }
+    .settingOption input{ width:16px; height:16px; accent-color: var(--accent); }
+    .settingOption input:checked + span{ color:var(--text); }
     /* mode + multiplayer */
     .modeCard{
       padding:12px;
