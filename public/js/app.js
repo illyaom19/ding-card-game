@@ -4483,6 +4483,7 @@ function renderScoreboard(){
     const turnMark = idx === state.currentTurnIndex ? '<span class="turnPill">Their turn</span>' : '';
     const dealerMark = idx === state.dealerIndex ? '<span class="dealerBadge">Dealer</span>' : '';
     const hostMark = (state.hostUid && p.uid === state.hostUid) ? '<span class="hostBadge">Host</span>' : '';
+    const foldedMark = p.folded ? '<span class="foldedPill isFolded">Folded</span>' : '';
     left.innerHTML = `
       <div class="playerTop">
         ${presenceMark}
@@ -4490,6 +4491,7 @@ function renderScoreboard(){
         ${dealerMark}
         ${hostMark}
         ${turnMark}
+        ${foldedMark}
       </div>
     `;
 

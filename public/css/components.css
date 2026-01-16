@@ -485,6 +485,11 @@
       border: 1px solid rgba(255,255,255,.04); color:var(--muted); font-size:12px;
       box-shadow: none;
     }
+    .foldedPill.isFolded{
+      background: linear-gradient(180deg, rgba(255,76,104,.25), rgba(255,76,104,.08));
+      border-color: rgba(255,76,104,.45);
+      color: #ff9ab0;
+    }
 
     .collapseBtn{ padding:6px 8px; font-size:12px; display:none; }
     .panel.collapsed .bd{ display:none; }
