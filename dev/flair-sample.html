@@ -1,0 +1,1263 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Nickname Stylizer Demo</title>
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --panel: #121a2a;
+            --panel2: #0f1626;
+            --text: #e9efff;
+            --muted: #a8b3d6;
+            --stroke: rgba(255, 255, 255, .10);
+            --shadow: 0 18px 70px rgba(0, 0, 0, .45);
+            --radius: 18px;
+            --cardW: 320px;
+            --cardH: 150px;
+            --nameSize: 34px;
+            --nameWeight: 900;
+            --pad: 14px;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+            background:
+                radial-gradient(900px 500px at 15% 15%, rgba(98, 140, 255, .18), transparent 55%),
+                radial-gradient(900px 600px at 90% 70%, rgba(255, 98, 180, .12), transparent 55%),
+                radial-gradient(1200px 800px at 45% 110%, rgba(35, 255, 221, .10), transparent 60%),
+                var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .wrap {
+            max-width: 1150px;
+            margin: 22px auto;
+            padding: 0 16px 30px;
+        }
+
+        header {
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 22px;
+            letter-spacing: .2px;
+        }
+
+        .sub {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.35;
+            max-width: 70ch;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .ctl {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .03));
+            border: 1px solid rgba(255, 255, 255, .10);
+            border-radius: 12px;
+            padding: 10px 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, .25);
+            backdrop-filter: blur(10px);
+        }
+
+        input[type="text"] {
+            width: 210px;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        select {
+            border: none;
+            outline: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .toggle {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .toggle input {
+            transform: translateY(1px);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.1fr .9fr;
+            gap: 14px;
+            margin-top: 12px;
+        }
+
+        @media (max-width: 980px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                justify-content: flex-start
+            }
+
+            input[type="text"] {
+                width: 100%;
+                min-width: 220px;
+            }
+        }
+
+        .stage {
+            background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .02));
+            border: 1px solid rgba(255, 255, 255, .10);
+            border-radius: var(--radius);
+            padding: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .stageTitle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .stageTitle .hint {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.3;
+        }
+
+        .previewRow {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        /* Card base */
+        .card {
+            width: var(--cardW);
+            height: var(--cardH);
+            border-radius: 18px;
+            position: relative;
+            overflow: hidden;
+            background:
+                radial-gradient(800px 150px at 30% 0%, rgba(255, 255, 255, .10), transparent 50%),
+                linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .02)),
+                rgba(18, 26, 42, .75);
+            border: 1px solid rgba(255, 255, 255, .10);
+            box-shadow: 0 20px 70px rgba(0, 0, 0, .35);
+            display: flex;
+            flex-direction: column;
+            padding: var(--pad);
+            gap: 8px;
+        }
+
+        .card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(600px 300px at 120% 120%, rgba(0, 0, 0, .35), transparent 55%),
+                radial-gradient(400px 120px at 0% 0%, rgba(0, 0, 0, .22), transparent 60%);
+            pointer-events: none;
+            mix-blend-mode: multiply;
+            opacity: .85;
+        }
+
+        .meta {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 2;
+        }
+
+        .badge {
+            font-size: 12px;
+            color: var(--muted);
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, .10);
+            background: rgba(0, 0, 0, .18);
+            backdrop-filter: blur(8px);
+        }
+
+        .lvl {
+            font-size: 12px;
+            color: rgba(255, 255, 255, .85);
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, .10);
+            background: rgba(255, 255, 255, .05);
+            backdrop-filter: blur(8px);
+        }
+
+        .nameWrap {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            min-height: 62px;
+        }
+
+        .name {
+            font-size: var(--nameSize);
+            font-weight: var(--nameWeight);
+            letter-spacing: .2px;
+            line-height: 1.05;
+            text-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+            filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .35));
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tag {
+            font-size: 12px;
+            color: rgba(255, 255, 255, .86);
+            opacity: .9;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, .22);
+            border: 1px solid rgba(255, 255, 255, .10);
+            backdrop-filter: blur(10px);
+            transform: translateY(-3px);
+        }
+
+        .footer {
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            color: rgba(255, 255, 255, .78);
+            font-size: 12px;
+            margin-top: auto;
+        }
+
+        /* Apply-to-card mode helper */
+        .card.fx-on-card .name {
+            /* ensure readable on busy backgrounds */
+            -webkit-text-stroke: 1px rgba(0, 0, 0, .25);
+            text-shadow:
+                0 2px 0 rgba(0, 0, 0, .25),
+                0 10px 30px rgba(0, 0, 0, .55);
+        }
+
+        /* --- FX base + helpers --- */
+        .fx {
+            position: relative;
+            display: inline-block;
+            isolation: isolate;
+        }
+
+        .fx::before,
+        .fx::after {
+            content: "";
+            position: absolute;
+            inset: -18px -16px;
+            pointer-events: none;
+            z-index: -1;
+            opacity: 0;
+        }
+
+        /* particles layer for hearts/bubbles/sparkles */
+        .particles {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .card .particles {
+            z-index: 1;
+        }
+
+        .p {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 8px;
+            height: 8px;
+            opacity: 0;
+            will-change: transform, opacity;
+        }
+
+        /* Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            .reduce-motion * {
+                animation: none !important;
+                transition: none !important;
+            }
+
+            .particles {
+                display: none !important;
+            }
+        }
+
+        /* ----------------------------
+      FX: GOLD SPARKLE
+    ---------------------------- */
+        .fx-gold {
+            color: transparent;
+            background-image:
+                linear-gradient(120deg, #fff2b2 0%, #ffcf4d 18%, #fff6cc 33%, #ffd35a 48%, #fff2b2 60%, #ffcf4d 76%, #fff6cc 100%);
+            background-size: 220% 100%;
+            background-position: 0% 50%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .35));
+            animation: goldShimmer 2.4s linear infinite;
+        }
+
+        @keyframes goldShimmer {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            100% {
+                background-position: 220% 50%;
+            }
+        }
+
+        .fx-gold::before {
+            opacity: .85;
+            background:
+                radial-gradient(circle at 15% 30%, rgba(255, 255, 255, .95), transparent 18%),
+                radial-gradient(circle at 60% 20%, rgba(255, 255, 255, .85), transparent 14%),
+                radial-gradient(circle at 82% 65%, rgba(255, 255, 255, .9), transparent 16%),
+                radial-gradient(circle at 35% 75%, rgba(255, 255, 255, .8), transparent 14%),
+                radial-gradient(circle at 48% 45%, rgba(255, 255, 255, .75), transparent 14%);
+            filter: blur(.2px);
+            mix-blend-mode: screen;
+            animation: sparkleDrift 2.8s ease-in-out infinite;
+            transform: rotate(0deg);
+        }
+
+        @keyframes sparkleDrift {
+            0% {
+                transform: translate(-8px, -6px) rotate(-6deg);
+                opacity: .2;
+            }
+
+            35% {
+                opacity: .95;
+            }
+
+            100% {
+                transform: translate(10px, 8px) rotate(6deg);
+                opacity: .15;
+            }
+        }
+
+        /* Card background variant of gold */
+        .card.fx-gold.fx-on-card {
+            background:
+                radial-gradient(600px 200px at 25% -20%, rgba(255, 255, 255, .25), transparent 55%),
+                conic-gradient(from 10deg at 50% 50%, #1b1410, #2a1f12, #3b2a12, #2c1f0f, #1b1410),
+                linear-gradient(120deg, rgba(255, 207, 77, .20), rgba(255, 255, 255, .05));
+        }
+
+        .card.fx-gold.fx-on-card::before {
+            content: "";
+            position: absolute;
+            inset: -40px;
+            background:
+                radial-gradient(circle at 10% 25%, rgba(255, 255, 255, .55), transparent 22%),
+                radial-gradient(circle at 65% 15%, rgba(255, 255, 255, .4), transparent 18%),
+                radial-gradient(circle at 80% 75%, rgba(255, 255, 255, .42), transparent 20%),
+                radial-gradient(circle at 32% 80%, rgba(255, 255, 255, .38), transparent 18%);
+            mix-blend-mode: screen;
+            opacity: .55;
+            animation: sparkleDrift 3.2s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        /* ----------------------------
+      FX: FIRE
+    ---------------------------- */
+        .fx-fire {
+            color: transparent;
+            background-image:
+                linear-gradient(180deg, #fff3c6 0%, #ffd36b 18%, #ff7b2f 46%, #ff2a00 72%, #8a0d00 100%);
+            background-size: 100% 250%;
+            background-position: 50% 0%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter:
+                drop-shadow(0 2px 0 rgba(0, 0, 0, .25)) drop-shadow(0 0 14px rgba(255, 120, 40, .35)) drop-shadow(0 0 22px rgba(255, 40, 0, .25));
+            animation: fireLick 1.15s ease-in-out infinite;
+        }
+
+        @keyframes fireLick {
+            0% {
+                background-position: 50% 0%;
+                transform: translateY(0);
+            }
+
+            50% {
+                background-position: 50% 85%;
+                transform: translateY(-1px);
+            }
+
+            100% {
+                background-position: 50% 0%;
+                transform: translateY(0);
+            }
+        }
+
+        .fx-fire::before {
+            opacity: .9;
+            inset: -28px -22px;
+            background:
+                radial-gradient(40px 55px at 20% 90%, rgba(255, 140, 0, .38), transparent 60%),
+                radial-gradient(55px 70px at 45% 100%, rgba(255, 40, 0, .28), transparent 65%),
+                radial-gradient(45px 60px at 70% 92%, rgba(255, 220, 120, .30), transparent 62%);
+            filter: blur(10px);
+            mix-blend-mode: screen;
+            animation: heatWave 1.4s ease-in-out infinite;
+        }
+
+        @keyframes heatWave {
+            0% {
+                transform: translateY(6px) scale(1);
+                opacity: .35;
+            }
+
+            55% {
+                transform: translateY(-2px) scale(1.05);
+                opacity: .9;
+            }
+
+            100% {
+                transform: translateY(6px) scale(1);
+                opacity: .35;
+            }
+        }
+
+        .card.fx-fire.fx-on-card {
+            background:
+                radial-gradient(600px 200px at 20% -10%, rgba(255, 255, 255, .18), transparent 55%),
+                radial-gradient(900px 240px at 60% 120%, rgba(255, 120, 40, .35), transparent 60%),
+                linear-gradient(180deg, rgba(255, 80, 0, .22), rgba(120, 10, 0, .25)),
+                rgba(18, 26, 42, .70);
+        }
+
+        .card.fx-fire.fx-on-card::before {
+            content: "";
+            position: absolute;
+            inset: -60px;
+            background:
+                radial-gradient(80px 120px at 20% 110%, rgba(255, 140, 0, .30), transparent 70%),
+                radial-gradient(120px 160px at 55% 120%, rgba(255, 50, 0, .22), transparent 72%),
+                radial-gradient(90px 130px at 85% 112%, rgba(255, 220, 120, .18), transparent 70%);
+            filter: blur(16px);
+            mix-blend-mode: screen;
+            animation: heatWave 1.2s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        /* ----------------------------
+      FX: HEARTS (particles)
+    ---------------------------- */
+        .fx-hearts {
+            color: transparent;
+            background-image: linear-gradient(90deg, #ffd6ef, #ff63b7, #ff2d6c);
+            background-size: 180% 100%;
+            background-position: 0% 50%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 14px rgba(255, 70, 160, .28));
+            animation: heartsSheen 2.2s ease-in-out infinite;
+        }
+
+        @keyframes heartsSheen {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .card.fx-hearts.fx-on-card {
+            background:
+                radial-gradient(600px 180px at 20% 0%, rgba(255, 255, 255, .16), transparent 55%),
+                radial-gradient(900px 260px at 70% 120%, rgba(255, 70, 160, .25), transparent 60%),
+                linear-gradient(180deg, rgba(255, 70, 160, .10), rgba(255, 10, 80, .12)),
+                rgba(18, 26, 42, .70);
+        }
+
+        /* ----------------------------
+      FX: LASER FIGHT
+    ---------------------------- */
+        .fx-laser {
+            color: transparent;
+            background-image:
+                linear-gradient(90deg, #c7fffb 0%, #00ffe1 20%, #7b61ff 50%, #ff2ddf 85%, #c7fffb 100%);
+            background-size: 220% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: laserFlow 1.8s linear infinite;
+            filter: drop-shadow(0 0 14px rgba(0, 255, 225, .22)) drop-shadow(0 0 16px rgba(255, 45, 223, .14));
+        }
+
+        @keyframes laserFlow {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            100% {
+                background-position: 220% 50%;
+            }
+        }
+
+        .fx-laser::before {
+            opacity: .95;
+            inset: -30px -40px;
+            background:
+                linear-gradient(135deg, transparent 0%, rgba(0, 255, 225, .0) 35%, rgba(0, 255, 225, .75) 48%, rgba(0, 255, 225, 0) 62%, transparent 100%),
+                linear-gradient(45deg, transparent 0%, rgba(255, 45, 223, .0) 38%, rgba(255, 45, 223, .75) 52%, rgba(255, 45, 223, 0) 66%, transparent 100%),
+                repeating-linear-gradient(180deg, rgba(255, 255, 255, .12) 0 1px, transparent 1px 7px);
+            mix-blend-mode: screen;
+            filter: blur(.2px);
+            animation: laserSweep 1.1s linear infinite;
+        }
+
+        @keyframes laserSweep {
+            0% {
+                transform: translateX(-18%) translateY(8%);
+                opacity: .2;
+            }
+
+            35% {
+                opacity: .95;
+            }
+
+            100% {
+                transform: translateX(22%) translateY(-12%);
+                opacity: .2;
+            }
+        }
+
+        .card.fx-laser.fx-on-card {
+            background:
+                radial-gradient(600px 180px at 20% 0%, rgba(255, 255, 255, .16), transparent 55%),
+                radial-gradient(900px 260px at 70% 120%, rgba(0, 255, 225, .20), transparent 60%),
+                radial-gradient(900px 260px at 20% 130%, rgba(255, 45, 223, .16), transparent 60%),
+                linear-gradient(180deg, rgba(0, 255, 225, .08), rgba(123, 97, 255, .10)),
+                rgba(18, 26, 42, .70);
+        }
+
+        .card.fx-laser.fx-on-card::before {
+            content: "";
+            position: absolute;
+            inset: -20px;
+            background:
+                linear-gradient(135deg, transparent 0%, rgba(0, 255, 225, .0) 35%, rgba(0, 255, 225, .35) 48%, rgba(0, 255, 225, 0) 62%, transparent 100%),
+                linear-gradient(45deg, transparent 0%, rgba(255, 45, 223, .0) 38%, rgba(255, 45, 223, .30) 52%, rgba(255, 45, 223, 0) 66%, transparent 100%),
+                repeating-linear-gradient(180deg, rgba(255, 255, 255, .10) 0 1px, transparent 1px 7px);
+            mix-blend-mode: screen;
+            animation: laserSweep 1.1s linear infinite;
+            pointer-events: none;
+        }
+
+        /* ----------------------------
+      FX: NUKE (green glow + warning + rumble)
+    ---------------------------- */
+        .fx-nuke {
+            color: transparent;
+            background-image: linear-gradient(90deg, #dbffb8, #6dff52, #00e676, #b1ff5b);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter:
+                drop-shadow(0 0 14px rgba(109, 255, 82, .28)) drop-shadow(0 0 30px rgba(0, 230, 118, .12));
+            animation: nukeGlow 1.3s ease-in-out infinite;
+        }
+
+        @keyframes nukeGlow {
+            0% {
+                background-position: 0% 50%;
+                transform: translateY(0);
+            }
+
+            50% {
+                background-position: 100% 50%;
+                transform: translateY(-1px);
+            }
+
+            100% {
+                background-position: 0% 50%;
+                transform: translateY(0);
+            }
+        }
+
+        .fx-nuke::before {
+            opacity: .95;
+            inset: -34px -22px;
+            background:
+                radial-gradient(70px 45px at 50% 50%, rgba(109, 255, 82, .45), transparent 70%),
+                conic-gradient(from 0deg at 50% 50%, rgba(109, 255, 82, .0), rgba(109, 255, 82, .35), rgba(109, 255, 82, .0), rgba(109, 255, 82, .35), rgba(109, 255, 82, .0));
+            filter: blur(10px);
+            mix-blend-mode: screen;
+            animation: nukePulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes nukePulse {
+            0% {
+                transform: scale(.95);
+                opacity: .25;
+            }
+
+            60% {
+                transform: scale(1.05);
+                opacity: .85;
+            }
+
+            100% {
+                transform: scale(.95);
+                opacity: .25;
+            }
+        }
+
+        .fx-nuke::after {
+            opacity: .9;
+            inset: auto;
+            width: 28px;
+            height: 28px;
+            right: -8px;
+            top: -12px;
+            background:
+                radial-gradient(circle at 50% 50%, rgba(0, 0, 0, .35), rgba(0, 0, 0, .35)),
+                conic-gradient(from 0deg, rgba(0, 0, 0, 0) 0 15%, rgba(0, 0, 0, .55) 15% 30%, rgba(0, 0, 0, 0) 30% 45%, rgba(0, 0, 0, .55) 45% 60%, rgba(0, 0, 0, 0) 60% 75%, rgba(0, 0, 0, .55) 75% 90%, rgba(0, 0, 0, 0) 90% 100%);
+            border-radius: 50%;
+            box-shadow: 0 0 18px rgba(109, 255, 82, .25);
+            border: 1px solid rgba(255, 255, 255, .14);
+            mix-blend-mode: screen;
+            animation: warnSpin 2.1s linear infinite;
+        }
+
+        @keyframes warnSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .card.fx-nuke.fx-on-card {
+            background:
+                radial-gradient(600px 180px at 20% 0%, rgba(255, 255, 255, .14), transparent 55%),
+                radial-gradient(900px 260px at 60% 120%, rgba(109, 255, 82, .22), transparent 60%),
+                linear-gradient(180deg, rgba(0, 230, 118, .10), rgba(10, 20, 15, .25)),
+                rgba(18, 26, 42, .70);
+            animation: rumble 2.8s ease-in-out infinite;
+        }
+
+        @keyframes rumble {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            92% {
+                transform: translate(0, 0);
+            }
+
+            93% {
+                transform: translate(-1px, 1px);
+            }
+
+            94% {
+                transform: translate(1px, -1px);
+            }
+
+            95% {
+                transform: translate(-2px, 0);
+            }
+
+            96% {
+                transform: translate(2px, 1px);
+            }
+
+            97% {
+                transform: translate(-1px, -2px);
+            }
+
+            98% {
+                transform: translate(1px, 2px);
+            }
+
+            99% {
+                transform: translate(0, -1px);
+            }
+        }
+
+        /* ----------------------------
+      FX: BUBBLES (particles)
+    ---------------------------- */
+        .fx-bubbles {
+            color: transparent;
+            background-image: linear-gradient(90deg, #c8f4ff, #45d4ff, #7b61ff, #c8f4ff);
+            background-size: 220% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 14px rgba(69, 212, 255, .22));
+            animation: bubbleSheen 2.4s ease-in-out infinite;
+        }
+
+        @keyframes bubbleSheen {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .card.fx-bubbles.fx-on-card {
+            background:
+                radial-gradient(600px 180px at 20% 0%, rgba(255, 255, 255, .14), transparent 55%),
+                radial-gradient(900px 260px at 70% 120%, rgba(69, 212, 255, .22), transparent 60%),
+                linear-gradient(180deg, rgba(69, 212, 255, .08), rgba(123, 97, 255, .10)),
+                rgba(18, 26, 42, .70);
+        }
+
+        /* ----------------------------
+      Extra FX: GLITCH
+    ---------------------------- */
+        .fx-glitch {
+            color: #e9efff;
+            text-shadow:
+                2px 0 rgba(0, 255, 255, .55),
+                -2px 0 rgba(255, 0, 150, .55),
+                0 10px 30px rgba(0, 0, 0, .45);
+            position: relative;
+        }
+
+        .fx-glitch::before {
+            opacity: .9;
+            background: repeating-linear-gradient(180deg, rgba(255, 255, 255, .12) 0 1px, transparent 1px 5px);
+            animation: scan 1.1s linear infinite;
+            mix-blend-mode: overlay;
+        }
+
+        @keyframes scan {
+            0% {
+                transform: translateY(-12px);
+            }
+
+            100% {
+                transform: translateY(12px);
+            }
+        }
+
+        .fx-glitch::after {
+            opacity: .9;
+            inset: -8px -10px;
+            background:
+                linear-gradient(90deg, transparent 0 30%, rgba(255, 255, 255, .20) 40%, transparent 55%),
+                linear-gradient(90deg, transparent 0 60%, rgba(0, 255, 255, .25) 70%, transparent 85%);
+            mix-blend-mode: screen;
+            animation: glitchJump 1.8s steps(2) infinite;
+        }
+
+        @keyframes glitchJump {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+                opacity: .15;
+            }
+
+            20% {
+                transform: translate(2px, -1px);
+                opacity: .55;
+            }
+
+            40% {
+                transform: translate(-2px, 1px);
+                opacity: .35;
+            }
+
+            60% {
+                transform: translate(3px, 0);
+                opacity: .6;
+            }
+
+            80% {
+                transform: translate(-1px, -2px);
+                opacity: .28;
+            }
+        }
+
+        .card.fx-glitch.fx-on-card {
+            background:
+                radial-gradient(600px 180px at 20% 0%, rgba(255, 255, 255, .14), transparent 55%),
+                radial-gradient(900px 260px at 70% 120%, rgba(0, 255, 255, .14), transparent 60%),
+                radial-gradient(900px 260px at 10% 120%, rgba(255, 0, 150, .12), transparent 60%),
+                linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(0, 0, 0, .15)),
+                rgba(18, 26, 42, .70);
+        }
+
+        /* ---------- Right column list ---------- */
+        .list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, .10);
+            background: rgba(0, 0, 0, .16);
+        }
+
+        .row .left {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .row .small {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .row .miniName {
+            font-weight: 900;
+            font-size: 22px;
+            line-height: 1.05;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        .pill {
+            font-size: 12px;
+            color: rgba(255, 255, 255, .85);
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, .10);
+            background: rgba(255, 255, 255, .05);
+            white-space: nowrap;
+        }
+
+        .tiny {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 10px;
+            line-height: 1.4;
+        }
+
+        .kbd {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, .12);
+            background: rgba(0, 0, 0, .20);
+            color: rgba(255, 255, 255, .86);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap reduce-motion">
+        <header>
+            <div>
+                <h1>Nickname Stylizer (Text + Card Background)</h1>
+                <p class="sub">
+                    Pick an effect, type a nickname, and toggle whether it applies to <b>just the name</b> or the
+                    <b>entire player card</b>.
+                    Hearts/bubbles/sparkles spawn lightweight particles for the vibe.
+                </p>
+            </div>
+
+            <div class="controls">
+                <div class="ctl">
+                    <span style="color:var(--muted);font-size:13px;">Nickname</span>
+                    <input id="nickInput" type="text" value="xX_N1ck_Xx" maxlength="22" />
+                </div>
+
+                <div class="ctl">
+                    <span style="color:var(--muted);font-size:13px;">Style</span>
+                    <select id="styleSelect">
+                        <option value="gold">Gold Sparkle</option>
+                        <option value="fire">Fire</option>
+                        <option value="hearts">Hearts</option>
+                        <option value="laser">Laser Fight</option>
+                        <option value="nuke">NUKE</option>
+                        <option value="bubbles">Bubbles</option>
+                        <option value="glitch">Glitch</option>
+                    </select>
+                </div>
+
+                <label class="ctl toggle" title="Apply effect to the whole card background (not just the nickname)">
+                    <input id="applyToCard" type="checkbox" />
+                    <span>Apply to card background</span>
+                </label>
+            </div>
+        </header>
+
+        <div class="grid">
+            <!-- Left: Live preview -->
+            <section class="stage">
+                <div class="stageTitle">
+                    <div>
+                        <div style="font-weight:800;">Live Preview</div>
+                        <div class="hint">Try toggling card-background mode. Some effects are intentionally chaotic.
+                        </div>
+                    </div>
+                    <div class="badge">Demo</div>
+                </div>
+
+                <div class="previewRow">
+                    <div id="liveCard" class="card">
+                        <div class="particles" aria-hidden="true"></div>
+
+                        <div class="meta">
+                            <div class="badge">Player</div>
+                            <div class="lvl">Lvl 42</div>
+                        </div>
+
+                        <div class="nameWrap">
+                            <div id="liveName" class="name fx">xX_N1ck_Xx</div>
+                            <div class="tag">READY</div>
+                        </div>
+
+                        <div class="footer">
+                            <span>🟢 Online • Ping 23ms</span>
+                            <span>W/L 12–4</span>
+                        </div>
+                    </div>
+
+                    <!-- A couple extra cards to show different names -->
+                    <div class="card fx-hearts fx-on-card" data-style="hearts" data-name="Luna<3">
+                        <div class="particles" aria-hidden="true"></div>
+                        <div class="meta">
+                            <div class="badge">Player</div>
+                            <div class="lvl">Lvl 9</div>
+                        </div>
+                        <div class="nameWrap">
+                            <div class="name fx fx-hearts">Luna&lt;3</div>
+                            <div class="tag">HEALER</div>
+                        </div>
+                        <div class="footer"><span>💗 Charm +12</span><span>Streak x3</span></div>
+                    </div>
+
+                    <div class="card fx-laser fx-on-card" data-style="laser" data-name="NE0N_KATANA">
+                        <div class="particles" aria-hidden="true"></div>
+                        <div class="meta">
+                            <div class="badge">Player</div>
+                            <div class="lvl">Lvl 73</div>
+                        </div>
+                        <div class="nameWrap">
+                            <div class="name fx fx-laser">NE0N_KATANA</div>
+                            <div class="tag">DPS</div>
+                        </div>
+                        <div class="footer"><span>⚡ Crit 29%</span><span>Rank: Diamond</span></div>
+                    </div>
+                </div>
+
+                <div class="tiny">
+                    Pro tip: store these as <span class="kbd">styleId</span> + optional parameters (intensity, hue,
+                    particles on/off).
+                    For competitive games, consider a <span class="kbd">reduced motion</span> toggle + a “readability”
+                    mode.
+                </div>
+            </section>
+
+            <!-- Right: Gallery list -->
+            <aside class="stage">
+                <div class="stageTitle">
+                    <div>
+                        <div style="font-weight:800;">Nickname Gallery</div>
+                        <div class="hint">Examples of what player names could look like.</div>
+                    </div>
+                    <div class="badge">Samples</div>
+                </div>
+
+                <div class="list" id="gallery">
+                    <!-- injected by JS -->
+                </div>
+
+                <div class="tiny">
+                    If you apply effects to the card background: it’s sick, but it can murder readability.
+                    Consider: dimmer backgrounds, stronger text stroke, and a max “visual noise” score.
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script>
+        // ---- Style mapping (CSS classes) ----
+        const STYLE = {
+            gold: { label: "Gold Sparkle", cls: "fx-gold", particles: "sparkle" },
+            fire: { label: "Fire", cls: "fx-fire", particles: "ember" },
+            hearts: { label: "Hearts", cls: "fx-hearts", particles: "heart" },
+            laser: { label: "Laser Fight", cls: "fx-laser", particles: "spark" },
+            nuke: { label: "NUKE", cls: "fx-nuke", particles: "toxic" },
+            bubbles: { label: "Bubbles", cls: "fx-bubbles", particles: "bubble" },
+            glitch: { label: "Glitch", cls: "fx-glitch", particles: "none" },
+        };
+
+        const $ = (sel, root = document) => root.querySelector(sel);
+
+        const nickInput = $("#nickInput");
+        const styleSelect = $("#styleSelect");
+        const applyToCard = $("#applyToCard");
+        const liveCard = $("#liveCard");
+        const liveName = $("#liveName");
+
+        // Turn on "reduce-motion" wrapper if user prefers reduced motion
+        try {
+            if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                document.querySelector(".reduce-motion")?.classList.add("reduce-motion");
+            }
+        } catch (e) { }
+
+        // ---- Particle system: lightweight, DOM-based (good enough for demo) ----
+        function spawnParticles(cardEl, kind) {
+            const layer = cardEl.querySelector(".particles");
+            if (!layer) return;
+            if (kind === "none") return;
+
+            // Avoid over-accumulating
+            const maxExisting = 40;
+            if (layer.childElementCount > maxExisting) return;
+
+            const count = (kind === "bubble" || kind === "heart") ? 10 : 8;
+            const rect = cardEl.getBoundingClientRect();
+            const w = rect.width, h = rect.height;
+
+            for (let i = 0; i < count; i++) {
+                const p = document.createElement("span");
+                p.className = "p";
+                layer.appendChild(p);
+
+                // Random position
+                const x = Math.random() * w;
+                const y = h + 10 + Math.random() * 20;
+
+                // Random size
+                let size = 6 + Math.random() * 12;
+                if (kind === "sparkle") size = 4 + Math.random() * 10;
+                if (kind === "ember") size = 3 + Math.random() * 9;
+
+                // Configure per kind
+                const dur = 900 + Math.random() * 1300;
+                const drift = (Math.random() * 60) - 30;
+
+                // Visuals
+                if (kind === "heart") {
+                    p.textContent = ["❤", "💗", "💖"][Math.floor(Math.random() * 3)];
+                    p.style.fontSize = `${10 + Math.random() * 16}px`;
+                    p.style.width = "auto"; p.style.height = "auto";
+                    p.style.filter = "drop-shadow(0 0 10px rgba(255,70,160,.25))";
+                } else if (kind === "bubble") {
+                    p.style.borderRadius = "999px";
+                    p.style.border = "1px solid rgba(200,244,255,.55)";
+                    p.style.background = "radial-gradient(circle at 30% 30%, rgba(255,255,255,.35), rgba(69,212,255,.10) 45%, rgba(0,0,0,0) 70%)";
+                    p.style.backdropFilter = "blur(2px)";
+                } else if (kind === "sparkle") {
+                    p.textContent = ["✦", "✧", "✺", "✹"][Math.floor(Math.random() * 4)];
+                    p.style.fontSize = `${10 + Math.random() * 16}px`;
+                    p.style.width = "auto"; p.style.height = "auto";
+                    p.style.filter = "drop-shadow(0 0 12px rgba(255,255,255,.35))";
+                } else if (kind === "spark") { // laser sparks
+                    p.style.borderRadius = "999px";
+                    p.style.background = "linear-gradient(90deg, rgba(0,255,225,.0), rgba(0,255,225,.85), rgba(255,45,223,.65), rgba(0,0,0,0))";
+                    p.style.width = `${18 + Math.random() * 28}px`;
+                    p.style.height = "3px";
+                    p.style.transform = `rotate(${(Math.random() * 40) - 20}deg)`;
+                    size = 3;
+                } else if (kind === "ember") {
+                    p.style.borderRadius = "999px";
+                    p.style.background = "radial-gradient(circle at 35% 35%, rgba(255,220,120,.85), rgba(255,120,40,.55) 45%, rgba(255,40,0,.10) 75%)";
+                    p.style.filter = "blur(.2px)";
+                } else if (kind === "toxic") {
+                    p.style.borderRadius = "999px";
+                    p.style.background = "radial-gradient(circle at 35% 35%, rgba(219,255,184,.85), rgba(109,255,82,.55) 45%, rgba(0,230,118,.10) 78%)";
+                    p.style.filter = "blur(.2px)";
+                }
+
+                p.style.left = `${x}px`;
+                p.style.top = `${y}px`;
+                p.style.width = `${size}px`;
+                p.style.height = `${size}px`;
+
+                // Animate using WAAPI
+                const keyframes = [
+                    { transform: `translate(0, 0) translateX(0px) scale(.95)`, opacity: 0 },
+                    { opacity: 0.85, offset: 0.15 },
+                    { transform: `translate(0, ${-(h + 30)}px) translateX(${drift}px) scale(1.05)`, opacity: 0 }
+                ];
+
+                const anim = p.animate(keyframes, { duration: dur, easing: "ease-out", fill: "forwards" });
+                anim.onfinish = () => p.remove();
+            }
+        }
+
+        function clearFx(el) {
+            el.classList.remove(
+                "fx-gold", "fx-fire", "fx-hearts", "fx-laser", "fx-nuke", "fx-bubbles", "fx-glitch"
+            );
+        }
+
+        function applyFx(styleKey) {
+            const s = STYLE[styleKey] ?? STYLE.gold;
+
+            // Reset
+            clearFx(liveCard);
+            clearFx(liveName);
+
+            // Apply either to card or name
+            if (applyToCard.checked) {
+                liveCard.classList.add(s.cls, "fx-on-card");
+                liveName.classList.add("fx", s.cls); // keep name gradient for many styles too
+            } else {
+                liveCard.classList.remove("fx-on-card");
+                liveName.classList.add("fx", s.cls);
+            }
+
+            // Kick some particles
+            spawnParticles(liveCard, s.particles);
+        }
+
+        // ---- Live controls ----
+        nickInput.addEventListener("input", () => {
+            liveName.textContent = nickInput.value || "Player";
+        });
+
+        styleSelect.addEventListener("change", () => applyFx(styleSelect.value));
+        applyToCard.addEventListener("change", () => applyFx(styleSelect.value));
+
+        // ---- Gallery creation ----
+        const galleryData = [
+            { name: "G0LDENBOY", style: "gold", note: "sparkly flex" },
+            { name: "FlameRunner", style: "fire", note: "aggressive" },
+            { name: "Luna<3", style: "hearts", note: "cute menace" },
+            { name: "NE0N_KATANA", style: "laser", note: "cyber duel" },
+            { name: "NUKEMASTER", style: "nuke", note: "warning label" },
+            { name: "BUBBLEBOY", style: "bubbles", note: "floaty vibe" },
+            { name: "gl1tch.exe", style: "glitch", note: "chaos mode" },
+        ];
+
+        function galleryRow({ name, style, note }) {
+            const s = STYLE[style] ?? STYLE.gold;
+            const row = document.createElement("div");
+            row.className = "row";
+
+            const left = document.createElement("div");
+            left.className = "left";
+
+            const mini = document.createElement("div");
+            mini.className = "miniName fx " + s.cls;
+            mini.textContent = name;
+
+            const small = document.createElement("div");
+            small.className = "small";
+            small.textContent = note;
+
+            left.appendChild(mini);
+            left.appendChild(small);
+
+            const pill = document.createElement("div");
+            pill.className = "pill";
+            pill.textContent = s.label;
+
+            row.appendChild(left);
+            row.appendChild(pill);
+
+            // subtle particle pop on hover
+            row.addEventListener("mouseenter", () => {
+                const fakeCard = liveCard; // reuse live card particle layer for simplicity
+                spawnParticles(fakeCard, s.particles);
+            });
+
+            return row;
+        }
+
+        const gallery = $("#gallery");
+        galleryData.forEach(d => gallery.appendChild(galleryRow(d)));
+
+        // ---- Background cards auto particle trickle ----
+        function tickBackgroundParticles() {
+            document.querySelectorAll(".card[data-style]").forEach(card => {
+                const key = card.getAttribute("data-style");
+                const s = STYLE[key];
+                if (!s) return;
+                if (Math.random() < 0.55) spawnParticles(card, s.particles);
+            });
+        }
+        setInterval(tickBackgroundParticles, 900);
+
+        // First paint
+        applyFx(styleSelect.value);
+    </script>
+</body>
+
+</html>

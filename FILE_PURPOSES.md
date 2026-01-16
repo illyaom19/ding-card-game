@@ -13,6 +13,10 @@ This document summarizes the intent of the key front-end files for DING Online.
 - `public/css/base.css`: Global variables, layout structure, and shared typography rules.
 - `public/css/components.css`: Component-level styling for panels, buttons, cards, chat, and UI widgets.
 
+## Development artifacts
+- `dev/`: Local-only samples and prototypes used for design/layout checks; not part of hosted app output.
+- `dev/chat-sample.html`: Static sample page showing the chat widget layout with voice messages.
+
 ## JavaScript
 - `public/js/app.js`: Application entry point that wires state, UI rendering, and module behavior.
 - `public/js/modules/gameplay-utils.js`: Deck construction and core card rule helpers for gameplay.

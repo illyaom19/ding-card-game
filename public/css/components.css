@@ -1114,6 +1114,9 @@
       border:1px dashed rgba(255,255,255,.2);
       background: rgba(255,255,255,.03);
     }
+    .chatVoiceDraft[hidden]{
+      display:none !important;
+    }
     .chatVoiceDraft.collapsed{
       padding-top:6px;
       padding-bottom:6px;
@@ -1139,21 +1142,33 @@
       justify-content:flex-end;
     }
     .chatVoiceClip{
-      display:flex;
+      display:grid;
+      grid-template-columns: 1fr auto;
       align-items:center;
       gap:8px;
       flex:1;
+      min-width:0;
     }
     .chatVoiceClip audio{
       width:100%;
+      min-width:0;
     }
     .chatVoiceBadge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
       font-size:11px;
       padding:2px 6px;
       border-radius:999px;
       background: rgba(255,255,255,.08);
       color:var(--muted);
       white-space:nowrap;
+    }
+    .chatRowVoice{
+      justify-content:flex-start;
+    }
+    .chatRowVoice .chatHeart{
+      margin-left:auto;
     }
     .connectionStatus{
       display:inline-flex;

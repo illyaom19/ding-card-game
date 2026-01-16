@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DING Online Chat Sample</title>
+  <link rel="stylesheet" href="../public/css/main.css" />
+  <style>
+    body { padding: 24px; }
+    .sampleWrap { max-width: 420px; margin: 0 auto; }
+    .chatBlock { margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="sampleWrap">
+    <div class="chatBlock">
+      <div class="chatHeader">
+        <span class="chatHeaderTitle">
+          <span>Room chat</span>
+          <span class="chatUnreadDot visible" aria-hidden="true"></span>
+        </span>
+        <span class="small">4 messages</span>
+      </div>
+      <div class="chatList">
+        <div class="chatMessage">
+          <div class="chatMeta">Alex</div>
+          <div class="chatRow">
+            <div class="chatText">Ready to start the next hand?</div>
+            <div class="chatHeart hidden">&#9829; 0</div>
+          </div>
+        </div>
+        <div class="chatMessage">
+          <div class="chatMeta">Jordan</div>
+          <div class="chatRow chatRowVoice">
+            <div class="chatVoiceClip">
+              <audio controls preload="metadata"></audio>
+              <span class="chatVoiceBadge">0:08</span>
+            </div>
+            <div class="chatHeart liked">&#9829; 2</div>
+          </div>
+        </div>
+        <div class="chatMessage">
+          <div class="chatMeta">System</div>
+          <div class="chatRow">
+            <div class="chatText chatTextSystem">Jordan joined the room.</div>
+            <div class="chatHeart hidden">&#9829; 0</div>
+          </div>
+        </div>
+        <div class="chatMessage">
+          <div class="chatMeta">Sam</div>
+          <div class="chatRow">
+            <div class="chatText">I am in. Shuffle up.</div>
+            <div class="chatHeart">&#9829; 1</div>
+          </div>
+        </div>
+      </div>
+      <div class="chatComposer">
+        <button class="btn chatMicBtn" type="button" aria-label="Tap to record a voice message">Mic</button>
+        <input type="text" maxlength="240" placeholder="Send a message" />
+        <button class="btn primary" type="button">Send</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
