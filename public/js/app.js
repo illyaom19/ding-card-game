@@ -19,6 +19,7 @@ import {
 } from "./modules/gameplay-utils.js";
 import { createAnimationController } from "./modules/animations.js";
 import { createAuthController } from "./modules/auth.js";
+import { FLAIR_CLASS_LIST, FLAIR_STYLES, getFlairById, getFlairIndexById, normalizeFlairId } from "./modules/flair-designs.js";
 import {
   normalizeRoomCode,
   normalizeRoomName,
@@ -96,6 +97,7 @@ const state = {
   selfUid: null,
   selfName: null,
   selfNickname: null,
+  selfFlairId: "none",
   roomNicknames: {},
   lastRoomId: null,
   roomIds: [],
@@ -208,6 +210,13 @@ const els = {
   homeIconBtn: document.getElementById("homeIconBtn"),
   headerGreeting: document.getElementById("headerGreeting"),
   headerTapZone: document.getElementById("headerTapZone"),
+  profileMenuWrap: document.getElementById("profileMenuWrap"),
+  profileMenuBtn: document.getElementById("profileMenuBtn"),
+  profileMenu: document.getElementById("profileMenu"),
+  flairPrevBtn: document.getElementById("flairPrevBtn"),
+  flairNextBtn: document.getElementById("flairNextBtn"),
+  flairLabel: document.getElementById("flairLabel"),
+  flairPreviewName: document.getElementById("flairPreviewName"),
   gameTitle: document.getElementById("gameTitle"),
   pwaPrompt: document.getElementById("pwaPrompt"),
   pwaPromptTitle: document.getElementById("pwaPromptTitle"),
@@ -776,8 +785,7 @@ function renderLobbyPlayers(){
       e.stopPropagation();
       maybeOpenPlayerMenu(p, row);
     });
-    const name = document.createElement("span");
-    name.textContent = p.name || "Player";
+    const name = createFlairNameSpan(p.name || "Player", p.flairId);
     row.appendChild(name);
     if(state.hostUid && p.uid && p.uid === state.hostUid){
       const host = document.createElement("span");
@@ -809,6 +817,48 @@ function getRoomNickname(roomId){
   if(!roomId || !state.roomNicknames || typeof state.roomNicknames !== "object") return null;
   const nickname = state.roomNicknames[roomId];
   return (nickname && typeof nickname === "string") ? nickname : null;
+}
+function getSelfDisplayName(){
+  return state.selfNickname || state.selfName || "Player";
+}
+function getFlairIdForUid(uid){
+  if(!uid) return null;
+  const player = state.players.find(p => p.uid === uid);
+  return player?.flairId ?? null;
+}
+function applyFlairClasses(el, flairId){
+  if(!el) return;
+  if(FLAIR_CLASS_LIST.length){
+    el.classList.remove(...FLAIR_CLASS_LIST);
+  }
+  const flair = getFlairById(flairId);
+  if(flair.className){
+    el.classList.add(flair.className);
+  }
+}
+function createFlairNameSpan(name, flairId, extraClass = ""){
+  const span = document.createElement("span");
+  span.className = ["flairName", "flair", extraClass].filter(Boolean).join(" ");
+  span.textContent = name || "Player";
+  applyFlairClasses(span, flairId);
+  return span;
+}
+function setFlairText(el, name, flairId){
+  if(!el) return;
+  if(!name || name === "—" || name === "-"){
+    el.textContent = name || "—";
+    return;
+  }
+  el.textContent = "";
+  el.appendChild(createFlairNameSpan(name, flairId));
+}
+function syncProfileFlairUI(){
+  if(!els.flairPreviewName || !els.flairLabel) return;
+  const flair = getFlairById(state.selfFlairId);
+  els.flairLabel.textContent = flair.label;
+  els.flairPreviewName.textContent = getSelfDisplayName();
+  els.flairPreviewName.classList.add("flair", "flairName");
+  applyFlairClasses(els.flairPreviewName, flair.id);
 }
 function getNicknameDraft(){
   const saved = getRoomNickname(state.roomId);
@@ -1513,10 +1563,13 @@ async function makeHostForPlayer(target){
     setError("Failed to make host.");
   }
 }
-function buildPlayer(uid, name, seed=null, startingScoreOverride=null){
+function buildPlayer(uid, name, seed=null, startingScoreOverride=null, flairIdOverride=null){
   const startingScore = typeof startingScoreOverride === "number"
     ? startingScoreOverride
     : state.settings.startingScore;
+  const flairId = normalizeFlairId(
+    flairIdOverride ?? (seed && typeof seed.flairId === "string" ? seed.flairId : null)
+  );
   return {
     uid,
     name: name || "Player",
@@ -1528,6 +1581,7 @@ function buildPlayer(uid, name, seed=null, startingScoreOverride=null){
     totalWins: (seed && typeof seed.totalWins === "number") ? seed.totalWins : 0,
     hasSwapped: false,
     folded: false,
+    flairId,
   };
 }
 
@@ -1686,6 +1740,23 @@ function toggleRoomMenu(){
   } else {
     els.roomMenu.classList.add("open");
     els.roomMenuBtn.setAttribute("aria-expanded", "true");
+  }
+}
+
+function closeProfileMenu(){
+  if(!els.profileMenu || !els.profileMenuBtn) return;
+  els.profileMenu.classList.remove("open");
+  els.profileMenuBtn.setAttribute("aria-expanded", "false");
+}
+
+function toggleProfileMenu(){
+  if(!els.profileMenu || !els.profileMenuBtn) return;
+  const open = els.profileMenu.classList.contains("open");
+  if(open){
+    closeProfileMenu();
+  } else {
+    els.profileMenu.classList.add("open");
+    els.profileMenuBtn.setAttribute("aria-expanded", "true");
   }
 }
 
@@ -1964,6 +2035,7 @@ function serializePlayersForRoom(){
     totalWins: p.totalWins || 0,
     hasSwapped: !!p.hasSwapped,
     folded: !!p.folded,
+    flairId: normalizeFlairId(p.flairId),
   }));
 }
 
@@ -2035,6 +2107,7 @@ function applyRoomState(data){
             hasSwapped: !!p.hasSwapped,
             folded: !!p.folded,
             isPresent: ("isPresent" in p) ? !!p.isPresent : undefined,
+            flairId: normalizeFlairId(p.flairId),
           };
         })
       : state.players;
@@ -2262,6 +2335,7 @@ function subscribeToRoom(roomId){
     }
     applyRoomState(snap.data());
     ensureRoomNicknameApplied().catch((err)=> console.error("Failed to apply nickname:", err));
+    ensureRoomFlairApplied().catch((err)=> console.error("Failed to apply flair:", err));
   }, (err)=>{
     console.error("Room subscription error:", err);
     state.roomSynced = false;
@@ -2940,16 +3014,16 @@ function renderRoomLog(){
       const name = entry.playerName || "Player";
       const meta = document.createElement("div");
       meta.className = "chatMeta";
-      meta.textContent = name;
+      if(name === "System"){
+        meta.textContent = name;
+      } else {
+        meta.appendChild(createFlairNameSpan(name, getFlairIdForUid(entry.playerUid)));
+      }
       const row = document.createElement("div");
       row.className = "chatRow";
-      const text = document.createElement("div");
-      text.className = "chatText";
-      if(name === "System"){
-        text.classList.add("chatTextSystem");
-      }
       const isVoice = entry.type === "chat_voice";
       if(isVoice){
+        row.classList.add("chatRowVoice");
         const voiceWrap = document.createElement("div");
         voiceWrap.className = "chatVoiceClip";
         const audio = document.createElement("audio");
@@ -2965,12 +3039,13 @@ function renderRoomLog(){
           badge.textContent = `0:${String(Math.ceil(entry.voiceDuration)).padStart(2, "0")}`;
           voiceWrap.appendChild(badge);
         }
-        const blurb = document.createElement("em");
-        blurb.textContent = "Voice message.";
-        text.appendChild(blurb);
-        row.appendChild(text);
         row.appendChild(voiceWrap);
       } else {
+        const text = document.createElement("div");
+        text.className = "chatText";
+        if(name === "System"){
+          text.classList.add("chatTextSystem");
+        }
         text.textContent = entry.message || "";
         row.appendChild(text);
       }
@@ -3059,6 +3134,9 @@ async function loadUserProfile(){
       if(data.roomNicknames && typeof data.roomNicknames === "object"){
         state.roomNicknames = { ...data.roomNicknames };
       }
+      if(data.flairId){
+        state.selfFlairId = normalizeFlairId(data.flairId);
+      }
       if(Array.isArray(data.rooms)){
         setRoomIds(data.rooms);
       } else if(state.lastRoomId){
@@ -3074,6 +3152,7 @@ async function loadUserProfile(){
   updateRoomMenuUI();
   updateNicknameUI();
   ensureRoomNicknameApplied().catch((err)=> console.error("Failed to apply nickname:", err));
+  syncProfileFlairUI();
 }
 
 async function ensureRoomNicknameApplied(){
@@ -3083,10 +3162,12 @@ async function ensureRoomNicknameApplied(){
   if(state.selfIndex === null || state.selfIndex === undefined || state.selfIndex < 0) return;
   if(state.players[state.selfIndex]?.name === nickname){
     state.selfNickname = nickname;
+    syncProfileFlairUI();
     return;
   }
   state.players[state.selfIndex].name = nickname;
   state.selfNickname = nickname;
+  syncProfileFlairUI();
   renderLobbyPlayers();
   render();
   if(!firebaseDb) return;
@@ -3121,6 +3202,76 @@ async function persistNickname(rawValue){
   return { nickname };
 }
 
+async function persistFlair(flairId){
+  if(!state.isSignedIn || !state.selfUid || !firebaseDb) return;
+  try{
+    await setDoc(userRef(state.selfUid), { flairId }, { merge: true });
+  } catch (err){
+    console.error("Failed to save flair:", err);
+  }
+}
+
+function applySelfFlairToRoom(){
+  if(state.selfIndex === null || state.selfIndex === undefined || state.selfIndex < 0) return;
+  const player = state.players[state.selfIndex];
+  if(!player) return;
+  const normalized = normalizeFlairId(state.selfFlairId);
+  if(player.flairId === normalized) return;
+  player.flairId = normalized;
+  renderLobbyPlayers();
+  renderScoreboard();
+  renderTrickArea();
+  renderTableHint();
+  renderSwapSummary();
+  if(isMultiplayer() && firebaseDb && state.roomId){
+    updateDoc(roomRef(state.roomId), { players: serializePlayersForRoom() })
+      .catch((err)=> console.error("Failed to update flair in room:", err));
+  }
+}
+
+function setSelfFlairId(flairId, { skipPersist = false } = {}){
+  const normalized = normalizeFlairId(flairId);
+  if(state.selfFlairId === normalized){
+    syncProfileFlairUI();
+    return;
+  }
+  state.selfFlairId = normalized;
+  syncProfileFlairUI();
+  applySelfFlairToRoom();
+  render();
+  if(!skipPersist){
+    persistFlair(normalized);
+  }
+}
+
+function cycleFlair(delta){
+  if(!FLAIR_STYLES.length) return;
+  const index = getFlairIndexById(state.selfFlairId);
+  const nextIndex = (index + delta + FLAIR_STYLES.length) % FLAIR_STYLES.length;
+  setSelfFlairId(FLAIR_STYLES[nextIndex].id);
+}
+
+async function ensureRoomFlairApplied(){
+  if(!state.roomId || !state.isSignedIn) return;
+  if(state.selfIndex === null || state.selfIndex === undefined || state.selfIndex < 0) return;
+  const player = state.players[state.selfIndex];
+  if(!player) return;
+  const normalized = normalizeFlairId(state.selfFlairId);
+  if(player.flairId === normalized) return;
+  player.flairId = normalized;
+  renderLobbyPlayers();
+  renderScoreboard();
+  renderTrickArea();
+  renderTableHint();
+  renderSwapSummary();
+  if(!firebaseDb) return;
+  try{
+    await updateDoc(roomRef(state.roomId), { players: serializePlayersForRoom() });
+  } catch (err){
+    console.error("Failed to update flair in room:", err);
+  }
+}
+
 async function saveNickname(){
   if(!els.nicknameInput) return;
   if(!state.isSignedIn || !state.roomId){
@@ -3139,6 +3290,7 @@ async function saveNickname(){
   if(els.nicknameInput) els.nicknameInput.value = result.nickname;
   if(els.playerMenuNameInput) els.playerMenuNameInput.value = result.nickname;
   flashNicknameStatus("Nickname saved.");
+  syncProfileFlairUI();
 }
 
 async function savePlayerMenuName(){
@@ -3156,6 +3308,7 @@ async function savePlayerMenuName(){
   if(els.nicknameInput) els.nicknameInput.value = result.nickname;
   flashNicknameStatus("Nickname saved.");
   closePlayerMenu();
+  syncProfileFlairUI();
 }
 
 async function saveRoomName(){
@@ -3243,7 +3396,7 @@ async function createRoom(){
     setError("Couldn't create a room. Try again.");
     return;
   }
-  const player = buildPlayer(state.selfUid, getSelfRoomName(roomId));
+  const player = buildPlayer(state.selfUid, getSelfRoomName(roomId), null, null, state.selfFlairId);
   const roomState = {
     hostUid: state.selfUid,
     roomName,
@@ -3305,7 +3458,7 @@ async function joinRoom(roomId){
     const startingScore = typeof data.settings?.startingScore === "number"
       ? data.settings.startingScore
       : state.settings.startingScore;
-    const newPlayer = buildPlayer(state.selfUid, newPlayerName, null, startingScore);
+    const newPlayer = buildPlayer(state.selfUid, newPlayerName, null, startingScore, state.selfFlairId);
     const isMidHand = data.phase === PHASE.SWAP || data.phase === PHASE.TRICK;
     if(isMidHand){
       newPlayer.folded = true;
@@ -3409,7 +3562,7 @@ async function resetRoomState(){
     playerName: "System",
     playerUid: state.selfUid || null,
   });
-  const players = state.players.map(p => buildPlayer(p.uid, p.name));
+  const players = state.players.map(p => buildPlayer(p.uid, p.name, p));
   state.players = players;
   state.phase = PHASE.LOBBY;
   state.dealerIndex = 0;
@@ -3721,6 +3874,7 @@ function initPlayers(names){
     totalWins: 0,
     hasSwapped: false,
     folded: false,
+    flairId: "none",
   }));
   state.dealerIndex = 0;
   state.leaderIndex = 0;
@@ -4475,21 +4629,39 @@ function renderScoreboard(){
     const left = document.createElement("div");
     left.className = "playerInfo";
     const isPresent = isPlayerPresent(p);
-    const presenceMark = `<span class="presenceDot ${isPresent ? "isPresent" : ""}" aria-hidden="true"></span>`;
-    const turnMark = idx === state.currentTurnIndex ? '<span class="turnPill">Their turn</span>' : '';
-    const dealerMark = idx === state.dealerIndex ? '<span class="dealerBadge">Dealer</span>' : '';
-    const hostMark = (state.hostUid && p.uid === state.hostUid) ? '<span class="hostBadge">Host</span>' : '';
-    const foldedMark = p.folded ? '<span class="foldedPill isFolded">Folded</span>' : '';
-    left.innerHTML = `
-      <div class="playerTop">
-        ${presenceMark}
-        <div class="name">${p.name}</div>
-        ${dealerMark}
-        ${hostMark}
-        ${turnMark}
-        ${foldedMark}
-      </div>
-    `;
+    const top = document.createElement("div");
+    top.className = "playerTop";
+    const presenceMark = document.createElement("span");
+    presenceMark.className = `presenceDot ${isPresent ? "isPresent" : ""}`.trim();
+    presenceMark.setAttribute("aria-hidden", "true");
+    top.appendChild(presenceMark);
+    const nameEl = createFlairNameSpan(p.name || "Player", p.flairId, "name");
+    top.appendChild(nameEl);
+    if(idx === state.dealerIndex){
+      const dealer = document.createElement("span");
+      dealer.className = "dealerBadge";
+      dealer.textContent = "Dealer";
+      top.appendChild(dealer);
+    }
+    if(state.hostUid && p.uid === state.hostUid){
+      const host = document.createElement("span");
+      host.className = "hostBadge";
+      host.textContent = "Host";
+      top.appendChild(host);
+    }
+    if(idx === state.currentTurnIndex){
+      const turn = document.createElement("span");
+      turn.className = "turnPill";
+      turn.textContent = "Their turn";
+      top.appendChild(turn);
+    }
+    if(p.folded){
+      const folded = document.createElement("span");
+      folded.className = "foldedPill isFolded";
+      folded.textContent = "Folded";
+      top.appendChild(folded);
+    }
+    left.appendChild(top);
 
     const row2 = document.createElement("div");
     row2.className = "scoreRow scoreRowSplit";
@@ -4583,29 +4755,44 @@ function renderTrickArea(){
   if(!showFoldWin && state.lastCompletedTrick && state.lastTrickWinnerIndex !== null){
     summary = document.createElement("div");
     summary.className = "pill trick-winner";
-    const winner = state.players[state.lastTrickWinnerIndex]?.name ?? "-";
+    const winnerPlayer = state.players[state.lastTrickWinnerIndex];
+    const winner = winnerPlayer?.name ?? "-";
     // find the winning play so we can show the winning card visually
     const winningPlay = state.lastCompletedTrick.find(p => p.playerIndex === state.lastTrickWinnerIndex);
     const cardText = winningPlay ? `${RANK_LABEL[winningPlay.card.rank] ?? winningPlay.card.rank}${SUIT_ICON[winningPlay.card.suit]}` : '';
-
-    summary.innerHTML = `
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="miniCard winner">${cardText}</div>
-        <div style="display:flex;flex-direction:column">
-          <div class="label">Trick winner</div>
-          <strong>${winner}</strong>
-        </div>
-      </div>
-    `;
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "12px";
+    const mini = document.createElement("div");
+    mini.className = "miniCard winner";
+    mini.textContent = cardText;
+    const textWrap = document.createElement("div");
+    textWrap.style.display = "flex";
+    textWrap.style.flexDirection = "column";
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = "Trick winner";
+    const strong = document.createElement("strong");
+    strong.appendChild(createFlairNameSpan(winner, winnerPlayer?.flairId ?? null));
+    textWrap.appendChild(label);
+    textWrap.appendChild(strong);
+    row.appendChild(mini);
+    row.appendChild(textWrap);
+    summary.appendChild(row);
     infoRow.appendChild(summary);
     hasInfo = true;
   }
 
   if(showFoldWin){
-    const winnerName = state.players[state.foldWinIndex]?.name ?? "Player";
+    const winnerPlayer = state.players[state.foldWinIndex];
+    const winnerName = winnerPlayer?.name ?? "Player";
     const banner = document.createElement("div");
     banner.className = "pill";
-    banner.innerHTML = `<strong>${winnerName}</strong> won the hand because everyone folded.`;
+    const strong = document.createElement("strong");
+    strong.appendChild(createFlairNameSpan(winnerName, winnerPlayer?.flairId ?? null));
+    banner.appendChild(strong);
+    banner.appendChild(document.createTextNode(" won the hand because everyone folded."));
     infoRow.appendChild(banner);
     hasInfo = true;
   }
@@ -4646,7 +4833,7 @@ function renderTrickArea(){
         name.className = "small";
         name.style.textAlign = "center";
         name.style.marginTop = "6px";
-        name.textContent = p.name;
+        name.appendChild(createFlairNameSpan(p?.name ?? "Player", p?.flairId ?? null));
 
         slot.appendChild(face);
         slot.appendChild(name);
@@ -4668,15 +4855,23 @@ function renderTableHint(){
   if(!els.tableHint) return;
   const isMulti = isMultiplayer();
   const isSelfTurn = !isMulti || state.selfIndex === state.currentTurnIndex;
-  const currentName = state.players[state.currentTurnIndex]?.name ?? "Player";
-  let text = "";
+  const currentPlayer = state.players[state.currentTurnIndex];
+  const currentName = currentPlayer?.name ?? "Player";
+  let actionText = "";
   if(state.phase === PHASE.SWAP && !isSelfTurn){
-    text = `Waiting for ${currentName} to swap.`;
+    actionText = " to swap.";
   } else if(state.phase === PHASE.TRICK && !isSelfTurn){
-    text = `Waiting for ${currentName} to play.`;
+    actionText = " to play.";
   }
-  els.tableHint.textContent = text;
-  els.tableHint.style.display = text ? "block" : "none";
+  if(actionText){
+    els.tableHint.textContent = "";
+    els.tableHint.appendChild(document.createTextNode("Waiting for "));
+    els.tableHint.appendChild(createFlairNameSpan(currentName, currentPlayer?.flairId ?? null));
+    els.tableHint.appendChild(document.createTextNode(actionText));
+  } else {
+    els.tableHint.textContent = "";
+  }
+  els.tableHint.style.display = actionText ? "block" : "none";
 }
 function renderSwapSummary(){
   if(!els.swapSummary || !els.swapSummaryList) return;
@@ -4695,7 +4890,11 @@ function renderSwapSummary(){
     const item = document.createElement("div");
     item.className = "swapSummaryItem";
     const statusLabel = player.folded ? "FOLDED" : String(count);
-    item.innerHTML = `<span>${player.name}</span><span class="mono">${statusLabel}</span>`;
+    item.appendChild(createFlairNameSpan(player.name || "Player", player.flairId));
+    const status = document.createElement("span");
+    status.className = "mono";
+    status.textContent = statusLabel;
+    item.appendChild(status);
     els.swapSummaryList.appendChild(item);
   });
   if(!els.swapSummaryList.childNodes.length){
@@ -4886,11 +5085,13 @@ function renderHeaderPills(){
 
 function renderMeta(){
   if(state.players.length){
-    els.turnName.textContent = state.players[state.currentTurnIndex]?.name ?? "—";
-    els.dealerName.textContent = state.players[state.dealerIndex]?.name ?? "—";
+    const turnPlayer = state.players[state.currentTurnIndex];
+    const dealerPlayer = state.players[state.dealerIndex];
+    setFlairText(els.turnName, turnPlayer?.name ?? "—", turnPlayer?.flairId ?? null);
+    setFlairText(els.dealerName, dealerPlayer?.name ?? "—", dealerPlayer?.flairId ?? null);
   } else {
-    els.turnName.textContent = "—";
-    els.dealerName.textContent = "—";
+    if(els.turnName) els.turnName.textContent = "—";
+    if(els.dealerName) els.dealerName.textContent = "—";
   }
   els.trickNum.textContent = state.phase === PHASE.TRICK ? String(state.trickNumber) : "-";
   // deck count is shown in the deck visualizer; keep header pill clean
@@ -5229,6 +5430,21 @@ if(els.roomMenuBtn){
     toggleRoomMenu();
   });
 }
+if(els.profileMenuBtn){
+  els.profileMenuBtn.addEventListener("click", (e)=>{
+    e.preventDefault();
+    toggleProfileMenu();
+  });
+}
+if(els.profileMenu){
+  els.profileMenu.addEventListener("click", (e)=> e.stopPropagation());
+}
+if(els.flairPrevBtn){
+  els.flairPrevBtn.addEventListener("click", ()=> cycleFlair(-1));
+}
+if(els.flairNextBtn){
+  els.flairNextBtn.addEventListener("click", ()=> cycleFlair(1));
+}
 if(els.menuResetBtn){
   els.menuResetBtn.addEventListener("click", ()=>{
     closeRoomMenu();
@@ -5278,8 +5494,16 @@ document.addEventListener("click", (e)=>{
   if(els.roomMenuWrap.contains(e.target)) return;
   closeRoomMenu();
 });
+document.addEventListener("click", (e)=>{
+  if(!els.profileMenuWrap || !els.profileMenu) return;
+  if(els.profileMenuWrap.contains(e.target)) return;
+  closeProfileMenu();
+});
 document.addEventListener("keydown", (e)=>{
   if(e.key === "Escape") closeRoomMenu();
+});
+document.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape") closeProfileMenu();
 });
 
 els.revealBtn.addEventListener("click", ()=>{
@@ -5390,6 +5614,7 @@ const { updateAuthUI, bindAuthButtons } = createAuthController({
   updateRoomMenuUI,
   renderRoomList,
   updateRoomLobbyUI,
+  syncProfileFlairUI,
   hidePwaPrompt,
   firebaseAuth,
   googleProvider,
@@ -5627,6 +5852,7 @@ if(firebaseAuth){
     state.selfUid = user ? user.uid : null;
     state.selfName = user ? (user.displayName || (user.email ? user.email.split("@")[0] : "Player")) : null;
     state.selfNickname = null;
+    state.selfFlairId = "none";
     state.roomNicknames = {};
     state.lastRoomId = null;
     state.roomName = null;
@@ -5666,6 +5892,7 @@ if(firebaseAuth){
 resetAll();
 updateModeUI();
 updateAuthUI();
+syncProfileFlairUI();
 updateRoomStatus();
 if(supportsPush()) registerServiceWorker();
 initMessagingListeners();

@@ -28,10 +28,28 @@
         <div class="small"></div>
       </div>
     </div>
-    <div class="row2">
-      <div class="pill" id="phasePillWrap"><span>Phase:</span> <strong id="phasePill">LOBBY</strong></div>
-      <div class="pill" id="trumpPillWrap"><span>Trump:</span> <strong id="trumpPill">—</strong></div>
-      <div class="pill" id="leadPillWrap"><span>Lead suit:</span> <strong id="leadPill">—</strong></div>
+    <div class="headerActions">
+      <div class="row2">
+        <div class="pill" id="phasePillWrap"><span>Phase:</span> <strong id="phasePill">LOBBY</strong></div>
+        <div class="pill" id="trumpPillWrap"><span>Trump:</span> <strong id="trumpPill">—</strong></div>
+        <div class="pill" id="leadPillWrap"><span>Lead suit:</span> <strong id="leadPill">—</strong></div>
+      </div>
+      <div class="menuWrap" id="profileMenuWrap">
+        <button class="btn" id="profileMenuBtn" type="button" aria-expanded="false">Profile</button>
+        <div class="menu profileMenu" id="profileMenu" role="menu">
+          <div class="profileSection">
+            <div class="profileLabel">Username flair</div>
+            <div class="flairPicker" role="group" aria-label="Username flair">
+              <button class="btn" id="flairPrevBtn" type="button">Prev</button>
+              <div class="flairPreview">
+                <div class="flairPreviewLabel" id="flairLabel">None</div>
+                <div class="flairPreviewName flairName flair" id="flairPreviewName">Player</div>
+              </div>
+              <button class="btn" id="flairNextBtn" type="button">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   <div id="headerGreeting" class="small" style="margin-top:6px;display:none;"></div>

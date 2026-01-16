@@ -55,6 +55,14 @@
     .stack{display:flex; flex-direction:column; gap:10px;}
     .small{font-size:13px; color:var(--muted)}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;}
+    .flairName{
+      display:inline-block;
+      min-width:0;
+      max-width:100%;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
     .scoreboard{
       display:flex; flex-direction:column; gap:6px;
       --trickChipW: clamp(20px, 7vw, 38px);
@@ -371,6 +379,59 @@
       width:100%;
       font-size:13px;
       padding:8px 10px;
+    }
+    .headerActions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-left:auto;
+    }
+    .profileMenu{
+      min-width:260px;
+      padding:10px;
+      gap:10px;
+    }
+    .profileSection{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .profileLabel{
+      font-size:11px;
+      letter-spacing:.6px;
+      text-transform:uppercase;
+      font-weight:800;
+      color:var(--muted);
+    }
+    .flairPicker{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .flairPicker .btn{
+      padding:6px 10px;
+      font-size:12px;
+    }
+    .flairPreview{
+      flex:1;
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      padding:6px 8px;
+      border-radius:12px;
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.04);
+    }
+    .flairPreviewLabel{
+      font-size:11px;
+      color:var(--muted);
+    }
+    .flairPreviewName{
+      font-weight:900;
+      font-size:16px;
+      line-height:1.1;
     }
     .headerTapZone{
       position:absolute;
@@ -1331,6 +1392,7 @@
       align-items:center;
       justify-content:space-between;
       gap:8px;
+      min-width:0;
     }
     .roomListSection{ display:flex; flex-direction:column; gap:6px; }
     .roomList{ display:flex; flex-direction:column; gap:8px; }
@@ -1452,6 +1514,7 @@
       display:flex;
       flex-direction:column;
       gap:6px;
+      min-width:0;
     }
     .lobbyChatSlot{ margin-top:6px; }
     .roomLobbyTitle{ font-weight:800; }

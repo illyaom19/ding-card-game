@@ -13,6 +13,7 @@ export function createAuthController({
   updateRoomMenuUI,
   renderRoomList,
   updateRoomLobbyUI,
+  syncProfileFlairUI,
   hidePwaPrompt,
   firebaseAuth,
   googleProvider,
@@ -64,6 +65,7 @@ export function createAuthController({
     updateRoomMenuUI();
     renderRoomList();
     updateRoomLobbyUI();
+    if(syncProfileFlairUI) syncProfileFlairUI();
     if(!state.isSignedIn) hidePwaPrompt();
   }
 
