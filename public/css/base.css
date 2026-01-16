@@ -76,6 +76,7 @@
       grid-template-columns: 400px 1fr;
       gap:14px;
     }
+    .grid > section{ min-width:0; }
     @media (max-width: 960px){
       .grid{grid-template-columns: 1fr;}
     }
@@ -86,7 +87,7 @@
       box-shadow: var(--shadow);
       overflow:hidden;
     }
-    #gamePanel{ overflow: visible; }
+    #gamePanel{ overflow: visible; min-width:0; max-width:100%; }
     .panel .hd{
       padding:12px 14px;
       border-bottom:1px solid var(--stroke);

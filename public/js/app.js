@@ -2444,20 +2444,17 @@ function selectVoiceMimeType(){
 }
 
 function updateChatVoiceUI(){
-  const showPanel = state.chatVoiceRecording || !!state.chatVoiceDraft;
+  const isRecording = !!state.chatVoiceRecording;
+  const hasDraft = !!state.chatVoiceDraft;
+  const hasNotice = !!state.chatVoiceNotice;
+  const showPanel = isRecording || hasDraft;
   if(els.chatMicBtn){
-    els.chatMicBtn.classList.toggle("recording", !!state.chatVoiceRecording);
+    els.chatMicBtn.classList.toggle("recording", isRecording);
     els.chatMicBtn.disabled = !isMultiplayer() || !state.roomId;
   }
-  if(els.logCard){
-    els.logCard.classList.toggle("voiceChinOpen", showPanel);
-  }
-  if(els.logChin && els.chatVoiceActions && !els.logChin.contains(els.chatVoiceActions)){
-    els.logChin.appendChild(els.chatVoiceActions);
-  }
   if(!els.chatVoiceDraft) return;
-  const hasDraft = !!state.chatVoiceDraft;
   els.chatVoiceDraft.hidden = !showPanel;
+  els.chatVoiceDraft.classList.toggle("collapsed", !(isRecording || hasNotice));
   if(els.chatVoiceAudio){
     els.chatVoiceAudio.hidden = !hasDraft;
   }
