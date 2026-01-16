@@ -67,6 +67,8 @@ const CHAT_VOICE_MAX_SECONDS = 10;
 const CHAT_VOICE_MAX_BYTES = 700000;
 const CHAT_VOICE_TTL_MS = 30 * 60 * 1000;
 const CHAT_SCROLL_FUZZ = 12;
+const PRESENCE_UPDATE_MS = 10000;
+const PRESENCE_STALE_MS = 10000;
 // removed unused helper: clone()
 
 const state = {
@@ -112,6 +114,8 @@ const state = {
   roomResyncing: false,
   handResyncing: false,
   roomPresence: null,
+  roomPresenceTimestamps: null,
+  presenceHeartbeatTimer: null,
   isApplyingRemote: false,
   dealerIndex: 0,
   leaderIndex: 0,        // who leads the current trick
@@ -1923,6 +1927,7 @@ function leaveRoom(){
   if(state.unsubRoom){ state.unsubRoom(); state.unsubRoom = null; }
   if(state.unsubHand){ state.unsubHand(); state.unsubHand = null; }
   if(state.unsubLog){ state.unsubLog(); state.unsubLog = null; }
+  stopPresenceHeartbeat();
   state.roomId = null;
   state.roomName = null;
   state.hostUid = null;
@@ -1930,6 +1935,8 @@ function leaveRoom(){
   state.selfNickname = null;
   state.selfHand = [];
   state.players = [];
+  state.roomPresence = null;
+  state.roomPresenceTimestamps = null;
   state.logEntries = [];
   state.chatHasUnseen = false;
   state.lastChatCount = 0;
@@ -2037,6 +2044,11 @@ function applyRoomState(data){
       state.roomPresence = new Set(data.presence);
     } else {
       state.roomPresence = null;
+    }
+    if(data.presenceTimestamps && typeof data.presenceTimestamps === "object"){
+      state.roomPresenceTimestamps = data.presenceTimestamps;
+    } else {
+      state.roomPresenceTimestamps = null;
     }
     const eligibleUids = state.players.map(p => p.uid).filter(Boolean);
     const eligibleSet = new Set(eligibleUids);
@@ -2238,6 +2250,7 @@ function subscribeToRoom(roomId){
   state.roomSynced = false;
   state.roomResyncing = false;
   updateRoomStatus();
+  startPresenceHeartbeat();
   const ref = roomRef(roomId);
   state.unsubRoom = onSnapshot(ref, { includeMetadataChanges: true }, (snap)=>{
     const isStale = snap.metadata.fromCache && !snap.metadata.hasPendingWrites;
@@ -2294,6 +2307,56 @@ async function syncSelfHand(){
     state.handSynced = false;
     refreshHandFromServer().catch(()=>{});
   }
+}
+
+function getPresenceTimestampMillis(value){
+  if(!value) return null;
+  if(typeof value === "number") return value;
+  if(typeof value.toMillis === "function") return value.toMillis();
+  return null;
+}
+
+function isPlayerPresent(player){
+  if(!isMultiplayer()) return true;
+  if(!player) return false;
+  if(state.roomPresenceTimestamps && player.uid){
+    const millis = getPresenceTimestampMillis(state.roomPresenceTimestamps[player.uid]);
+    if(typeof millis === "number"){
+      return (Date.now() - millis) <= PRESENCE_STALE_MS;
+    }
+  }
+  if(state.roomPresence){
+    return !!player.uid && state.roomPresence.has(player.uid);
+  }
+  if("isPresent" in player) return !!player.isPresent;
+  return true;
+}
+
+async function updateSelfPresence(){
+  if(!isMultiplayer() || !state.roomId || !state.selfUid || !firebaseDb) return;
+  try{
+    await updateDoc(roomRef(state.roomId), {
+      [`presenceTimestamps.${state.selfUid}`]: serverTimestamp(),
+    });
+  } catch (err){
+    console.error("Failed to update presence timestamp:", err);
+  }
+}
+
+function stopPresenceHeartbeat(){
+  if(state.presenceHeartbeatTimer){
+    clearInterval(state.presenceHeartbeatTimer);
+    state.presenceHeartbeatTimer = null;
+  }
+}
+
+function startPresenceHeartbeat(){
+  stopPresenceHeartbeat();
+  if(!isMultiplayer() || !state.roomId || !state.selfUid || !firebaseDb) return;
+  updateSelfPresence();
+  state.presenceHeartbeatTimer = setInterval(()=>{
+    updateSelfPresence();
+  }, PRESENCE_UPDATE_MS);
 }
 
 function subscribeToLog(){
@@ -4415,9 +4478,7 @@ function renderScoreboard(){
     if(idx === state.currentTurnIndex) row.classList.add('activeTurn');
     const left = document.createElement("div");
     left.className = "playerInfo";
-    const isPresent = isMultiplayer()
-      ? (state.roomPresence ? (!!p.uid && state.roomPresence.has(p.uid)) : (p.isPresent ?? true))
-      : true;
+    const isPresent = isPlayerPresent(p);
     const presenceMark = `<span class="presenceDot ${isPresent ? "isPresent" : ""}" aria-hidden="true"></span>`;
     const turnMark = idx === state.currentTurnIndex ? '<span class="turnPill">Their turn</span>' : '';
     const dealerMark = idx === state.dealerIndex ? '<span class="dealerBadge">Dealer</span>' : '';
