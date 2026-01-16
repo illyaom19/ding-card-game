@@ -35,3 +35,7 @@ This repo is a static web app with optional Firebase Functions. Use this guide f
 
 ## Testing
 - There are no dedicated test scripts in this repo. If you run manual checks, document them in your PR summary.
+
+## Agent constraints
+- Never run tests.
+- Never take screenshots.

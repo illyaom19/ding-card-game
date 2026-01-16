@@ -2444,19 +2444,19 @@ function selectVoiceMimeType(){
 }
 
 function updateChatVoiceUI(){
+  const showPanel = state.chatVoiceRecording || !!state.chatVoiceDraft;
   if(els.chatMicBtn){
     els.chatMicBtn.classList.toggle("recording", !!state.chatVoiceRecording);
     els.chatMicBtn.disabled = !isMultiplayer() || !state.roomId;
   }
   if(els.logCard){
-    els.logCard.classList.toggle("voiceChinOpen", !!state.chatVoicePanelActivated);
+    els.logCard.classList.toggle("voiceChinOpen", showPanel);
   }
   if(els.logChin && els.chatVoiceActions && !els.logChin.contains(els.chatVoiceActions)){
     els.logChin.appendChild(els.chatVoiceActions);
   }
   if(!els.chatVoiceDraft) return;
   const hasDraft = !!state.chatVoiceDraft;
-  const showPanel = state.chatVoicePanelActivated;
   els.chatVoiceDraft.hidden = !showPanel;
   if(els.chatVoiceAudio){
     els.chatVoiceAudio.hidden = !hasDraft;
@@ -2495,7 +2495,6 @@ function setChatVoiceNotice(message, options = {}){
     updateChatVoiceUI();
     return;
   }
-  state.chatVoicePanelActivated = true;
   state.chatVoiceNotice = {
     message,
     isError: options.isError !== false,
@@ -2516,9 +2515,6 @@ function clearChatVoiceDraft(){
     els.chatVoiceAudio.src = "";
   }
   clearChatVoiceNotice();
-  if(!state.chatVoiceRecording){
-    state.chatVoicePanelActivated = false;
-  }
   updateChatVoiceUI();
 }
 
@@ -2537,10 +2533,14 @@ function cleanupChatVoiceRecording(){
   state.chatVoiceChunks = [];
 }
 
+function resetChatVoiceState(){
+  cleanupChatVoiceRecording();
+  clearChatVoiceDraft();
+}
+
 async function startChatVoiceRecording(){
   if(state.chatVoiceRecording) return;
   if(!isMultiplayer() || !state.roomId) return;
-  state.chatVoicePanelActivated = true;
   if(!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function" || typeof MediaRecorder === "undefined"){
     setChatVoiceNotice("Voice messages are not supported in this browser.");
     return;
@@ -2572,7 +2572,6 @@ async function startChatVoiceRecording(){
       const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
       cleanupChatVoiceRecording();
       if(!blob.size){
-        state.chatVoicePanelActivated = false;
         updateChatVoiceUI();
         return;
       }
@@ -2645,7 +2644,7 @@ async function sendChatVoiceMessage(){
       playerUid: state.selfUid || null,
       clientCreatedAt: Date.now(),
     });
-    clearChatVoiceDraft();
+    resetChatVoiceState();
   } catch (err){
     console.error("Failed to send voice message:", err);
     setChatVoiceNotice("Failed to send voice message.");
@@ -5570,14 +5569,13 @@ if(els.chatMicBtn){
       stopChatVoiceRecording();
       return;
     }
-    state.chatVoicePanelActivated = true;
     updateChatVoiceUI();
     startChatVoiceRecording();
   };
   els.chatMicBtn.addEventListener("click", toggleRecording);
 }
 if(els.chatVoiceDeleteBtn){
-  els.chatVoiceDeleteBtn.addEventListener("click", ()=>{ clearChatVoiceDraft(); });
+  els.chatVoiceDeleteBtn.addEventListener("click", ()=>{ resetChatVoiceState(); });
 }
 if(els.chatVoiceSendBtn){
   els.chatVoiceSendBtn.addEventListener("click", ()=>{ sendChatVoiceMessage(); });
