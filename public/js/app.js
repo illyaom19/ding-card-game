@@ -111,6 +111,7 @@ const state = {
   handSynced: false,
   roomResyncing: false,
   handResyncing: false,
+  roomPresence: null,
   isApplyingRemote: false,
   dealerIndex: 0,
   leaderIndex: 0,        // who leads the current trick
@@ -271,6 +272,7 @@ const els = {
   logCaret: document.getElementById("logCaret"),
   logList: document.getElementById("logList"),
   logHint: document.getElementById("logHint"),
+  logChin: document.getElementById("logChin"),
   chatBlock: document.getElementById("chatBlock"),
   chatList: document.getElementById("chatList"),
   chatHint: document.getElementById("chatHint"),
@@ -282,6 +284,7 @@ const els = {
   chatVoiceStatus: document.getElementById("chatVoiceStatus"),
   chatVoiceTimer: document.getElementById("chatVoiceTimer"),
   chatVoiceAudio: document.getElementById("chatVoiceAudio"),
+  chatVoiceActions: document.getElementById("chatVoiceActions"),
   chatVoiceDeleteBtn: document.getElementById("chatVoiceDeleteBtn"),
   chatVoiceSendBtn: document.getElementById("chatVoiceSendBtn"),
   playerMenu: document.getElementById("playerMenu"),
@@ -2024,9 +2027,17 @@ function applyRoomState(data){
             totalWins: p.totalWins || 0,
             hasSwapped: !!p.hasSwapped,
             folded: !!p.folded,
+            isPresent: ("isPresent" in p) ? !!p.isPresent : undefined,
           };
         })
       : state.players;
+    if(Array.isArray(data.presentUids)){
+      state.roomPresence = new Set(data.presentUids);
+    } else if(Array.isArray(data.presence)){
+      state.roomPresence = new Set(data.presence);
+    } else {
+      state.roomPresence = null;
+    }
     const eligibleUids = state.players.map(p => p.uid).filter(Boolean);
     const eligibleSet = new Set(eligibleUids);
     const rawVotes = Array.isArray(data.startVotes) ? data.startVotes : [];
@@ -2373,6 +2384,12 @@ function updateChatVoiceUI(){
   if(els.chatMicBtn){
     els.chatMicBtn.classList.toggle("recording", !!state.chatVoiceRecording);
     els.chatMicBtn.disabled = !isMultiplayer() || !state.roomId;
+  }
+  if(els.logCard){
+    els.logCard.classList.toggle("voiceChinOpen", !!state.chatVoicePanelActivated);
+  }
+  if(els.logChin && els.chatVoiceActions && !els.logChin.contains(els.chatVoiceActions)){
+    els.logChin.appendChild(els.chatVoiceActions);
   }
   if(!els.chatVoiceDraft) return;
   const hasDraft = !!state.chatVoiceDraft;
@@ -4398,15 +4415,20 @@ function renderScoreboard(){
     if(idx === state.currentTurnIndex) row.classList.add('activeTurn');
     const left = document.createElement("div");
     left.className = "playerInfo";
-    const turnMark = idx === state.currentTurnIndex ? '<span class="turnDot">&bull;</span>' : '';
+    const isPresent = isMultiplayer()
+      ? (state.roomPresence ? (!!p.uid && state.roomPresence.has(p.uid)) : (p.isPresent ?? true))
+      : true;
+    const presenceMark = `<span class="presenceDot ${isPresent ? "isPresent" : ""}" aria-hidden="true"></span>`;
+    const turnMark = idx === state.currentTurnIndex ? '<span class="turnPill">Their turn</span>' : '';
     const dealerMark = idx === state.dealerIndex ? '<span class="dealerBadge">Dealer</span>' : '';
     const hostMark = (state.hostUid && p.uid === state.hostUid) ? '<span class="hostBadge">Host</span>' : '';
     left.innerHTML = `
       <div class="playerTop">
-        ${turnMark}
+        ${presenceMark}
         <div class="name">${p.name}</div>
         ${dealerMark}
         ${hostMark}
+        ${turnMark}
       </div>
     `;
 
