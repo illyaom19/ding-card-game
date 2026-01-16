@@ -593,6 +593,17 @@
     /* deck visualizer removed */
     /* scoreboard highlights */
     .playerRow.activeTurn{ border-color: rgba(124,92,255,.45); box-shadow: 0 12px 30px rgba(124,92,255,.06); }
+    .presenceDot{
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      background: rgba(255,255,255,.35);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.1);
+    }
+    .presenceDot.isPresent{
+      background: var(--good);
+      box-shadow: 0 0 6px rgba(62,226,138,.6);
+    }
     .dealerBadge{ padding:4px 8px; border-radius:8px; background: rgba(255,215,130,.06); color:#ffdca8; font-size:12px; border:1px solid rgba(255,215,130,.06); margin-left:6px; }
     .hostBadge{
       padding:4px 10px;
@@ -605,7 +616,16 @@
       font-weight:700;
     }
     .roomBadgeRow .hostBadge{ margin-left:0; }
-    .turnDot{ color: var(--good); font-size:14px; margin-right:4px; font-weight:900; }
+    .turnPill{
+      padding:4px 10px;
+      border-radius:999px;
+      background: rgba(62,226,138,.2);
+      color:#c9ffe3;
+      font-size:11px;
+      border:1px solid rgba(62,226,138,.4);
+      margin-left:6px;
+      font-weight:700;
+    }
     /* raise the top-most mini-card more so it doesn't cover lower card text */
     .wonTrick .miniCard:last-child{ transform: translateY(-28px); z-index:2; box-shadow: 0 14px 24px rgba(0,0,0,.4); }
     .wonTricksRow{ display:flex; align-items:flex-start; gap:12px; margin-top:8px; }
@@ -873,6 +893,22 @@
     .logCard.collapsed .logCaret{ transform: rotate(-90deg); }
     .logBody{ padding:12px; display:block; }
     .logCard.collapsed .logBody{ display:none; }
+    .logChin{
+      display:flex;
+      justify-content:flex-end;
+      gap:8px;
+      padding:0 12px;
+      max-height:0;
+      overflow:hidden;
+      border-top:1px solid transparent;
+      background: rgba(255,255,255,.03);
+      transition: max-height .18s ease, padding .18s ease, border-color .18s ease;
+    }
+    .logCard.voiceChinOpen .logChin{
+      max-height:60px;
+      padding:10px 12px;
+      border-top:1px solid var(--stroke);
+    }
     .logList{
       max-height:240px;
       overflow-y:auto;
