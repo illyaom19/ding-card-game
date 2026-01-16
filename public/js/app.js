@@ -2436,6 +2436,9 @@ function clearChatVoiceDraft(){
     els.chatVoiceAudio.src = "";
   }
   clearChatVoiceNotice();
+  if(!state.chatVoiceRecording){
+    state.chatVoicePanelActivated = false;
+  }
   updateChatVoiceUI();
 }
 
@@ -2489,6 +2492,7 @@ async function startChatVoiceRecording(){
       const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || "audio/webm" });
       cleanupChatVoiceRecording();
       if(!blob.size){
+        state.chatVoicePanelActivated = false;
         updateChatVoiceUI();
         return;
       }
