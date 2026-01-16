@@ -2376,7 +2376,7 @@ function updateChatVoiceUI(){
   }
   if(!els.chatVoiceDraft) return;
   const hasDraft = !!state.chatVoiceDraft;
-  const showPanel = state.chatVoicePanelActivated && (state.chatVoiceRecording || hasDraft || !!state.chatVoiceNotice);
+  const showPanel = state.chatVoicePanelActivated;
   els.chatVoiceDraft.hidden = !showPanel;
   if(els.chatVoiceAudio){
     els.chatVoiceAudio.hidden = !hasDraft;
@@ -5482,6 +5482,7 @@ if(els.chatMicBtn){
       return;
     }
     state.chatVoicePanelActivated = true;
+    updateChatVoiceUI();
     startChatVoiceRecording();
   };
   els.chatMicBtn.addEventListener("click", toggleRecording);
